@@ -922,7 +922,7 @@ function PlanChecker({ apiKey }) {
       const content = await buildContent(files);
       const hdrs = {"Content-Type":"application/json"};
       if(apiKey) hdrs["x-api-key"]=apiKey;
-      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:PEC_SYSTEM_PROMPT,messages:[{role:"user",content}]})});
+      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:PEC_SYSTEM_PROMPT,messages:[{role:"user",content}]})});
       const data = await res.json();
       if(data.error) throw new Error(data.error.message||"API Error");
       const raw = data.content?.map(b=>b.text||"").join("");
@@ -1182,5 +1182,5 @@ export default function App() {
         </Card>
       </div>
     </div>
-  ); the app.jsx
+  );
 }
