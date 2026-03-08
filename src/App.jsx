@@ -96,6 +96,122 @@ const exportPDF = (result, findings) => {
   w.document.close(); setTimeout(()=>w.print(),400);
 };
 
+const exportRevisionPDF = (result, corrections, revNum) => {
+  const w = window.open("","_blank");
+  const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+  const revRows = corrections.map((c,i) => `
+    <tr style="page-break-inside:avoid">
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-weight:700;color:#6b7280;text-align:center;white-space:nowrap">REV-${String(i+1).padStart(2,"0")}</td>
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:11px;color:${{CRITICAL:"#dc2626",WARNING:"#d97706",INFO:"#2563eb"}[c.severity]};font-weight:700">${c.severity}</td>
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:12px;font-weight:600">${c.title}</td>
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:12px;color:#374151">${c.description}</td>
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:12px;background:#fefce8">${c.correctedValues||c.recommendation}</td>
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:12px;background:#f0fdf4;color:#15803d">${c.draftingInstruction||""}</td>
+      <td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:11px;color:#6b7280">${c.pecReference}</td>
+    </tr>`).join("");
+
+  const histRows = Array.from({length: revNum}, (_,i) => `
+    <tr>
+      <td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:700">Rev ${i+1}</td>
+      <td style="padding:6px 10px;border:1px solid #e5e7eb">${i+1 === revNum ? date : "—"}</td>
+      <td style="padding:6px 10px;border:1px solid #e5e7eb">${i+1 === revNum ? `PEC compliance corrections — ${corrections.length} item(s) addressed` : "Previous revision"}</td>
+      <td style="padding:6px 10px;border:1px solid #e5e7eb">Prepared by AI · For review by PEE</td>
+    </tr>`).join("");
+
+  w.document.write(`<!DOCTYPE html><html><head><title>Revision Report Rev ${revNum}</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;color:#111;font-size:13px}
+    .page{margin:40px;padding-bottom:40px}
+    h1{color:#1f2937;font-size:20px;margin-bottom:4px}
+    h2{color:#374151;font-size:14px;border-bottom:2px solid #f3f4f6;padding-bottom:6px;margin-top:28px}
+    table{border-collapse:collapse;width:100%}
+    th{background:#1f2937;color:#fff;padding:9px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+    .rev-badge{display:inline-block;background:#1f2937;color:#f59e0b;font-weight:800;font-size:18px;padding:6px 18px;border-radius:6px;letter-spacing:1px}
+    .title-block{border:2px solid #1f2937;border-radius:8px;padding:16px 20px;margin-bottom:24px}
+    .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+    .info-item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px}
+    .info-label{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#9ca3af;margin-bottom:2px}
+    .info-value{font-size:14px;font-weight:700;color:#111}
+    .legend{display:flex;gap:16px;margin:12px 0;font-size:11px}
+    .legend-item{display:flex;align-items:center;gap:6px}
+    .dot{width:12px;height:12px;border-radius:2px}
+    .footer{margin-top:40px;padding-top:12px;border-top:2px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between}
+    @media print{@page{margin:20mm} button{display:none}}
+  </style></head><body>
+  <div class="page">
+    <!-- Title Block -->
+    <div class="title-block">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:11px;color:#9ca3af;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Philippine Electrical Code 2017 Compliance</div>
+          <h1 style="margin:0 0 6px">⚡ Drawing Revision Report</h1>
+          <div style="font-size:13px;color:#6b7280">For Draftsman / CAD Operator Use</div>
+        </div>
+        <div style="text-align:right">
+          <div class="rev-badge">REV ${revNum}</div>
+          <div style="font-size:11px;color:#9ca3af;margin-top:6px">${date}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Info -->
+    <div class="info-grid">
+      <div class="info-item"><div class="info-label">Project Name</div><div class="info-value">${result.summary.projectName}</div></div>
+      <div class="info-item"><div class="info-label">Occupancy Type</div><div class="info-value">${result.summary.occupancyType}</div></div>
+      <div class="info-item"><div class="info-label">Total Corrections</div><div class="info-value">${corrections.length} items</div></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <strong style="font-size:11px">Legend:</strong>
+      <div class="legend-item"><div class="dot" style="background:#fefce8;border:1px solid #ca8a04"></div> Corrected Value</div>
+      <div class="legend-item"><div class="dot" style="background:#f0fdf4;border:1px solid #16a34a"></div> Drafting Instruction</div>
+    </div>
+
+    <!-- Corrections Table -->
+    <h2>Corrections for This Revision (${corrections.length} items)</h2>
+    <table>
+      <tr>
+        <th>Rev No.</th>
+        <th>Severity</th>
+        <th>Issue</th>
+        <th>Original Finding</th>
+        <th style="background:#92400e">Corrected Value</th>
+        <th style="background:#166534">Drafting Instruction</th>
+        <th>PEC Ref.</th>
+      </tr>
+      ${revRows}
+    </table>
+
+    <!-- Revision History -->
+    <h2>Revision History</h2>
+    <table>
+      <tr><th>Revision</th><th>Date</th><th>Description</th><th>Prepared By</th></tr>
+      ${histRows}
+    </table>
+
+    <!-- Notes -->
+    <div style="margin-top:24px;background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:14px 18px">
+      <div style="font-weight:700;font-size:13px;color:#92400e;margin-bottom:6px">📋 Instructions for Draftsman</div>
+      <ol style="margin:0;padding-left:18px;color:#78350f;font-size:12px;line-height:2">
+        <li>Apply all corrections listed in the table above to the drawing file</li>
+        <li>Update the revision block on the title sheet with Rev ${revNum} and date ${date}</li>
+        <li>Add revision clouds around all modified areas</li>
+        <li>Tag each revision cloud with the corresponding Rev No. (e.g. REV-01, REV-02)</li>
+        <li>Submit revised drawings to the Engineer-of-Record for review and signature</li>
+      </ol>
+    </div>
+
+    <div class="footer">
+      <span>⚠️ AI-generated revision report. All corrections must be verified by a licensed PEE before implementation.</span>
+      <span>Page 1 of 1 &nbsp;·&nbsp; PEC Compliance Suite</span>
+    </div>
+  </div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(), 500);
+};
+
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const T = {
   bg:     "#0f1117",
@@ -892,10 +1008,14 @@ function PlanChecker({ apiKey }) {
   const [files, setFiles]   = useState([]);
   const [busy, setBusy]     = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError]   = useState(null);
-  const [drag, setDrag]     = useState(false);
-  const [tab, setTab]       = useState("all");
-  const [open, setOpen]     = useState({});
+  const [error, setError]         = useState(null);
+  const [drag, setDrag]           = useState(false);
+  const [tab, setTab]             = useState("all");
+  const [open, setOpen]           = useState({});
+  const [checked, setChecked]     = useState({});
+  const [corrections, setCorrections] = useState(null);
+  const [correcting, setCorrecting]   = useState(false);
+  const [revNum, setRevNum]           = useState(1);
   const ref = useRef(null);
 
   const addFiles = useCallback(fs=>{
@@ -928,13 +1048,47 @@ function PlanChecker({ apiKey }) {
       const raw = data.content?.map(b=>b.text||"").join("");
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
-      setResult(parsed); setOpen({}); setTab("all");
+      setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
     } catch(e) { setError(e.message||"Analysis failed."); }
     finally { setBusy(false); }
   };
 
   const findings = result?.findings||[];
   const filtered = tab==="all" ? findings : findings.filter(f=>f.severity===tab);
+  const checkedCount = Object.values(checked).filter(Boolean).length;
+  const allChecked = findings.length > 0 && findings.every(f => checked[f.id]);
+
+  const toggleAll = () => {
+    if (allChecked) setChecked({});
+    else { const all={}; findings.forEach(f=>all[f.id]=true); setChecked(all); }
+  };
+
+  const generateCorrections = async () => {
+    const selected = findings.filter(f => checked[f.id]);
+    if (!selected.length) return;
+    setCorrecting(true); setCorrections(null);
+    try {
+      const hdrs = {"Content-Type":"application/json"};
+      if(apiKey) hdrs["x-api-key"]=apiKey;
+      const prompt = `You are a licensed PEE. For each finding below, generate specific drafting correction instructions for a CAD draftsman.
+
+Findings to correct:
+${selected.map((f,i)=>`${i+1}. [${f.severity}] ${f.title} — ${f.description} (${f.pecReference})`).join("\n")}
+
+Respond ONLY as valid JSON array (no markdown):
+[{"id":${selected[0]?.id},"title":"...","severity":"...","description":"...","pecReference":"...","recommendation":"...","correctedValues":"Specific corrected value e.g. Change wire from #12 AWG to #10 AWG, upgrade breaker from 20A to 30A","draftingInstruction":"Exact instruction for draftsman e.g. On Sheet E-2, Panel Schedule, revise circuit 3 wire size notation from #12 AWG THWN to #10 AWG THWN. Add revision cloud around affected area."}]
+
+Be very specific with corrected values and drafting instructions. Reference typical drawing sheet names (E-1, E-2, etc.).`;
+
+      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message||"API Error");
+      const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(raw);
+      setCorrections(parsed);
+    } catch(e) { alert("Could not generate corrections: "+e.message); }
+    finally { setCorrecting(false); }
+  };
 
   return (
     <div>
@@ -1031,21 +1185,38 @@ function PlanChecker({ apiKey }) {
           {/* Findings */}
           {findings.length>0 && (
             <div>
-              <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-                {["all","CRITICAL","WARNING","INFO"].map(t=>{
-                  const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;
-                  const active=tab===t;
-                  return <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${active?T.accent:T.border}`, background:active?T.accentDim:"transparent", color:active?T.accent:T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>{t==="all"?"All":t} ({cnt})</button>;
-                })}
+              {/* Filter tabs + Select All */}
+              <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {["all","CRITICAL","WARNING","INFO"].map(t=>{
+                    const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;
+                    const active=tab===t;
+                    return <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${active?T.accent:T.border}`, background:active?T.accentDim:"transparent", color:active?T.accent:T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>{t==="all"?"All":t} ({cnt})</button>;
+                  })}
+                </div>
+                <button onClick={toggleAll} style={{ padding:"7px 14px", borderRadius:8, border:`1.5px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                  {allChecked ? "☑ Deselect All" : "☐ Select All"}
+                </button>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+
+              {/* Finding cards with checkboxes */}
+              <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
                 {filtered.map(f=>{
                   const cfg=SEV_CFG[f.severity]||SEV_CFG.INFO;
                   const isOpen=open[f.id];
+                  const isChecked=!!checked[f.id];
                   return (
-                    <div key={f.id} style={{ background:cfg.bg, border:`1.5px solid ${cfg.border}`, borderRadius:12, overflow:"hidden" }}>
-                      <div onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))} style={{ padding:"13px 18px", cursor:"pointer", display:"flex", alignItems:"flex-start", gap:12 }}>
-                        <div style={{ flex:1, minWidth:0 }}>
+                    <div key={f.id} style={{ background:isChecked?`${cfg.bg}`:"rgba(255,255,255,0.01)", border:`1.5px solid ${isChecked?cfg.border:T.border}`, borderRadius:12, overflow:"hidden", transition:"all 0.15s" }}>
+                      <div style={{ padding:"13px 18px", display:"flex", alignItems:"flex-start", gap:12 }}>
+                        {/* Checkbox */}
+                        <div
+                          onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))}
+                          style={{ width:20, height:20, borderRadius:5, border:`2px solid ${isChecked?cfg.badge:T.muted}`, background:isChecked?cfg.badge:"transparent", cursor:"pointer", flexShrink:0, marginTop:2, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                        >
+                          {isChecked && <span style={{ color:"#fff", fontSize:12, fontWeight:800, lineHeight:1 }}>✓</span>}
+                        </div>
+                        {/* Content — click to expand */}
+                        <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>
                           <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:4, alignItems:"center" }}>
                             <span style={{ background:cfg.badge, color:"#fff", fontSize:10, fontWeight:800, padding:"2px 8px", borderRadius:4 }}>{f.severity}</span>
                             <span style={{ fontSize:11, color:T.muted, fontFamily:"monospace" }}>{f.pecReference}</span>
@@ -1053,10 +1224,10 @@ function PlanChecker({ apiKey }) {
                           </div>
                           <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{f.title}</div>
                         </div>
-                        <span style={{ color:T.muted, fontSize:12, marginTop:2, flexShrink:0 }}>{isOpen?"▲":"▼"}</span>
+                        <span style={{ color:T.muted, fontSize:12, marginTop:2, flexShrink:0, cursor:"pointer" }} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
                       </div>
                       {isOpen && (
-                        <div style={{ padding:"0 18px 16px", borderTop:`1px solid ${cfg.border}` }}>
+                        <div style={{ padding:"0 18px 16px 50px", borderTop:`1px solid ${cfg.border}` }}>
                           <div style={{ paddingTop:12, display:"flex", flexDirection:"column", gap:10 }}>
                             <div><Label>Finding</Label><div style={{ fontSize:13, color:T.muted, lineHeight:1.6 }}>{f.description}</div></div>
                             <div><Label>Recommendation</Label><div style={{ fontSize:13, color:T.success, lineHeight:1.6 }}>✓ {f.recommendation}</div></div>
@@ -1068,6 +1239,61 @@ function PlanChecker({ apiKey }) {
                   );
                 })}
               </div>
+
+              {/* Correction action bar */}
+              {checkedCount > 0 && (
+                <div style={{ background:T.accentDim, border:`1.5px solid rgba(245,158,11,0.3)`, borderRadius:12, padding:"16px 20px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, animation:"fadeIn 0.2s ease" }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:14, color:T.accent }}>{checkedCount} error{checkedCount>1?"s":""} selected for correction</div>
+                    <div style={{ fontSize:12, color:T.muted, marginTop:2 }}>AI will generate specific drafting instructions for each selected item</div>
+                  </div>
+                  <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <Label>Revision No.</Label>
+                      <input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{ width:60, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:8, padding:"6px 10px", color:T.text, fontSize:14, fontWeight:700, outline:"none", textAlign:"center" }}/>
+                    </div>
+                    <button onClick={generateCorrections} disabled={correcting} style={{ background:correcting?"rgba(245,158,11,0.3)":`linear-gradient(135deg,${T.accent},#f97316)`, border:"none", color:correcting?"#666":"#000", fontWeight:700, padding:"10px 20px", borderRadius:10, cursor:correcting?"not-allowed":"pointer", fontSize:13, transition:"all 0.2s" }}>
+                      {correcting ? "⚙️ Generating…" : "🤖 Generate Corrections"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Corrections result panel */}
+              {corrections && (
+                <div style={{ background:"rgba(16,185,129,0.05)", border:"1.5px solid rgba(16,185,129,0.25)", borderRadius:12, padding:20, marginBottom:16, animation:"fadeIn 0.3s ease" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
+                    <div>
+                      <div style={{ fontWeight:800, fontSize:15, color:T.success }}>✅ Corrections Generated — Rev {revNum}</div>
+                      <div style={{ fontSize:12, color:T.muted, marginTop:2 }}>{corrections.length} drafting instruction{corrections.length>1?"s":""} ready for your draftsman</div>
+                    </div>
+                    <button onClick={()=>exportRevisionPDF(result, corrections, revNum)} style={{ background:`linear-gradient(135deg,${T.success},#059669)`, border:"none", color:"#fff", fontWeight:700, padding:"10px 20px", borderRadius:10, cursor:"pointer", fontSize:13, boxShadow:"0 4px 14px rgba(16,185,129,0.3)" }}>
+                      📄 Download Revision PDF
+                    </button>
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                    {corrections.map((c,i)=>(
+                      <div key={c.id||i} style={{ background:T.dim, border:`1px solid ${T.border}`, borderRadius:10, padding:16 }}>
+                        <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8, flexWrap:"wrap" }}>
+                          <span style={{ background:"#1f2937", color:T.accent, fontSize:11, fontWeight:800, padding:"2px 10px", borderRadius:4, letterSpacing:"0.5px" }}>REV-{String(i+1).padStart(2,"0")}</span>
+                          <span style={{ fontSize:12, fontWeight:700, color:T.text }}>{c.title}</span>
+                          <span style={{ fontSize:11, color:T.muted, fontFamily:"monospace" }}>{c.pecReference}</span>
+                        </div>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                          <div style={{ background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:8, padding:"10px 12px" }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:T.accent, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4 }}>📐 Corrected Value</div>
+                            <div style={{ fontSize:13, color:T.text, lineHeight:1.6 }}>{c.correctedValues||c.recommendation}</div>
+                          </div>
+                          <div style={{ background:"rgba(16,185,129,0.07)", border:"1px solid rgba(16,185,129,0.2)", borderRadius:8, padding:"10px 12px" }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:T.success, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4 }}>✏️ Drafting Instruction</div>
+                            <div style={{ fontSize:13, color:T.text, lineHeight:1.6 }}>{c.draftingInstruction||"Apply correction as indicated"}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div style={{ marginTop:20, padding:"10px 16px", background:T.dim, borderRadius:10, fontSize:12, color:T.muted, lineHeight:1.5 }}>
@@ -1100,9 +1326,10 @@ const TABS = [
 ];
 
 export default function App() {
-  const [tab, setTab]       = useState("checker");
-  const [apiKey, setApiKey] = useState("");
+  const [tab, setTab]         = useState("checker");
+  const [apiKey, setApiKey]   = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [splash, setSplash]   = useState(true);
 
   return (
     <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif" }}>
@@ -1112,17 +1339,105 @@ export default function App() {
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes splashIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
         input::-webkit-inner-spin-button{-webkit-appearance:none}
       `}</style>
+
+      {/* ── SPLASH / WELCOME SCREEN ── */}
+      {splash && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:999,
+          background:"rgba(8,12,24,0.97)",
+          backdropFilter:"blur(12px)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          padding:24, animation:"fadeIn 0.4s ease"
+        }}>
+          <div style={{
+            background:T.card, border:`1px solid rgba(245,158,11,0.25)`,
+            borderRadius:24, padding:"44px 48px", maxWidth:520, width:"100%",
+            textAlign:"center", animation:"splashIn 0.45s ease",
+            boxShadow:"0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(245,158,11,0.1)"
+          }}>
+            {/* Logo */}
+            <div style={{
+              width:72, height:72, borderRadius:20, margin:"0 auto 20px",
+              background:`linear-gradient(135deg,${T.accent},#f97316)`,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:36, boxShadow:`0 8px 32px rgba(245,158,11,0.4)`
+            }}>⚡</div>
+
+            {/* App name */}
+            <div style={{ fontSize:11, color:T.muted, letterSpacing:"2px", textTransform:"uppercase", marginBottom:8 }}>Welcome to</div>
+            <h1 style={{ fontSize:28, fontWeight:800, color:T.text, letterSpacing:"-0.8px", marginBottom:6, lineHeight:1.1 }}>
+              PEC Compliance Suite
+            </h1>
+            <div style={{ fontSize:13, color:T.muted, marginBottom:28, lineHeight:1.6 }}>
+              PEC 2017 · FSIC RA 9514 · Philippine Green Building Code
+            </div>
+
+            {/* Divider */}
+            <div style={{ height:1, background:`linear-gradient(90deg,transparent,rgba(245,158,11,0.3),transparent)`, marginBottom:28 }}/>
+
+            {/* Developer credit */}
+            <div style={{
+              background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.18)",
+              borderRadius:14, padding:"18px 24px", marginBottom:28
+            }}>
+              <div style={{ fontSize:11, color:T.muted, letterSpacing:"0.8px", textTransform:"uppercase", marginBottom:10 }}>Developed by</div>
+              <div style={{ fontSize:26, fontWeight:800, color:T.accent, letterSpacing:"-0.5px", marginBottom:4 }}>Jon Ureta</div>
+              <div style={{ fontSize:12, color:T.muted, lineHeight:1.6 }}>
+                Electrical Engineer · Philippines<br/>
+                <span style={{ fontSize:11, color:"rgba(100,116,139,0.7)" }}>Built with AI to help Filipino engineers work faster</span>
+              </div>
+            </div>
+
+            {/* Feature list */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:28, textAlign:"left" }}>
+              {[
+                { icon:"🔍", label:"AI Plan Checker" },
+                { icon:"📉", label:"Voltage Drop Calc" },
+                { icon:"⚡", label:"Short Circuit Calc" },
+                { icon:"📊", label:"Load Calculator" },
+              ].map(f => (
+                <div key={f.label} style={{ display:"flex", alignItems:"center", gap:8, background:T.dim, borderRadius:8, padding:"8px 12px" }}>
+                  <span style={{ fontSize:16 }}>{f.icon}</span>
+                  <span style={{ fontSize:12, color:T.text, fontWeight:600 }}>{f.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Enter button */}
+            <button
+              onClick={() => setSplash(false)}
+              style={{
+                width:"100%", background:`linear-gradient(135deg,${T.accent},#f97316)`,
+                border:"none", color:"#000", fontWeight:800, fontSize:16,
+                padding:"14px", borderRadius:12, cursor:"pointer",
+                boxShadow:`0 8px 24px rgba(245,158,11,0.35)`,
+                letterSpacing:"-0.3px", transition:"all 0.2s"
+              }}
+              onMouseEnter={e => e.target.style.transform="translateY(-1px)"}
+              onMouseLeave={e => e.target.style.transform="translateY(0)"}
+            >
+              Get Started →
+            </button>
+
+            <div style={{ marginTop:14, fontSize:11, color:"rgba(100,116,139,0.5)" }}>
+              Free to use · Powered by Claude AI
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top bar */}
       <div style={{ background:"rgba(22,27,39,0.9)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, position:"sticky", top:0, zIndex:100 }}>
         <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }} onClick={()=>setSplash(true)}>
             <div style={{ width:34, height:34, borderRadius:9, background:`linear-gradient(135deg,${T.accent},#f97316)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, boxShadow:`0 4px 14px rgba(245,158,11,0.35)` }}>⚡</div>
             <div>
               <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PEC Compliance Suite</div>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:"0.6px" }}>PEC 2017 · FSIC RA 9514 · GREEN BUILDING CODE</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:"0.6px" }}>by Jon Ureta · PEC 2017 · FSIC RA 9514</div>
             </div>
           </div>
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
@@ -1136,7 +1451,6 @@ export default function App() {
                 cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s"
               }}>
                 <span>{t.icon}</span>
-                <span style={{ display:"none" }} className="nav-label">{t.label}</span>
                 <span>{t.label}</span>
               </button>
             ))}
@@ -1158,7 +1472,6 @@ export default function App() {
 
       {/* Page content */}
       <div style={{ maxWidth:1100, margin:"0 auto", padding:"28px 24px" }}>
-        {/* Page header */}
         <div style={{ marginBottom:24 }}>
           <h1 style={{ fontSize:"clamp(22px,3.5vw,32px)", fontWeight:800, letterSpacing:"-0.8px", color:T.text, marginBottom:4 }}>
             { tab==="checker" && "⚡ AI Electrical Plan Reviewer" }
@@ -1180,6 +1493,13 @@ export default function App() {
           { tab==="fault"   && <ShortCircuitCalc/> }
           { tab==="load"    && <LoadCalc/> }
         </Card>
+      </div>
+
+      {/* Footer */}
+      <div style={{ borderTop:`1px solid ${T.border}`, marginTop:40, padding:"20px 24px", textAlign:"center" }}>
+        <div style={{ fontSize:12, color:"rgba(100,116,139,0.5)" }}>
+          PEC Compliance Suite · Developed by <strong style={{ color:T.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
+        </div>
       </div>
     </div>
   );
