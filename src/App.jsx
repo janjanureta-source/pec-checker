@@ -1129,6 +1129,7 @@ function PlanChecker({ apiKey }) {
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
       setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      addHistoryEntry({ tool:"electrical", module:"electrical", projectName:parsed?.summary?.projectName||"Electrical Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     } catch(e) { setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
@@ -1482,6 +1483,7 @@ function StructuralChecker({ apiKey }) {
       const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed=JSON.parse(raw); } catch { throw new Error("Could not parse AI response."); }
       setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     } catch(e){ setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
@@ -2411,6 +2413,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
       let parsed1;
       try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed1);
+      addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, risk:parsed1?.summary?.contractorRisk, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.recommendation||"" } });
 
       // Comparison BOM
       if (mode === "compare" && bomFiles2.length) {
@@ -3221,6 +3224,16 @@ INSTRUCTIONS:
       try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed);
       setActiveTab("summary");
+      // ── Save to history ──
+      addHistoryEntry({
+        tool: "estimate",
+        module: "structural",
+        projectName: parsed?.project?.name || projectName || "Cost Estimate",
+        meta: {
+          totalHigh: parsed?.summary?.totalHigh,
+          summary: `${parsed?.project?.type||""} · ${parsed?.project?.finishLevel||""} · ${(parsed?.project?.estimatedGFA||0).toLocaleString()} sqm`,
+        }
+      });
     } catch(e) {
       setError(e.message || "Estimation failed. Please try again.");
     } finally {
@@ -3790,8 +3803,9 @@ INSTRUCTIONS:
 }
 
 // ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
-function StructiCode({ apiKey }) {
-  const [tool,setTool] = useState("bom");
+function StructiCode({ apiKey, initialTool }) {
+  const [tool,setTool] = useState(initialTool||"bom");
+  useEffect(() => { if(initialTool) setTool(initialTool); }, [initialTool]);
   const TOOLS = [
     {key:"bom",     icon:"📋", label:"BOM Review", badge:"⭐"},
     {key:"checker", icon:"🤖", label:"AI Plan Checker"},
@@ -3912,6 +3926,7 @@ function PlumbingChecker({ apiKey }) {
       const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed;try{parsed=JSON.parse(raw);}catch{throw new Error("Could not parse AI response.");}
       setResult(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
+      addHistoryEntry({ tool:"plumbing", module:"sanitary", projectName:parsed?.summary?.projectName||"Plumbing Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);setBusyMsg("");}
   };
   const findings=result?.findings||[];
@@ -4388,6 +4403,216 @@ function SaniCode({ apiKey }) {
     </div>
   );
 }
+
+
+// ─── HISTORY SYSTEM ──────────────────────────────────────────────────────────
+const HISTORY_KEY = "buildify_history";
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+}
+function saveHistory(entries) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, 200))); } catch {}
+}
+function addHistoryEntry(entry) {
+  const entries = loadHistory();
+  entries.unshift({ ...entry, id: Date.now().toString(), timestamp: new Date().toISOString() });
+  saveHistory(entries);
+  window.dispatchEvent(new Event("buildify_history_update"));
+}
+function deleteHistoryEntry(id) {
+  saveHistory(loadHistory().filter(e => e.id !== id));
+  window.dispatchEvent(new Event("buildify_history_update"));
+}
+function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+  window.dispatchEvent(new Event("buildify_history_update"));
+}
+
+// ─── DASHBOARD HOME ───────────────────────────────────────────────────────────
+function DashboardHome({ onNavigate }) {
+  const [history, setHistory] = useState(loadHistory());
+  const [activeModule, setActiveModule] = useState("all");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setHistory(loadHistory());
+    window.addEventListener("buildify_history_update", handler);
+    return () => window.removeEventListener("buildify_history_update", handler);
+  }, []);
+
+  const GOLD = "#f59e0b";
+  const fmtR = n => (+n||0).toLocaleString("en-PH", { maximumFractionDigits:0 });
+  const fmtDate = iso => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" }) + " · " +
+           d.toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" });
+  };
+
+  const MODULE_FILTERS = [
+    { v:"all",        l:"All",        color:"#94a3b8" },
+    { v:"structural", l:"🏗️ StructiCode", color:"#3b82f6" },
+    { v:"electrical", l:"⚡ ElectriCode", color:"#f59e0b" },
+    { v:"sanitary",   l:"🚿 SaniCode",    color:"#10b981" },
+  ];
+
+  const TOOL_META = {
+    bom:        { icon:"📋", label:"BOM Review",       module:"structural", color:"#3b82f6" },
+    estimate:   { icon:"💰", label:"Cost Estimator",   module:"structural", color:"#f59e0b" },
+    structural: { icon:"🤖", label:"Structural Check", module:"structural", color:"#3b82f6" },
+    seismic:    { icon:"🌍", label:"Seismic Load",     module:"structural", color:"#3b82f6" },
+    beam:       { icon:"📐", label:"Beam Design",      module:"structural", color:"#3b82f6" },
+    column:     { icon:"🏛️", label:"Column Design",   module:"structural", color:"#3b82f6" },
+    footing:    { icon:"🪨", label:"Footing Design",   module:"structural", color:"#3b82f6" },
+    slab:       { icon:"🔩", label:"Slab Design",      module:"structural", color:"#3b82f6" },
+    loads:      { icon:"📊", label:"Load Combos",      module:"structural", color:"#3b82f6" },
+    electrical: { icon:"🔍", label:"Electrical Check", module:"electrical", color:"#f59e0b" },
+    vdrop:      { icon:"📉", label:"Voltage Drop",     module:"electrical", color:"#f59e0b" },
+    fault:      { icon:"⚡", label:"Short Circuit",    module:"electrical", color:"#f59e0b" },
+    load:       { icon:"📊", label:"Load Calc",        module:"electrical", color:"#f59e0b" },
+    plumbing:   { icon:"🔍", label:"Plumbing Check",   module:"sanitary",   color:"#10b981" },
+    fixture:    { icon:"🚿", label:"Fixture Units",    module:"sanitary",   color:"#10b981" },
+    pipe:       { icon:"📏", label:"Pipe Sizing",      module:"sanitary",   color:"#10b981" },
+    septic:     { icon:"🪣", label:"Septic Tank",      module:"sanitary",   color:"#10b981" },
+    water:      { icon:"💧", label:"Water Demand",     module:"sanitary",   color:"#10b981" },
+    pressure:   { icon:"🔢", label:"Pressure Loss",    module:"sanitary",   color:"#10b981" },
+    storm:      { icon:"🌧️", label:"Storm Drainage",  module:"sanitary",   color:"#10b981" },
+  };
+
+  const filtered = activeModule === "all" ? history : history.filter(e => e.module === activeModule);
+
+  // Stats
+  const totalRuns    = history.length;
+  const bomReviews   = history.filter(e => e.tool === "bom").length;
+  const estimates    = history.filter(e => e.tool === "estimate").length;
+  const planChecks   = history.filter(e => ["electrical","structural","plumbing"].includes(e.tool)).length;
+  const totalSavings = history.filter(e => e.tool === "bom" && e.meta?.totalHigh).reduce((s,e) => s + (e.meta?.totalHigh||0), 0);
+  const totalEstimated = history.filter(e => e.tool === "estimate" && e.meta?.totalHigh).reduce((s,e) => s + (e.meta?.totalHigh||0), 0);
+
+  const QUICK_LAUNCH = [
+    { icon:"📋", label:"BOM Review",       sub:"Upload plan + BOM",         module:"structural", tool:"bom",       color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1", badge:"⭐ Flagship" },
+    { icon:"💰", label:"Cost Estimator",   sub:"Upload plan → estimate",    module:"structural", tool:"estimate",  color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"NEW" },
+    { icon:"🔍", label:"Electrical Check", sub:"PEC 2017 compliance",       module:"electrical", tool:"checker",   color:"#f59e0b", grad:"135deg,#fb923c,#ef4444" },
+    { icon:"🤖", label:"Structural Check", sub:"NSCP 2015 compliance",      module:"structural", tool:"checker",   color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1" },
+    { icon:"🚿", label:"Plumbing Check",   sub:"NPC 2000 compliance",       module:"sanitary",   tool:"checker",   color:"#10b981", grad:"135deg,#10b981,#059669" },
+    { icon:"📉", label:"Voltage Drop",     sub:"PEC wire sizing",           module:"electrical", tool:"vdrop",     color:"#f59e0b", grad:"135deg,#f59e0b,#f97316" },
+    { icon:"🌍", label:"Seismic Load",     sub:"NSCP zone & base shear",    module:"structural", tool:"seismic",   color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1" },
+    { icon:"💧", label:"Water Demand",     sub:"NPC fixture demand",        module:"sanitary",   tool:"water",     color:"#10b981", grad:"135deg,#10b981,#059669" },
+  ];
+
+  const RISK_COLOR = { "LOW":"#10b981","MEDIUM":"#f59e0b","HIGH":"#ef4444","DO NOT AWARD":"#dc2626" };
+  const STATUS_COLOR = { "COMPLIANT":"#10b981","COMPLIANT WITH WARNINGS":"#f59e0b","NON-COMPLIANT":"#ef4444" };
+
+  return (
+    <div style={{ animation:"fadeIn 0.3s ease" }}>
+      {/* Header */}
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-0.5px", marginBottom:4 }}>👋 Dashboard</div>
+        <div style={{ fontSize:13, color:T.muted }}>Your engineering workspace — recent activity, stats, and quick launch</div>
+      </div>
+
+      {/* Stats Row */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:24 }}>
+        {[
+          { icon:"🔢", label:"Total Runs",        value:totalRuns,                        color:"#94a3b8" },
+          { icon:"📋", label:"BOM Reviews",       value:bomReviews,                       color:"#3b82f6" },
+          { icon:"💰", label:"Estimates Made",    value:estimates,                        color:"#f59e0b" },
+          { icon:"🔍", label:"Plan Checks",       value:planChecks,                       color:"#8b5cf6" },
+          { icon:"🛡️", label:"BOM Value Caught", value:`₱${fmtR(totalSavings)}`,        color:"#10b981" },
+          { icon:"📐", label:"Est. Project Value",value:`₱${fmtR(totalEstimated)}`,      color:"#f97316" },
+        ].map(s => (
+          <div key={s.label} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px" }}>
+            <div style={{ fontSize:9, color:T.muted, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>{s.icon} {s.label}</div>
+            <div style={{ fontSize:20, fontWeight:900, color:s.color, fontFamily:"monospace", letterSpacing:"-0.5px" }}>{s.value || 0}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Launch */}
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>⚡ Quick Launch</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
+          {QUICK_LAUNCH.map(q => (
+            <button key={q.label} onClick={() => onNavigate(q.module, q.tool)}
+              style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", cursor:"pointer", textAlign:"left", transition:"all 0.15s", position:"relative", overflow:"hidden" }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=q.color;e.currentTarget.style.background=`rgba(${q.color==="#3b82f6"?"59,130,246":q.color==="#f59e0b"?"245,158,11":"16,185,129"},0.08)`;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.card;}}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:`linear-gradient(${q.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>{q.icon}</div>
+                <div style={{ fontWeight:800, fontSize:12, color:T.text }}>{q.label}</div>
+                {q.badge && <span style={{ fontSize:8, background:`rgba(245,158,11,0.15)`, color:GOLD, padding:"2px 5px", borderRadius:4, fontWeight:800 }}>{q.badge}</span>}
+              </div>
+              <div style={{ fontSize:10, color:T.muted, paddingLeft:36 }}>{q.sub}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* History */}
+      <div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px" }}>📂 History</div>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {MODULE_FILTERS.map(f => (
+              <button key={f.v} onClick={() => setActiveModule(f.v)}
+                style={{ padding:"4px 10px", borderRadius:7, border:`1.5px solid ${activeModule===f.v?f.color:T.border}`, background:activeModule===f.v?`rgba(100,116,139,0.15)`:"transparent", color:activeModule===f.v?f.color:T.muted, cursor:"pointer", fontSize:10, fontWeight:700 }}>
+                {f.l}
+              </button>
+            ))}
+            {history.length > 0 && (
+              showClearConfirm
+                ? <div style={{ display:"flex", gap:4 }}>
+                    <button onClick={() => { clearHistory(); setShowClearConfirm(false); }} style={{ padding:"4px 10px", borderRadius:7, border:"1px solid #ef4444", background:"rgba(239,68,68,0.1)", color:"#ef4444", cursor:"pointer", fontSize:10, fontWeight:700 }}>Confirm Clear</button>
+                    <button onClick={() => setShowClearConfirm(false)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>Cancel</button>
+                  </div>
+                : <button onClick={() => setShowClearConfirm(true)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>🗑️ Clear All</button>
+            )}
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"40px 24px", textAlign:"center" }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>📂</div>
+            <div style={{ fontWeight:700, color:T.text, marginBottom:6 }}>No history yet</div>
+            <div style={{ fontSize:12, color:T.muted }}>Run any tool above and your results will be saved here automatically</div>
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {filtered.map(entry => {
+              const meta = TOOL_META[entry.tool] || { icon:"🔧", label:entry.tool, color:"#94a3b8" };
+              return (
+                <div key={entry.id} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, transition:"all 0.15s" }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=meta.color}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                  <div style={{ width:34, height:34, borderRadius:9, background:`${meta.color}18`, border:`1.5px solid ${meta.color}40`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{meta.icon}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+                      <span style={{ fontWeight:800, fontSize:13, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.projectName || "Untitled Project"}</span>
+                      <span style={{ fontSize:9, background:`${meta.color}18`, color:meta.color, padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{meta.label}</span>
+                      {entry.meta?.risk && <span style={{ fontSize:9, background:`${RISK_COLOR[entry.meta.risk]||"#94a3b8"}18`, color:RISK_COLOR[entry.meta.risk]||"#94a3b8", padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{entry.meta.risk}</span>}
+                      {entry.meta?.status && <span style={{ fontSize:9, background:`${STATUS_COLOR[entry.meta.status]||"#94a3b8"}18`, color:STATUS_COLOR[entry.meta.status]||"#94a3b8", padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{entry.meta.status}</span>}
+                    </div>
+                    <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                      <span style={{ fontSize:10, color:T.muted }}>{fmtDate(entry.timestamp)}</span>
+                      {entry.meta?.totalHigh && <span style={{ fontSize:10, color:"#10b981", fontWeight:700, fontFamily:"monospace" }}>₱{fmtR(entry.meta.totalHigh)}</span>}
+                      {entry.meta?.findings && <span style={{ fontSize:10, color:T.muted }}>{entry.meta.findings} findings</span>}
+                      {entry.meta?.summary && <span style={{ fontSize:10, color:T.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:300 }}>{entry.meta.summary}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                    <button onClick={() => onNavigate(entry.module, entry.tool)} style={{ padding:"5px 10px", borderRadius:7, border:`1px solid ${meta.color}40`, background:`${meta.color}10`, color:meta.color, cursor:"pointer", fontSize:10, fontWeight:700 }}>Open Tool →</button>
+                    <button onClick={() => deleteHistoryEntry(entry.id)} style={{ padding:"5px 8px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>✕</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 const TABS = [
@@ -4917,8 +5142,15 @@ function LoginModal({ onClose, onSuccess }) {
 
 // ─── DASHBOARD (logged-in app) ────────────────────────────────────────────────
 function Dashboard({ user, onLogout }) {
-  const [module, setModule] = useState("structural");
+  const [module, setModule] = useState("home");
   const [etab,   setEtab]   = useState("checker");
+  const [structTool, setStructTool] = useState("bom");
+
+  const navigateTo = (mod, tool) => {
+    setModule(mod);
+    if (mod === "electrical" && tool) setEtab(tool === "checker" ? "checker" : tool);
+    if (mod === "structural" && tool) setStructTool(tool === "checker" ? "checker" : tool);
+  };
   const [apiKey, setApiKey] = useState(() => {
     const saved = localStorage.getItem("phen_key") || "";
     if (saved) { window.__PHEN_KEY__ = saved; }
@@ -4958,6 +5190,7 @@ function Dashboard({ user, onLogout }) {
           </div>
           {/* Module tabs */}
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+            <button onClick={() => setModule("home")} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 13px", borderRadius:8, border:`1px solid ${module==="home"?"#f59e0b66":T.border}`, background:module==="home"?"rgba(245,158,11,0.12)":"transparent", color:module==="home"?"#f59e0b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>🏠 Home</button>
             {TABS.map(t => (
               <button key={t.key} onClick={() => setModule(t.key)} style={{
                 display:"flex", alignItems:"center", gap:6, padding:"6px 13px", borderRadius:8,
@@ -5018,6 +5251,7 @@ function Dashboard({ user, onLogout }) {
 
       {/* Page content */}
       <div style={{ maxWidth:1100, margin:"0 auto", padding:"28px 24px" }}>
+        {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
         {module==="electrical" && (
           <>
             <div style={{ marginBottom:20 }}>
@@ -5054,7 +5288,7 @@ function Dashboard({ user, onLogout }) {
                 <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
               </div>
             </div>
-            <Card><StructiCode apiKey={apiKey}/></Card>
+            <Card><StructiCode apiKey={apiKey} initialTool={structTool}/></Card>
           </>
         )}
 
