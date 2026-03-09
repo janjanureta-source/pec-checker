@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── SVG ICON SYSTEM — Professional (Phosphor/Linear-grade) ────────────────
 const Icon = ({ name, size=16, color="currentColor", strokeWidth=1.6 }) => {
