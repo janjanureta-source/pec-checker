@@ -5579,7 +5579,7 @@ function Dashboard({ user, onLogout }) {
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                   {ETABS.map(t => (
                     <button key={t.key} onClick={() => setEtab(t.key)} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${etab===t.key?"#ff6b2b":T.border}`, background:etab===t.key?"rgba(255,107,43,0.1)":"transparent", color:etab===t.key?"#ff6b2b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>
-                      <Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span>
+                      <Icon name={t.icon||"report"} size={13} color={etab===t.key?"#ff6b2b":T.muted}/><span>{t.label}</span>
                     </button>
                   ))}
                 </div>
