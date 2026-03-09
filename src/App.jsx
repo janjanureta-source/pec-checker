@@ -2220,37 +2220,56 @@ function LoadCombinations() {
 }
 
 // ─── STRUCTICODE: BOM REVIEW ──────────────────────────────────────────────────
-const BOM_SYSTEM_PROMPT = `You are a senior Quantity Surveyor and Cost Estimator licensed in the Philippines with deep expertise in DPWH unit costs, Philippine construction materials pricing, and NSCP structural requirements. You validate Bills of Materials against engineering plans.
+const BOM_SYSTEM_PROMPT = `You are a senior Quantity Surveyor and Cost Estimator licensed in the Philippines with 20+ years of experience in residential, commercial, and government projects. You have deep expertise in DPWH unit costs, Philippine construction materials pricing, NSCP 2015, and current NCR market rates.
 
-Analyze the uploaded plan and draft BOM (if provided). Perform ALL of the following checks:
+You validate Bills of Materials against engineering plans.
 
-1. QUANTITY VALIDATION — Are item quantities consistent with what is shown in the plan? Flag over/under estimates.
-2. UNIT COST VALIDATION — Are unit costs realistic for current Philippine market rates (NCR/regional)? Flag items priced too high or suspiciously low.
-3. MISSING ITEMS — What materials visible in the plan are absent from the BOM?
-4. EXCESS ITEMS — What BOM line items appear to have no basis in the plan?
-5. MARKUP/CONTINGENCY — Flag if standard contingency (5–10%) and overhead are absent or unreasonable.
+COST REFERENCES:
+- PRIVATE projects: use current NCR market rates (2025). Rebar 10mm ~₱170/pc, 16mm ~₱410/pc. Ready-mix 3000psi ~₱6,500/m3. CHB 5in ~₱380/m2. Portland cement ~₱290/bag.
+- GOVERNMENT/DPWH projects: benchmark against DPWH Blue Book latest edition. Flag items that exceed allowable DPWH unit costs.
 
-Respond ONLY as valid JSON (no markdown, no preamble):
+Perform ALL of the following:
+1. QUANTITY VALIDATION — Are quantities consistent with the plan? Flag over/under.
+2. UNIT COST VALIDATION — Are unit costs realistic for the rate type? Flag high/low.
+3. MISSING ITEMS — Materials shown in plan but absent from BOM.
+4. EXCESS ITEMS — BOM items with no plan basis.
+5. MARKUP/OCM — Flag if contingency (5-10%), overhead (5-10%), and profit (8-15%) are absent or inadequate.
+6. DATE WARNING — If BOM date is detectable and appears older than 3 months, set bomDateWarning to a short warning string about price escalation risk.
+7. SCOPE COMPLETENESS — Score each trade 0-100 in tradeCompleteness.
+8. CONTRACTOR RISK — Based on severity of findings, underpricing, missing scope, and markup adequacy, set contractorRisk to: LOW, MEDIUM, HIGH, or DO NOT AWARD. Explain in contractorRiskReason (under 40 words).
+
+Respond ONLY as valid JSON (no markdown, no preamble, no backticks):
 {
   "summary": {
     "projectName": "string",
-    "projectType": "Residential|Commercial|Industrial|Infrastructure|Unknown",
+    "projectType": "Residential|Commercial|Industrial|Infrastructure|Government|Unknown",
+    "projectScope": "one-line scope description",
     "discipline": "Structural|Architectural|MEP|Civil|Mixed",
     "overallStatus": "NEEDS REVISION|ACCEPTABLE WITH NOTES|VALIDATED",
+    "contractorRisk": "LOW|MEDIUM|HIGH|DO NOT AWARD",
+    "contractorRiskReason": "under 40 words",
     "bomTotalEstimate": 0,
     "aiAdjustedEstimate": 0,
     "variancePercent": 0,
     "criticalCount": 0,
     "warningCount": 0,
     "infoCount": 0,
-    "notes": "brief overall assessment under 80 words"
+    "bomDateWarning": null,
+    "notes": "overall assessment under 80 words",
+    "tradeCompleteness": {
+      "structural": 0,
+      "architectural": 0,
+      "electrical": 0,
+      "plumbing": 0,
+      "civil": 0
+    }
   },
   "lineItems": [
     {
       "id": 1,
-      "category": "Concrete Works|Steel Works|Masonry|Formwork|Excavation|Waterproofing|Finishing|Electrical|Plumbing|Other",
+      "category": "Concrete Works|Steel Works|Masonry|Formwork|Roofing|Waterproofing|Finishing|Electrical|Plumbing|Civil|Other",
       "description": "item name",
-      "unit": "bag|kg|m²|m³|m|pc|lot|set",
+      "unit": "bag|kg|m2|m3|m|pc|lot|set",
       "qtyBOM": 0,
       "qtyAI": 0,
       "qtyStatus": "OK|OVER|UNDER|MISSING|EXCESS",
@@ -2259,11 +2278,11 @@ Respond ONLY as valid JSON (no markdown, no preamble):
       "costStatus": "OK|HIGH|LOW|UNKNOWN",
       "totalBOM": 0,
       "totalAI": 0,
-      "remarks": "specific finding in under 40 words"
+      "remarks": "specific finding under 40 words"
     }
   ],
   "missingItems": [
-    { "description": "item name", "category": "string", "estimatedQty": "approx qty + unit", "estimatedCost": 0, "basis": "where in plan" }
+    { "description": "item name", "category": "string", "estimatedQty": "approx qty + unit", "estimatedCost": 0, "basis": "where in plan", "priority": "CRITICAL|WARNING|INFO" }
   ],
   "excessItems": [
     { "description": "item name", "category": "string", "qtyBOM": 0, "unit": "string", "remarks": "why it appears excess" }
@@ -2275,22 +2294,28 @@ Respond ONLY as valid JSON (no markdown, no preamble):
     "overheadPercent": 0,
     "profitFound": false,
     "profitPercent": 0,
+    "vatStatus": "INCLUSIVE|EXCLUSIVE|NOT STATED",
     "recommendation": "under 60 words"
-  }
+  },
+  "priceEscalationWarning": null
 }`;
 
 function BOMReview({ apiKey }) {
-  const [planFiles, setPlanFiles]   = useState([]);
-  const [bomFiles,  setBomFiles]    = useState([]);
-  const [result,    setResult]      = useState(null);
-  const [busy,      setBusy]        = useState(false);
-  const [error,     setError]       = useState(null);
-  const [dragPlan,  setDragPlan]    = useState(false);
-  const [dragBom,   setDragBom]     = useState(false);
-  const [activeTab, setActiveTab]   = useState("summary");
-
-  // Margin controls — per category
-  const [margins, setMargins] = useState({
+  const [planFiles,     setPlanFiles]     = useState([]);
+  const [bomFiles,      setBomFiles]      = useState([]);
+  const [bomFiles2,     setBomFiles2]     = useState([]);
+  const [result,        setResult]        = useState(null);
+  const [compareResult, setCompareResult] = useState(null);
+  const [busy,          setBusy]          = useState(false);
+  const [error,         setError]         = useState(null);
+  const [dragPlan,      setDragPlan]      = useState(false);
+  const [dragBom,       setDragBom]       = useState(false);
+  const [dragBom2,      setDragBom2]      = useState(false);
+  const [activeTab,     setActiveTab]     = useState("summary");
+  const [mode,          setMode]          = useState("single");
+  const [projectType,   setProjectType]   = useState("private");
+  const [projectPreset, setProjectPreset] = useState("duplex_residential");
+  const [marginsState,  setMarginsState]  = useState({
     materials:   { label:"Materials",   pct:0  },
     labor:       { label:"Labor",       pct:0  },
     overhead:    { label:"Overhead",    pct:10 },
@@ -2298,554 +2323,666 @@ function BOMReview({ apiKey }) {
     profit:      { label:"Profit",      pct:10 },
   });
   const [showMargins, setShowMargins] = useState(false);
+  const [busyMsg,     setBusyMsg]     = useState("");
 
   const planRef = useRef(null);
   const bomRef  = useRef(null);
-
-  const addPlanFiles = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
-  const addBomFiles  = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
-
+  const bom2Ref = useRef(null);
   const STR = "#3b82f6";
-  const [busyMsg, setBusyMsg] = useState("");
-
-  // Yield to browser so UI can update between heavy operations
   const tick = () => new Promise(r => setTimeout(r, 0));
 
-  // Compute margin-adjusted total
+  const PROJECT_PRESETS = [
+    { value:"duplex_residential",  label:"Duplex / Townhouse Residence" },
+    { value:"single_residential",  label:"Single Detached House" },
+    { value:"condo",               label:"Condominium / Apartment Building" },
+    { value:"commercial_small",    label:"Commercial Building (Small)" },
+    { value:"commercial_large",    label:"Commercial Building (Large)" },
+    { value:"school",              label:"School / Educational Facility" },
+    { value:"barangay_hall",       label:"Barangay Hall / Gov't Building" },
+    { value:"warehouse",           label:"Warehouse / Industrial" },
+    { value:"road",                label:"Road / Pavement Works" },
+  ];
+
+  const RISK_COL = { "LOW":"#10b981","MEDIUM":"#f59e0b","HIGH":"#ef4444","DO NOT AWARD":"#dc2626" };
+  const RISK_BG  = { "LOW":"rgba(16,185,129,0.08)","MEDIUM":"rgba(245,158,11,0.08)","HIGH":"rgba(239,68,68,0.08)","DO NOT AWARD":"rgba(220,38,38,0.12)" };
+  const STATUS_COL = { "NEEDS REVISION":"#ef4444","ACCEPTABLE WITH NOTES":"#f59e0b","VALIDATED":"#10b981" };
+  const QTY_COL  = { OK:"#10b981",OVER:"#f59e0b",UNDER:"#ef4444",MISSING:"#8b5cf6",EXCESS:"#64748b" };
+  const COST_COL = { OK:"#10b981",HIGH:"#f59e0b",LOW:"#ef4444",UNKNOWN:"#64748b" };
+  const MISS_COL = { CRITICAL:"#ef4444",WARNING:"#f59e0b",INFO:"#3b82f6" };
+
+  const addPlanFiles  = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
+  const addBomFiles   = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
+  const addBomFiles2  = useCallback(fs => setBomFiles2(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
+
   const computeAdjusted = (base) => {
-    let v = base;
-    v *= (1 + margins.materials.pct   / 100);
-    v *= (1 + margins.labor.pct       / 100);
-    v *= (1 + margins.overhead.pct    / 100);
-    v *= (1 + margins.contingency.pct / 100);
-    v *= (1 + margins.profit.pct      / 100);
-    return v;
+    return base
+      * (1 + marginsState.materials.pct   / 100)
+      * (1 + marginsState.labor.pct       / 100)
+      * (1 + marginsState.overhead.pct    / 100)
+      * (1 + marginsState.contingency.pct / 100)
+      * (1 + marginsState.profit.pct      / 100);
+  };
+
+  const encodeFiles = async (fileList, role) => {
+    const blocks = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const fo = fileList[i];
+      setBusyMsg(`Reading ${role} file ${i+1}/${fileList.length}: ${fo.name}…`); await tick();
+      let b64;
+      if (fo.type.startsWith("image/")) {
+        setBusyMsg(`Compressing: ${fo.name}…`); await tick();
+        b64 = await compressImage(fo.file);
+        blocks.push({ type:"image", source:{ type:"base64", media_type:"image/jpeg", data:b64 } });
+      } else {
+        b64 = await toBase64(fo.file);
+        blocks.push({ type:"document", source:{ type:"base64", media_type:"application/pdf", data:b64 } });
+      }
+      blocks.push({ type:"text", text:`[${role}: ${fo.name}]` });
+    }
+    return blocks;
+  };
+
+  const buildContext = (extra) => {
+    const preset = PROJECT_PRESETS.find(p => p.value === projectPreset)?.label || projectPreset;
+    return `PROJECT CONTEXT:
+- Building Type: ${preset}
+- Rate Benchmark: ${projectType === "government" ? "GOVERNMENT / DPWH Blue Book rates — flag items exceeding allowable DPWH unit costs" : "PRIVATE — current NCR market rates (2025)"}
+${extra || ""}
+
+Return ONLY the JSON structure specified. No markdown, no explanation.`;
   };
 
   const run = async () => {
     if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
+    const allBom = [...bomFiles, ...bomFiles2];
+    const bad = allBom.find(f => !f.type.startsWith("image/") && f.type !== "application/pdf" && !f.name.match(/\.pdf$/i));
+    if (bad) { setError(`"${bad.name}" must be a PDF. In Excel: File → Save As → PDF, then re-upload.`); return; }
 
-    // Reject any non-PDF/image BOM files with a clear message
-    const badBom = bomFiles.find(f => !f.type.startsWith("image/") && f.type !== "application/pdf" && !f.name.match(/\.pdf$/i));
-    if (badBom) {
-      setError(`BOM file "${badBom.name}" must be a PDF. Please open your Excel file, go to File → Save As → PDF, then re-upload.`);
-      return;
-    }
-
-    const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
-    setBusy(true); setError(null); setResult(null);
+    setBusy(true); setError(null); setResult(null); setCompareResult(null);
     try {
-      const blocks = [];
+      const planBlocks = await encodeFiles(planFiles, "PLAN");
 
-      for (let i = 0; i < allFiles.length; i++) {
-        const fo = allFiles[i];
-        setBusyMsg(`📂 Reading file ${i + 1} of ${allFiles.length}: ${fo.name}…`);
-        await tick();
+      // Primary BOM
+      const bomBlocks1 = await encodeFiles(bomFiles, "BOM-PRIMARY");
+      const msg1 = [...planBlocks, ...bomBlocks1, { type:"text", text:buildContext() }];
+      setBusyMsg("AI reviewing BOM — quantities, costs, completeness…"); await tick();
+      const data1 = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{ role:"user", content:msg1 }], max_tokens:8000 });
+      const text1 = data1.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
+      let parsed1;
+      try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
+      setResult(parsed1);
 
-        let b64;
-        if (fo.type.startsWith("image/")) {
-          setBusyMsg(`🗜️ Compressing image: ${fo.name}…`);
-          await tick();
-          b64 = await compressImage(fo.file);
-          blocks.push({type:"image", source:{type:"base64",media_type:"image/jpeg",data:b64}});
-          blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
-        } else {
-          b64 = await toBase64(fo.file);
-          blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}});
-          blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
-        }
+      // Comparison BOM
+      if (mode === "compare" && bomFiles2.length) {
+        setBusyMsg("AI reviewing Revised BOM for comparison…"); await tick();
+        const bomBlocks2 = await encodeFiles(bomFiles2, "BOM-REVISED");
+        const msg2 = [...planBlocks, ...bomBlocks2, { type:"text", text:buildContext("This is a REVISED BOM submitted after initial review. Identify what improved, what was gamed (e.g. qty reduced without basis), and whether overall risk improved.") }];
+        const data2 = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{ role:"user", content:msg2 }], max_tokens:8000 });
+        const text2 = data2.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
+        let parsed2; try { parsed2 = JSON.parse(text2); } catch { parsed2 = null; }
+        setCompareResult(parsed2);
       }
 
-      blocks.push({ type:"text", text:`Validate the BOM data above against the plan. Apply Philippine market unit costs (2025 NCR rates as baseline). Return ONLY the JSON specified in your instructions.` });
-      setBusyMsg("🤖 AI is reviewing quantities, costs, and compliance…");
-      await tick();
-
-      const data = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
-      const raw  = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
-      let parsed; try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Try again."); }
-      setResult(parsed);
       setActiveTab("summary");
-    } catch(e) { setError(e.message || "Analysis failed."); }
-    finally { setBusy(false); setBusyMsg(""); }
+    } catch(e) {
+      setError(e.message || "Analysis failed. Please try again.");
+    } finally {
+      setBusy(false); setBusyMsg("");
+    }
   };
 
-    const fmt  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const fmt  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtN = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 
-  const STATUS_COL = { "NEEDS REVISION":"#ef4444", "ACCEPTABLE WITH NOTES":"#f59e0b", "VALIDATED":"#10b981" };
-  const QTY_COL   = { OK:"#10b981", OVER:"#f59e0b", UNDER:"#ef4444", MISSING:"#8b5cf6", EXCESS:"#64748b" };
-  const COST_COL  = { OK:"#10b981", HIGH:"#f59e0b", LOW:"#ef4444", UNKNOWN:"#64748b" };
+  const lineItems    = result?.lineItems     || [];
+  const missingItems = result?.missingItems  || [];
+  const excessItems  = result?.excessItems   || [];
+  const markup       = result?.markupAssessment;
+  const aiBase       = result?.summary?.aiAdjustedEstimate || 0;
+  const adjustedTotal= computeAdjusted(aiBase);
+  const bomTotal     = result?.summary?.bomTotalEstimate || 0;
+  const tradeScores  = result?.summary?.tradeCompleteness || {};
+  const risk         = result?.summary?.contractorRisk;
 
-  const lineItems     = result?.lineItems     || [];
-  const missingItems  = result?.missingItems  || [];
-  const excessItems   = result?.excessItems   || [];
-  const markup        = result?.markupAssessment;
-
-  const aiBase        = result?.summary?.aiAdjustedEstimate || 0;
-  const adjustedTotal = computeAdjusted(aiBase);
-  const bomTotal      = result?.summary?.bomTotalEstimate || 0;
-  const totalMarginPct= Object.values(margins).reduce((acc,m) => (1+acc/100)*(1+m.pct/100)*100-100, 0);
-
-  // Export to printable HTML
   const exportReport = () => {
     if (!result) return;
     const date = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
-    const mRows = Object.entries(margins).map(([k,m]) => `<tr><td>${m.label}</td><td style="text-align:right">${m.pct}%</td><td style="text-align:right">${fmt(aiBase*(m.pct/100))}</td></tr>`).join("");
-    const liRows = lineItems.map(li => `
-      <tr>
-        <td>${li.description}</td><td>${li.category}</td><td style="text-align:center">${li.unit}</td>
-        <td style="text-align:right">${fmtN(li.qtyBOM)}</td><td style="text-align:right">${fmtN(li.qtyAI)}</td>
-        <td style="text-align:center;color:${QTY_COL[li.qtyStatus]||"#64748b"};font-weight:700">${li.qtyStatus}</td>
-        <td style="text-align:right">${fmt(li.unitCostBOM)}</td><td style="text-align:right">${fmt(li.unitCostAI)}</td>
-        <td style="text-align:center;color:${COST_COL[li.costStatus]||"#64748b"};font-weight:700">${li.costStatus}</td>
-        <td style="text-align:right">${fmt(li.totalBOM)}</td><td style="text-align:right">${fmt(li.totalAI)}</td>
-        <td style="font-size:11px">${li.remarks}</td>
-      </tr>`).join("");
-    const missingRows = missingItems.map(m => `<tr><td>${m.description}</td><td>${m.category}</td><td>${m.estimatedQty}</td><td style="text-align:right">${fmt(m.estimatedCost)}</td><td>${m.basis}</td></tr>`).join("");
-    const excessRows  = excessItems.map(e => `<tr><td>${e.description}</td><td>${e.category}</td><td style="text-align:right">${fmtN(e.qtyBOM)} ${e.unit}</td><td>${e.remarks}</td></tr>`).join("");
-
+    const riskColor = RISK_COL[risk] || "#64748b";
+    const mRows = Object.entries(marginsState).map(([k,m]) =>
+      `<tr><td>${m.label}</td><td style="text-align:right">${m.pct}%</td><td style="text-align:right">${fmt(aiBase*(m.pct/100))}</td></tr>`).join("");
+    const liRows = lineItems.map(li =>
+      `<tr><td>${li.description}</td><td>${li.category}</td><td>${li.unit}</td><td style="text-align:right">${fmtN(li.qtyBOM)}</td><td style="text-align:right">${fmtN(li.qtyAI)}</td><td style="color:${QTY_COL[li.qtyStatus]||"#64748b"};font-weight:700;text-align:center">${li.qtyStatus}</td><td style="text-align:right">${fmt(li.unitCostBOM)}</td><td style="text-align:right">${fmt(li.unitCostAI)}</td><td style="color:${COST_COL[li.costStatus]||"#64748b"};font-weight:700;text-align:center">${li.costStatus}</td><td style="text-align:right">${fmt(li.totalBOM)}</td><td style="text-align:right">${fmt(li.totalAI)}</td><td style="font-size:11px">${li.remarks}</td></tr>`).join("");
+    const missRows = missingItems.map(m =>
+      `<tr><td><span style="color:${MISS_COL[m.priority||"WARNING"]};font-weight:700">${m.priority||"WARNING"}</span></td><td>${m.description}</td><td>${m.category}</td><td>${m.estimatedQty}</td><td style="text-align:right">${fmt(m.estimatedCost)}</td><td>${m.basis}</td></tr>`).join("");
+    const tradeRows = Object.entries(tradeScores).map(([t,s]) =>
+      `<tr><td style="text-transform:capitalize">${t}</td><td style="text-align:right;font-weight:700;color:${s>=80?"#16a34a":s>=50?"#d97706":"#dc2626"}">${s}%</td><td>${s>=80?"Complete":s>=50?"Incomplete":"Major Gaps"}</td></tr>`).join("");
     const w = window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><title>BOM Review Report — ${result.summary.projectName}</title>
+    w.document.write(`<!DOCTYPE html><html><head><title>BOM Review — ${result.summary.projectName}</title>
     <style>body{font-family:Arial,sans-serif;margin:40px;color:#111;font-size:12px}
     table{border-collapse:collapse;width:100%;margin-bottom:24px}
     th{background:#1e3a5f;color:#fff;padding:8px 6px;text-align:left;font-size:11px}
     td{padding:7px 6px;border-bottom:1px solid #e5e7eb;vertical-align:top}
-    tr:nth-child(even){background:#f9fafb}
-    h1{color:#1e3a5f;font-size:22px}h2{color:#1e3a5f;font-size:15px;margin:24px 0 10px;border-bottom:2px solid #e5e7eb;padding-bottom:4px}
-    .badge{display:inline-block;padding:4px 12px;border-radius:4px;font-weight:700;font-size:12px}
-    .total-row{background:#1e3a5f!important;color:#fff;font-weight:700}
-    .total-row td{color:#fff}
+    tr:nth-child(even) td{background:#f9fafb}
+    h1{color:#1e3a5f;font-size:22px}
+    h2{color:#1e3a5f;font-size:14px;margin:24px 0 8px;border-bottom:2px solid #e5e7eb;padding-bottom:4px}
+    .badge{display:inline-block;padding:3px 10px;border-radius:4px;font-weight:700;font-size:11px}
+    .total-row td{background:#1e3a5f!important;color:#fff!important;font-weight:700}
     @media print{button{display:none}}</style></head><body>
+    <button onclick="window.print()" style="float:right;padding:8px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Print / PDF</button>
     <h1>📋 BOM Review Report</h1>
-    <p style="color:#6b7280">Project: <strong>${result.summary.projectName}</strong> · ${result.summary.projectType} · ${result.summary.discipline} · ${date}</p>
-    <p>Overall Status: <span class="badge" style="background:${STATUS_COL[result.summary.overallStatus]}22;color:${STATUS_COL[result.summary.overallStatus]};border:1px solid ${STATUS_COL[result.summary.overallStatus]}44">${result.summary.overallStatus}</span></p>
-    <p style="color:#6b7280;margin-top:8px">${result.summary.notes}</p>
-
+    <p style="color:#6b7280">Project: <strong>${result.summary.projectName}</strong> &nbsp;·&nbsp; ${result.summary.projectType} &nbsp;·&nbsp; ${date}</p>
+    <p style="color:#6b7280;font-size:11px;margin-bottom:12px">${result.summary.projectScope||""}</p>
+    <table style="width:auto"><tr><th>Overall Status</th><td><span class="badge" style="background:${STATUS_COL[result.summary.overallStatus]}22;color:${STATUS_COL[result.summary.overallStatus]};border:1px solid ${STATUS_COL[result.summary.overallStatus]}">${result.summary.overallStatus}</span></td></tr>
+    <tr><th>Contractor Risk</th><td><span class="badge" style="background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}">${risk}</span> &nbsp; <span style="font-size:11px;color:#6b7280">${result.summary.contractorRiskReason||""}</span></td></tr></table>
+    <p style="color:#6b7280;font-size:12px;margin:8px 0 16px">${result.summary.notes}</p>
+    ${result.summary.bomDateWarning ? `<p style="color:#d97706;background:#fef3c7;padding:8px 12px;border-radius:4px;margin-bottom:8px">📅 ${result.summary.bomDateWarning}</p>` : ""}
+    ${result.priceEscalationWarning ? `<p style="color:#dc2626;background:#fee2e2;padding:8px 12px;border-radius:4px;margin-bottom:8px">📈 ${result.priceEscalationWarning}</p>` : ""}
     <h2>Cost Summary</h2>
-    <table><tr><th>Item</th><th style="text-align:right">Amount</th></tr>
+    <table style="width:360px"><tr><th>Item</th><th style="text-align:right">Amount</th></tr>
     <tr><td>BOM Submitted Total</td><td style="text-align:right">${fmt(bomTotal)}</td></tr>
-    <tr><td>AI Validated Base Cost</td><td style="text-align:right">${fmt(aiBase)}</td></tr>
+    <tr><td>AI Validated Base</td><td style="text-align:right">${fmt(aiBase)}</td></tr>
     ${mRows}
-    <tr class="total-row"><td><strong>ADJUSTED TOTAL (with margins)</strong></td><td style="text-align:right"><strong>${fmt(adjustedTotal)}</strong></td></tr>
-    </table>
-
-    <h2>Line Item Review (${lineItems.length} items)</h2>
-    <table><tr><th>Description</th><th>Category</th><th>Unit</th><th style="text-align:right">Qty BOM</th><th style="text-align:right">Qty AI</th><th>Qty Status</th><th style="text-align:right">Unit Cost BOM</th><th style="text-align:right">Unit Cost AI</th><th>Cost Status</th><th style="text-align:right">Total BOM</th><th style="text-align:right">Total AI</th><th>Remarks</th></tr>
+    <tr class="total-row"><td>ADJUSTED TOTAL (with margins)</td><td style="text-align:right">${fmt(adjustedTotal)}</td></tr></table>
+    ${tradeRows ? `<h2>Scope Completeness by Trade</h2><table style="width:400px"><tr><th>Trade</th><th>Score</th><th>Status</th></tr>${tradeRows}</table>` : ""}
+    <h2>Line Items (${lineItems.length})</h2>
+    <table><tr><th>Description</th><th>Category</th><th>Unit</th><th style="text-align:right">Qty BOM</th><th style="text-align:right">Qty AI</th><th>Qty</th><th style="text-align:right">UC BOM</th><th style="text-align:right">UC AI</th><th>Cost</th><th style="text-align:right">Total BOM</th><th style="text-align:right">Total AI</th><th>Remarks</th></tr>
     ${liRows}</table>
-
-    ${missingItems.length?`<h2>Missing Items (${missingItems.length})</h2><table><tr><th>Description</th><th>Category</th><th>Est. Qty</th><th style="text-align:right">Est. Cost</th><th>Basis (from plan)</th></tr>${missingRows}</table>`:""}
-    ${excessItems.length?`<h2>Excess Items (${excessItems.length})</h2><table><tr><th>Description</th><th>Category</th><th>BOM Qty</th><th>Remarks</th></tr>${excessRows}</table>`:""}
-
+    ${missingItems.length ? `<h2>Missing Items (${missingItems.length})</h2><table><tr><th>Priority</th><th>Description</th><th>Category</th><th>Est. Qty</th><th>Est. Cost</th><th>Plan Basis</th></tr>${missRows}</table>` : ""}
     <h2>Markup Assessment</h2>
-    <p>${markup?.recommendation||""}</p>
-    <p style="margin-top:24px;font-size:10px;color:#9ca3af">⚠️ AI-generated BOM review. All quantities and costs must be verified by a licensed Quantity Surveyor or Engineer before submission.</p>
-    <button onclick="window.print()" style="margin-top:12px;padding:10px 24px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Print / Save PDF</button>
+    <p style="font-style:italic;color:#6b7280">${markup?.recommendation||""}</p>
+    <p style="margin-top:28px;font-size:10px;color:#9ca3af">AI-assisted BOM review. All findings must be verified by a licensed QS or Engineer before submission. · PH Engineering Suite · Powered by Claude AI</p>
     </body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
+    w.document.close(); setTimeout(()=>w.print(), 400);
   };
 
-  // ── DROP ZONE component ──
-  const DropZone = ({ label, sublabel, files, onAdd, onRemove, dragState, setDrag, inputRef, icon }) => (
-    <div>
-      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
-        onDrop={e=>{e.preventDefault();setDrag(false);onAdd(e.dataTransfer.files)}}
-        onClick={()=>inputRef.current?.click()}
-        style={{border:`2px dashed ${dragState?STR:T.border}`,borderRadius:14,padding:"28px 20px",textAlign:"center",cursor:"pointer",background:dragState?"rgba(59,130,246,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:10}}>
-        <input ref={inputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>onAdd(e.target.files)} style={{display:"none"}}/>
-        <div style={{fontSize:28,marginBottom:8}}>{icon}</div>
-        <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{label}</div>
-        <div style={{color:T.muted,fontSize:11,marginBottom:12}}>{sublabel}</div>
-        <div style={{display:"inline-block",background:STR,color:"#fff",fontWeight:700,padding:"7px 18px",borderRadius:8,fontSize:12}}>Choose Files</div>
-      </div>
-      {files.length>0 && (
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {files.map(fo=>(
-            <div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"5px 10px",display:"flex",alignItems:"center",gap:6,maxWidth:220}}>
-              <span style={{fontSize:12}}>{fo.type?.startsWith("image")?"🖼️":fo.name.match(/\.pdf$/i)?"📄":"📊"}</span>
-              <span style={{fontSize:11,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
-              <button onClick={e=>{e.stopPropagation();onRemove(fo.id)}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:18,height:18,borderRadius:4,cursor:"pointer",fontSize:11,flexShrink:0}}>✕</button>
-            </div>
-          ))}
+  const DropZone = ({ label, sublabel, files, onAdd, onRemove, dragState, setDrag, inputRef, icon, accent }) => {
+    const c = accent || STR;
+    return (
+      <div>
+        <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
+          onDrop={e=>{e.preventDefault();setDrag(false);onAdd(e.dataTransfer.files)}} onClick={()=>inputRef.current?.click()}
+          style={{border:`2px dashed ${dragState?c:T.border}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",background:dragState?`${c}09`:"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:8}}>
+          <input ref={inputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>onAdd(e.target.files)} style={{display:"none"}}/>
+          <div style={{fontSize:22,marginBottom:5}}>{icon}</div>
+          <div style={{fontWeight:700,fontSize:12,color:T.text,marginBottom:3}}>{label}</div>
+          <div style={{color:T.muted,fontSize:10,marginBottom:9}}>{sublabel}</div>
+          <div style={{display:"inline-block",background:c,color:"#fff",fontWeight:700,padding:"5px 14px",borderRadius:7,fontSize:11}}>Choose Files</div>
         </div>
-      )}
-    </div>
-  );
+        {files.length > 0 && (
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {files.map(fo => (
+              <div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 8px",display:"flex",alignItems:"center",gap:5,maxWidth:200}}>
+                <span style={{fontSize:10}}>{fo.type?.startsWith("image/")?"🖼️":"📄"}</span>
+                <span style={{fontSize:10,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
+                <button onClick={e=>{e.stopPropagation();onRemove(fo.id)}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:16,height:16,borderRadius:3,cursor:"pointer",fontSize:10,flexShrink:0}}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <NoKeyBanner/>
-      {/* ── Upload panel ── */}
+
+      {/* ── Config + Upload Panel ── */}
       <Card>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
-          <div>
-            <Label style={{marginBottom:8,display:"block",color:STR}}>📐 Engineering Plans <span style={{color:T.danger}}>*</span></Label>
-            <DropZone label="Upload Plans" sublabel="PDF drawings · JPG / PNG images" files={planFiles}
-              onAdd={addPlanFiles} onRemove={id=>setPlanFiles(p=>p.filter(f=>f.id!==id))}
-              dragState={dragPlan} setDrag={setDragPlan} inputRef={planRef} icon="📐"/>
+        {/* Mode + Rate toggles */}
+        <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{display:"flex",gap:5}}>
+            {[{v:"single",l:"Single BOM"},{v:"compare",l:"🔄 Compare 2 BOMs"}].map(o=>(
+              <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?STR:T.border}`,background:mode===o.v?"rgba(59,130,246,0.12)":"transparent",color:mode===o.v?STR:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
+            ))}
           </div>
-          <div>
-            <Label style={{marginBottom:4,display:"block",color:"#f59e0b"}}>📋 Draft BOM <span style={{color:T.muted,fontWeight:400}}>(optional)</span></Label>
-            <div style={{fontSize:11,color:T.muted,marginBottom:8,lineHeight:1.5}}>
-              💡 PDF only — In Excel: <strong style={{color:T.text}}>File → Save As → PDF</strong>
-            </div>
-            <DropZone label="Upload BOM (PDF only)" sublabel="Convert Excel to PDF first · or image" files={bomFiles}
-              onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))}
-              dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋"/>
+          <div style={{display:"flex",gap:5,marginLeft:"auto"}}>
+            {[{v:"private",l:"🏠 Private / NCR Rates"},{v:"government",l:"🏛️ Gov't / DPWH Rates"}].map(o=>(
+              <button key={o.v} onClick={()=>setProjectType(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${projectType===o.v?"#f59e0b":T.border}`,background:projectType===o.v?"rgba(245,158,11,0.12)":"transparent",color:projectType===o.v?"#f59e0b":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
+            ))}
           </div>
         </div>
 
-        {/* ── Margin Controls ── */}
-        <div style={{marginBottom:16}}>
-          <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.15s"}}>
+        {/* Project Preset */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Project Type Preset</div>
+          <select value={projectPreset} onChange={e=>setProjectPreset(e.target.value)}
+            style={{background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 14px",color:T.text,fontSize:13,outline:"none",width:"100%",cursor:"pointer"}}>
+            {PROJECT_PRESETS.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+
+        {/* Upload zones */}
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="compare"?3:2},1fr)`,gap:12,marginBottom:14}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:STR,marginBottom:5}}>📐 Engineering Plans *</div>
+            <DropZone label="Upload Plans" sublabel="PDF · JPG · PNG" files={planFiles} onAdd={addPlanFiles} onRemove={id=>setPlanFiles(p=>p.filter(f=>f.id!==id))} dragState={dragPlan} setDrag={setDragPlan} inputRef={planRef} icon="📐" accent={STR}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",marginBottom:4}}>{mode==="compare"?"📋 BOM #1 — Original":"📋 Draft BOM"} <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
+            <div style={{fontSize:10,color:T.muted,marginBottom:5}}>💡 Excel → File → Save As → PDF first</div>
+            <DropZone label={mode==="compare"?"Original BOM (PDF)":"Upload BOM (PDF)"} sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#f59e0b"/>
+          </div>
+          {mode==="compare" && (
+            <div>
+              <div style={{fontSize:10,fontWeight:700,color:"#10b981",marginBottom:4}}>📋 BOM #2 — Revised <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
+              <div style={{fontSize:10,color:T.muted,marginBottom:5}}>💡 Contractor's revised / updated BOM</div>
+              <DropZone label="Revised BOM (PDF)" sublabel="PDF only" files={bomFiles2} onAdd={addBomFiles2} onRemove={id=>setBomFiles2(p=>p.filter(f=>f.id!==id))} dragState={dragBom2} setDrag={setDragBom2} inputRef={bom2Ref} icon="🔄" accent="#10b981"/>
+            </div>
+          )}
+        </div>
+
+        {/* Margin Controls */}
+        <div style={{marginBottom:14}}>
+          <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12,transition:"all 0.15s",width:"100%"}}>
             <span>⚙️</span>
             <span>Margin Controls</span>
-            <span style={{marginLeft:"auto",fontSize:12}}>{showMargins?"▲":"▼"}</span>
-            <span style={{background:STR+"22",color:STR,fontSize:11,padding:"2px 10px",borderRadius:6,fontWeight:800}}>
-              Total uplift: +{Object.values(margins).reduce((acc,m)=>acc+m.pct,0)}%
-            </span>
+            <span style={{marginLeft:"auto",fontSize:11}}>{showMargins?"▲":"▼"}</span>
+            <span style={{background:`${STR}22`,color:STR,fontSize:11,padding:"2px 10px",borderRadius:6,fontWeight:800}}>+{Object.values(marginsState).reduce((a,m)=>a+m.pct,0)}% total uplift</span>
           </button>
-
           {showMargins && (
-            <div style={{marginTop:10,background:"rgba(59,130,246,0.04)",border:`1.5px solid ${STR}33`,borderRadius:12,padding:18}}>
-              <div style={{fontSize:12,color:T.muted,marginBottom:14,lineHeight:1.6}}>
-                Set per-category margins applied on top of the AI-validated base cost. These are applied multiplicatively in order.
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-                {Object.entries(margins).map(([key,m])=>(
-                  <div key={key} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 14px"}}>
-                    <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:6,letterSpacing:"0.3px",textTransform:"uppercase"}}>{m.label}</div>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{marginTop:10,background:`rgba(59,130,246,0.04)`,border:`1.5px solid ${STR}33`,borderRadius:12,padding:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:9}}>
+                {Object.entries(marginsState).map(([key,m])=>(
+                  <div key={key} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:9,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>{m.label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
                       <input type="number" value={m.pct} min={0} max={100} step={0.5}
-                        onChange={e=>setMargins(p=>({...p,[key]:{...p[key],pct:+e.target.value}}))}
-                        style={{flex:1,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"8px 10px",color:T.text,fontSize:16,fontWeight:800,outline:"none",textAlign:"center"}}
+                        onChange={e=>setMarginsState(p=>({...p,[key]:{...p[key],pct:+e.target.value}}))}
+                        style={{flex:1,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:7,padding:"7px 8px",color:T.text,fontSize:14,fontWeight:800,outline:"none",textAlign:"center"}}
                         onFocus={e=>e.target.style.borderColor=STR} onBlur={e=>e.target.style.borderColor=T.border}/>
-                      <span style={{fontSize:18,fontWeight:800,color:STR}}>%</span>
+                      <span style={{fontSize:14,fontWeight:800,color:STR}}>%</span>
                     </div>
-                    {m.pct>0 && aiBase>0 && (
-                      <div style={{fontSize:11,color:T.muted,marginTop:6,textAlign:"right"}}>
-                        +{fmt(aiBase*(m.pct/100))}
-                      </div>
-                    )}
                   </div>
                 ))}
-              </div>
-              <div style={{marginTop:14,padding:"10px 14px",background:`${STR}10`,border:`1px solid ${STR}22`,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:13,color:T.muted}}>Combined multiplier</span>
-                <span style={{fontSize:16,fontWeight:800,color:STR}}>
-                  ×{Object.values(margins).reduce((acc,m)=>(acc*(1+m.pct/100)),1).toFixed(4)}
-                </span>
               </div>
             </div>
           )}
         </div>
 
-        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
+        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
 
-        <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"14px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
-          {busy ? (busyMsg || "⚙️ Processing…") : "📋 Run BOM Review"}
+        <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
+          {busy ? (busyMsg||"⚙️ Processing…") : mode==="compare" ? "📋 Run BOM Comparison Review" : "📋 Run BOM Review"}
         </button>
         {busy && (
-          <div style={{marginTop:10,background:"rgba(59,130,246,0.06)",border:`1px solid rgba(59,130,246,0.2)`,borderRadius:10,padding:"10px 16px",fontSize:12,color:"#3b82f6",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{marginTop:10,background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:10,padding:"10px 16px",fontSize:12,color:STR,display:"flex",alignItems:"center",gap:10}}>
             <span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⏳</span>
-            <span>{busyMsg || "Working…"}</span>
+            <span>{busyMsg||"Working…"}</span>
           </div>
         )}
-
-        {!planFiles.length && <div style={{textAlign:"center",fontSize:12,color:T.muted,marginTop:8}}>Upload at least one plan file to begin</div>}
+        {!planFiles.length && !busy && <div style={{textAlign:"center",fontSize:11,color:T.muted,marginTop:7}}>Upload at least one plan file to begin</div>}
       </Card>
 
-      {/* ── Results ── */}
+      {/* ── RESULTS ── */}
       {result && (
         <div style={{animation:"fadeIn 0.35s ease"}}>
 
-          {/* Summary bar */}
-          <Card style={{marginBottom:16,background:`${STATUS_COL[result.summary.overallStatus]}08`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
-              <div style={{flex:1,minWidth:220}}>
-                <div style={{fontSize:11,color:T.muted,marginBottom:4}}>PROJECT</div>
-                <div style={{fontWeight:800,fontSize:20,color:T.text,letterSpacing:"-0.5px"}}>{result.summary.projectName}</div>
-                <div style={{fontSize:12,color:T.muted,marginTop:2}}>{result.summary.projectType} · {result.summary.discipline}</div>
-                <div style={{marginTop:14,display:"flex",gap:20}}>
-                  <div><div style={{fontSize:22,fontWeight:800,color:"#ef4444"}}>{result.summary.criticalCount}</div><div style={{fontSize:10,color:T.muted}}>CRITICAL</div></div>
-                  <div><div style={{fontSize:22,fontWeight:800,color:"#f59e0b"}}>{result.summary.warningCount}</div><div style={{fontSize:10,color:T.muted}}>WARNINGS</div></div>
-                  <div><div style={{fontSize:22,fontWeight:800,color:"#10b981"}}>{result.summary.infoCount}</div><div style={{fontSize:10,color:T.muted}}>INFO</div></div>
-                  <div><div style={{fontSize:22,fontWeight:800,color:"#8b5cf6"}}>{missingItems.length}</div><div style={{fontSize:10,color:T.muted}}>MISSING</div></div>
-                  <div><div style={{fontSize:22,fontWeight:800,color:"#64748b"}}>{excessItems.length}</div><div style={{fontSize:10,color:T.muted}}>EXCESS</div></div>
+          {/* Summary header card */}
+          <Card style={{marginBottom:14,background:`${STATUS_COL[result.summary.overallStatus]}08`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:3}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:19,color:T.text,letterSpacing:"-0.5px"}}>{result.summary.projectName}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>{result.summary.projectType} · {result.summary.discipline}</div>
+                {result.summary.projectScope && <div style={{fontSize:10,color:T.muted,marginTop:2,fontStyle:"italic"}}>{result.summary.projectScope}</div>}
+                <div style={{marginTop:12,display:"flex",gap:16,flexWrap:"wrap"}}>
+                  {[{n:result.summary.criticalCount,l:"CRITICAL",c:"#ef4444"},{n:result.summary.warningCount,l:"WARNINGS",c:"#f59e0b"},{n:missingItems.length,l:"MISSING",c:"#8b5cf6"},{n:excessItems.length,l:"EXCESS",c:"#64748b"}].map(s=>(
+                    <div key={s.l}><div style={{fontSize:22,fontWeight:800,color:s.c}}>{s.n}</div><div style={{fontSize:9,color:T.muted}}>{s.l}</div></div>
+                  ))}
                 </div>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:260}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div style={{background:T.dim,borderRadius:10,padding:"12px 14px",textAlign:"right"}}>
-                    <div style={{fontSize:10,color:T.muted,marginBottom:2}}>BOM SUBMITTED</div>
-                    <div style={{fontSize:16,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:240}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>BOM SUBMITTED</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</div>
                   </div>
-                  <div style={{background:T.dim,borderRadius:10,padding:"12px 14px",textAlign:"right"}}>
-                    <div style={{fontSize:10,color:T.muted,marginBottom:2}}>AI BASE COST</div>
-                    <div style={{fontSize:16,fontWeight:800,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</div>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>AI BASE</div>
+                    <div style={{fontSize:14,fontWeight:800,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</div>
                   </div>
                 </div>
-                <div style={{background:`${STR}12`,border:`1.5px solid ${STR}44`,borderRadius:10,padding:"14px 16px",textAlign:"right"}}>
-                  <div style={{fontSize:10,color:T.muted,marginBottom:2}}>ADJUSTED TOTAL (with margins)</div>
-                  <div style={{fontSize:22,fontWeight:900,color:STR,fontFamily:"monospace",letterSpacing:"-0.5px"}}>{fmt(adjustedTotal)}</div>
-                  {bomTotal>0 && <div style={{fontSize:11,color:T.muted,marginTop:2}}>
-                    {adjustedTotal>bomTotal
-                      ? <span style={{color:"#ef4444"}}>▲ {((adjustedTotal/bomTotal-1)*100).toFixed(1)}% vs submitted</span>
-                      : <span style={{color:"#10b981"}}>▼ {((1-adjustedTotal/bomTotal)*100).toFixed(1)}% vs submitted</span>}
+                <div style={{background:`${STR}12`,border:`1.5px solid ${STR}44`,borderRadius:9,padding:"11px 14px",textAlign:"right"}}>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:2}}>ADJUSTED TOTAL (with margins)</div>
+                  <div style={{fontSize:20,fontWeight:900,color:STR,fontFamily:"monospace"}}>{fmt(adjustedTotal)}</div>
+                  {bomTotal>0 && <div style={{fontSize:10,color:adjustedTotal>bomTotal?"#ef4444":"#10b981",marginTop:2}}>
+                    {adjustedTotal>bomTotal?`▲ ${((adjustedTotal/bomTotal-1)*100).toFixed(1)}% vs submitted`:`▼ ${((1-adjustedTotal/bomTotal)*100).toFixed(1)}% vs submitted`}
                   </div>}
                 </div>
-                <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
-                  <div style={{fontSize:10,color:T.muted,marginBottom:2}}>STATUS</div>
+                {risk && (
+                  <div style={{background:RISK_BG[risk],border:`1.5px solid ${RISK_COL[risk]}44`,borderRadius:9,padding:"10px 14px"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:3}}>CONTRACTOR RISK</div>
+                    <div style={{fontSize:14,fontWeight:900,color:RISK_COL[risk],letterSpacing:"0.3px"}}>{risk}</div>
+                    <div style={{fontSize:10,color:T.muted,marginTop:3,lineHeight:1.4}}>{result.summary.contractorRiskReason}</div>
+                  </div>
+                )}
+                <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:9,padding:"8px 14px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:2}}>OVERALL STATUS</div>
                   <div style={{fontSize:12,fontWeight:800,color:STATUS_COL[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
                 </div>
               </div>
             </div>
-            <div style={{marginTop:14,fontSize:13,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.notes}</div>
+            {(result.summary.bomDateWarning || result.priceEscalationWarning) && (
+              <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:6}}>
+                {result.summary.bomDateWarning && <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#f59e0b"}}>📅 {result.summary.bomDateWarning}</div>}
+                {result.priceEscalationWarning  && <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444"}}>📈 {result.priceEscalationWarning}</div>}
+              </div>
+            )}
+            <div style={{marginTop:12,fontSize:12,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.notes}</div>
           </Card>
 
           {/* Tab nav */}
-          <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
               {[
-                {k:"summary",  l:"📊 Cost Breakdown"},
-                {k:"lineitems",l:`📋 Line Items (${lineItems.length})`},
-                {k:"missing",  l:`🔴 Missing (${missingItems.length})`},
-                {k:"excess",   l:`🟡 Excess (${excessItems.length})`},
-                {k:"markup",   l:"⚙️ Markup"},
+                {k:"summary",   l:"📊 Cost Breakdown"},
+                {k:"scope",     l:"📈 Scope Scores"},
+                {k:"lineitems", l:`📋 Line Items (${lineItems.length})`},
+                {k:"missing",   l:`🔴 Missing (${missingItems.length})`},
+                {k:"excess",    l:`🟡 Excess (${excessItems.length})`},
+                {k:"markup",    l:"⚙️ Markup"},
+                ...(compareResult ? [{k:"compare",l:"🔄 Compare"}] : []),
               ].map(t=>(
-                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?STR:T.border}`,background:activeTab===t.k?"rgba(59,130,246,0.12)":"transparent",color:activeTab===t.k?STR:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
-                  {t.l}
-                </button>
+                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?STR:T.border}`,background:activeTab===t.k?"rgba(59,130,246,0.12)":"transparent",color:activeTab===t.k?STR:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
               ))}
             </div>
-            <button onClick={exportReport} style={{background:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:"#fff",fontWeight:700,padding:"8px 18px",borderRadius:10,cursor:"pointer",fontSize:12}}>
-              📄 Export Report PDF
-            </button>
+            <button onClick={exportReport} style={{background:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:"#fff",fontWeight:700,padding:"7px 16px",borderRadius:9,cursor:"pointer",fontSize:11}}>📄 Export Report</button>
           </div>
 
-          {/* ── COST BREAKDOWN TAB ── */}
+          {/* COST BREAKDOWN */}
           {activeTab==="summary" && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
               <Card>
                 <Label>Cost Components</Label>
-                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:T.dim,borderRadius:8}}>
-                    <span style={{fontSize:13,color:T.muted}}>BOM Submitted</span>
-                    <span style={{fontSize:14,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}>
-                    <span style={{fontSize:13,color:T.muted}}>AI Validated Base</span>
-                    <span style={{fontSize:14,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span>
-                  </div>
-                  <div style={{height:1,background:T.border,margin:"4px 0"}}/>
-                  {Object.entries(margins).map(([k,m])=>{
-                    const add = aiBase*(m.pct/100);
-                    return m.pct>0 ? (
-                      <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}>
-                        <span style={{fontSize:13,color:T.muted}}>{m.label} (+{m.pct}%)</span>
-                        <span style={{fontSize:13,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(add)}</span>
-                      </div>
-                    ) : null;
-                  })}
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"12px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}>
-                    <span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span>
-                    <span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{fmt(adjustedTotal)}</span>
-                  </div>
+                <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span></div>
+                  <div style={{height:1,background:T.border}}/>
+                  {Object.entries(marginsState).map(([k,m])=>m.pct>0?(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",background:T.dim,borderRadius:7}}><span style={{fontSize:12,color:T.muted}}>{m.label} +{m.pct}%</span><span style={{fontSize:12,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(aiBase*(m.pct/100))}</span></div>
+                  ):null)}
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"11px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}><span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span><span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{fmt(adjustedTotal)}</span></div>
                 </div>
               </Card>
               <Card>
                 <Label>Variance Analysis</Label>
-                <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
-                  {[
-                    {l:"BOM vs AI Base",    a:bomTotal,   b:aiBase},
-                    {l:"BOM vs Adjusted",   a:bomTotal,   b:adjustedTotal},
-                    {l:"AI Base vs Adjusted", a:aiBase,   b:adjustedTotal},
-                  ].map(r=>{
-                    const diff = r.b - r.a;
-                    const pct  = r.a ? (diff/r.a*100) : 0;
-                    const col  = diff>0?"#ef4444":diff<0?"#10b981":"#64748b";
-                    return (
-                      <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:T.dim,borderRadius:10}}>
-                        <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
-                        <div style={{textAlign:"right"}}>
-                          <div style={{fontSize:14,fontWeight:800,color:col,fontFamily:"monospace"}}>{diff>=0?"+":""}{fmt(diff)}</div>
-                          <div style={{fontSize:11,color:col}}>{pct>=0?"+":""}{pct.toFixed(1)}%</div>
-                        </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
+                  {[{l:"BOM vs AI Base",a:bomTotal,b:aiBase},{l:"BOM vs Adjusted",a:bomTotal,b:adjustedTotal},{l:"AI Base vs Adjusted",a:aiBase,b:adjustedTotal}].map(r=>{
+                    const diff=r.b-r.a; const pct=r.a?(diff/r.a*100):0; const col=diff>0?"#ef4444":diff<0?"#10b981":"#64748b";
+                    return (<div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:T.dim,borderRadius:9}}>
+                      <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:14,fontWeight:800,color:col,fontFamily:"monospace"}}>{diff>=0?"+":""}{fmt(diff)}</div>
+                        <div style={{fontSize:10,color:col}}>{pct>=0?"+":""}{pct.toFixed(1)}%</div>
                       </div>
-                    );
+                    </div>);
                   })}
-                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>
-                    Positive = Adjusted is higher than BOM · Negative = Adjusted is lower
-                  </div>
                 </div>
               </Card>
             </div>
           )}
 
-          {/* ── LINE ITEMS TAB ── */}
+          {/* SCOPE COMPLETENESS */}
+          {activeTab==="scope" && (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <Card>
+                <Label>Trade Completeness Scores</Label>
+                <div style={{fontSize:12,color:T.muted,marginTop:4,marginBottom:16,lineHeight:1.5}}>How complete is the BOM for each trade based on what is shown in the plan. Missing scope, unpriced items, and unexplained omissions reduce the score.</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {Object.entries(tradeScores).map(([trade,score])=>{
+                    const col = score>=80?"#10b981":score>=50?"#f59e0b":"#ef4444";
+                    const lbl = score>=80?"Complete":score>=50?"Incomplete":"Major Gaps";
+                    return (
+                      <div key={trade} style={{background:T.dim,borderRadius:12,padding:"14px 16px"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                          <span style={{fontWeight:700,fontSize:14,color:T.text,textTransform:"capitalize"}}>{trade}</span>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,padding:"2px 10px",borderRadius:5}}>{lbl}</span>
+                            <span style={{fontSize:18,fontWeight:900,color:col}}>{score}%</span>
+                          </div>
+                        </div>
+                        <div style={{background:T.border,borderRadius:99,height:8,overflow:"hidden"}}>
+                          <div style={{width:`${score}%`,height:"100%",background:`linear-gradient(90deg,${col}88,${col})`,borderRadius:99,transition:"width 0.6s ease"}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+              {missingItems.length>0 && (
+                <Card>
+                  <Label>Missing Items by Priority</Label>
+                  <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
+                    {["CRITICAL","WARNING","INFO"].map(pri=>{
+                      const items = missingItems.filter(m=>(m.priority||"WARNING")===pri);
+                      if(!items.length) return null;
+                      return (<div key={pri}>
+                        <div style={{fontSize:10,fontWeight:800,color:MISS_COL[pri],marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>{pri} — {items.length} item{items.length>1?"s":""}</div>
+                        {items.map((m,i)=>(
+                          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8,marginBottom:4}}>
+                            <span style={{fontSize:12,color:T.text}}>{m.description} <span style={{color:T.muted}}>· {m.estimatedQty}</span></span>
+                            <span style={{fontSize:12,fontWeight:700,color:MISS_COL[pri],fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</span>
+                          </div>
+                        ))}
+                      </div>);
+                    })}
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)",borderRadius:9,marginTop:4}}>
+                      <span style={{fontSize:13,fontWeight:700,color:"#8b5cf6"}}>Total missing value</span>
+                      <span style={{fontSize:14,fontWeight:800,color:"#8b5cf6",fontFamily:"monospace"}}>{fmt(missingItems.reduce((s,m)=>s+(+m.estimatedCost||0),0))}</span>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* LINE ITEMS */}
           {activeTab==="lineitems" && (
             <Card style={{padding:0,overflow:"hidden"}}>
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
-                  <thead>
-                    <tr style={{background:"rgba(59,130,246,0.1)"}}>
-                      {["Description","Category","Unit","Qty BOM","Qty AI","Qty Status","Unit Cost BOM","Unit Cost AI","Cost Status","Total BOM","Total AI","Remarks"].map(h=>(
-                        <th key={h} style={{padding:"10px 10px",textAlign:h.includes("Total")||h.includes("Cost")||h.includes("Qty B")||h.includes("Qty A")?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                  <thead><tr style={{background:"rgba(59,130,246,0.1)"}}>
+                    {["Description","Category","Unit","Qty BOM","Qty AI","Qty","Unit Cost BOM","Unit Cost AI","Cost","Total BOM","Total AI","Remarks"].map(h=>(
+                      <th key={h} style={{padding:"9px 10px",textAlign:["Total BOM","Total AI","Unit Cost BOM","Unit Cost AI","Qty BOM","Qty AI"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr></thead>
                   <tbody>
                     {lineItems.map((li,i)=>(
                       <tr key={li.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                        <td style={{padding:"9px 10px",fontSize:13,color:T.text,fontWeight:600,maxWidth:200}}>{li.description}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted}}>{li.category}</td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:T.muted,textAlign:"center"}}>{li.unit}</td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(li.qtyBOM)}</td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(li.qtyAI)}</td>
-                        <td style={{padding:"9px 10px",textAlign:"center"}}>
-                          <span style={{background:`${QTY_COL[li.qtyStatus]||"#64748b"}18`,color:QTY_COL[li.qtyStatus]||"#64748b",fontSize:10,fontWeight:800,padding:"3px 8px",borderRadius:5}}>{li.qtyStatus}</span>
-                        </td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmt(li.unitCostBOM)}</td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmt(li.unitCostAI)}</td>
-                        <td style={{padding:"9px 10px",textAlign:"center"}}>
-                          <span style={{background:`${COST_COL[li.costStatus]||"#64748b"}18`,color:COST_COL[li.costStatus]||"#64748b",fontSize:10,fontWeight:800,padding:"3px 8px",borderRadius:5}}>{li.costStatus}</span>
-                        </td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(li.totalBOM)}</td>
-                        <td style={{padding:"9px 10px",fontSize:12,color:STR,textAlign:"right",fontFamily:"monospace",fontWeight:700}}>{fmt(li.totalAI)}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted,maxWidth:200,lineHeight:1.5}}>{li.remarks}</td>
+                        <td style={{padding:"8px 10px",fontSize:12,color:T.text,fontWeight:600,maxWidth:180}}>{li.description}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:T.muted}}>{li.category}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:T.muted,textAlign:"center"}}>{li.unit}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyBOM)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyAI)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${QTY_COL[li.qtyStatus]||"#64748b"}18`,color:QTY_COL[li.qtyStatus]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.qtyStatus}</span></td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostBOM)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostAI)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${COST_COL[li.costStatus]||"#64748b"}18`,color:COST_COL[li.costStatus]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.costStatus}</span></td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:"#f59e0b"}}>{fmt(li.totalBOM)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:STR,fontWeight:700}}>{fmt(li.totalAI)}</td>
+                        <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:180,lineHeight:1.4}}>{li.remarks}</td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr style={{background:"rgba(59,130,246,0.08)",borderTop:`2px solid ${STR}44`}}>
-                      <td colSpan={9} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.text}}>TOTALS</td>
-                      <td style={{padding:"10px 10px",fontSize:14,fontWeight:800,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalBOM||0),0))}</td>
-                      <td style={{padding:"10px 10px",fontSize:14,fontWeight:800,color:STR,textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalAI||0),0))}</td>
-                      <td/>
-                    </tr>
-                  </tfoot>
+                  <tfoot><tr style={{background:`rgba(59,130,246,0.08)`,borderTop:`2px solid ${STR}44`}}>
+                    <td colSpan={9} style={{padding:"9px 10px",fontSize:12,fontWeight:800,color:T.text}}>TOTALS</td>
+                    <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalBOM||0),0))}</td>
+                    <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:STR,textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalAI||0),0))}</td>
+                    <td/>
+                  </tr></tfoot>
                 </table>
               </div>
             </Card>
           )}
 
-          {/* ── MISSING ITEMS TAB ── */}
+          {/* MISSING ITEMS */}
           {activeTab==="missing" && (
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {missingItems.length===0
                 ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No missing items detected</div></Card>
                 : missingItems.map((m,i)=>(
-                  <div key={i} style={{background:"rgba(139,92,246,0.05)",border:"1.5px solid rgba(139,92,246,0.25)",borderRadius:12,padding:"14px 18px"}}>
+                  <div key={i} style={{background:`${MISS_COL[m.priority||"WARNING"]}09`,border:`1.5px solid ${MISS_COL[m.priority||"WARNING"]}33`,borderRadius:12,padding:"12px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                       <div>
-                        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
-                          <span style={{background:"rgba(139,92,246,0.2)",color:"#8b5cf6",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>MISSING</span>
-                          <span style={{fontSize:11,color:T.muted,background:T.dim,padding:"2px 8px",borderRadius:4}}>{m.category}</span>
+                        <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
+                          <span style={{background:`${MISS_COL[m.priority||"WARNING"]}22`,color:MISS_COL[m.priority||"WARNING"],fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{m.priority||"WARNING"}</span>
+                          <span style={{fontSize:10,color:T.muted,background:T.dim,padding:"2px 7px",borderRadius:4}}>{m.category}</span>
                         </div>
-                        <div style={{fontWeight:700,fontSize:15,color:T.text}}>{m.description}</div>
-                        <div style={{fontSize:12,color:T.muted,marginTop:4}}>Est. qty: <strong style={{color:T.text}}>{m.estimatedQty}</strong> · Found in: {m.basis}</div>
+                        <div style={{fontWeight:700,fontSize:14,color:T.text}}>{m.description}</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:3}}>Est. qty: <strong style={{color:T.text}}>{m.estimatedQty}</strong> · Found in: {m.basis}</div>
                       </div>
                       <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:10,color:T.muted,marginBottom:2}}>EST. COST</div>
-                        <div style={{fontSize:18,fontWeight:800,color:"#8b5cf6",fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</div>
+                        <div style={{fontSize:9,color:T.muted,marginBottom:2}}>EST. COST</div>
+                        <div style={{fontSize:16,fontWeight:800,color:MISS_COL[m.priority||"WARNING"],fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</div>
                       </div>
                     </div>
                   </div>
                 ))
               }
               {missingItems.length>0 && (
-                <div style={{display:"flex",justifyContent:"space-between",padding:"12px 16px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)",borderRadius:10}}>
-                  <span style={{fontSize:13,fontWeight:700,color:"#8b5cf6"}}>{missingItems.length} missing item{missingItems.length>1?"s":" "} — estimated value not in BOM</span>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 16px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)",borderRadius:9}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"#8b5cf6"}}>{missingItems.length} missing item{missingItems.length>1?"s":""}</span>
                   <span style={{fontSize:14,fontWeight:800,color:"#8b5cf6",fontFamily:"monospace"}}>{fmt(missingItems.reduce((s,m)=>s+(+m.estimatedCost||0),0))}</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* ── EXCESS ITEMS TAB ── */}
+          {/* EXCESS ITEMS */}
           {activeTab==="excess" && (
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {excessItems.length===0
                 ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No excess items detected</div></Card>
                 : excessItems.map((e,i)=>(
-                  <div key={i} style={{background:"rgba(100,116,139,0.05)",border:"1.5px solid rgba(100,116,139,0.2)",borderRadius:12,padding:"14px 18px"}}>
-                    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
-                      <span style={{background:"rgba(100,116,139,0.2)",color:"#64748b",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>EXCESS</span>
-                      <span style={{fontSize:11,color:T.muted,background:T.dim,padding:"2px 8px",borderRadius:4}}>{e.category}</span>
+                  <div key={i} style={{background:"rgba(100,116,139,0.05)",border:"1.5px solid rgba(100,116,139,0.2)",borderRadius:12,padding:"12px 16px"}}>
+                    <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
+                      <span style={{background:"rgba(100,116,139,0.2)",color:"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>EXCESS</span>
+                      <span style={{fontSize:10,color:T.muted,background:T.dim,padding:"2px 7px",borderRadius:4}}>{e.category}</span>
                     </div>
-                    <div style={{fontWeight:700,fontSize:15,color:T.text,marginBottom:4}}>{e.description}</div>
-                    <div style={{fontSize:12,color:T.muted}}>BOM qty: <strong style={{color:"#64748b"}}>{fmtN(e.qtyBOM)} {e.unit}</strong></div>
-                    <div style={{fontSize:12,color:T.muted,marginTop:4}}>{e.remarks}</div>
+                    <div style={{fontWeight:700,fontSize:14,color:T.text,marginBottom:3}}>{e.description}</div>
+                    <div style={{fontSize:11,color:T.muted}}>BOM qty: <strong style={{color:"#64748b"}}>{fmtN(e.qtyBOM)} {e.unit}</strong></div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:3}}>{e.remarks}</div>
                   </div>
                 ))
               }
             </div>
           )}
 
-          {/* ── MARKUP TAB ── */}
+          {/* MARKUP */}
           {activeTab==="markup" && markup && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
               <Card>
-                <Label>Markup Found in Submitted BOM</Label>
-                <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
-                  {[
-                    {l:"Contingency",  found:markup.contingencyFound, pct:markup.contingencyPercent},
-                    {l:"Overhead",     found:markup.overheadFound,    pct:markup.overheadPercent},
-                    {l:"Profit",       found:markup.profitFound,      pct:markup.profitPercent},
-                  ].map(r=>(
-                    <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:r.found?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1px solid ${r.found?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.2)"}`,borderRadius:10}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <span style={{fontSize:16}}>{r.found?"✅":"❌"}</span>
-                        <span style={{fontSize:14,fontWeight:700,color:T.text}}>{r.l}</span>
+                <Label>Markup in Submitted BOM</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
+                  {[{l:"Contingency",found:markup.contingencyFound,pct:markup.contingencyPercent,std:"5–10%"},{l:"Overhead",found:markup.overheadFound,pct:markup.overheadPercent,std:"5–10%"},{l:"Profit",found:markup.profitFound,pct:markup.profitPercent,std:"8–15%"}].map(r=>(
+                    <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:r.found?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1px solid ${r.found?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.2)"}`,borderRadius:9}}>
+                      <div style={{display:"flex",alignItems:"center",gap:9}}>
+                        <span style={{fontSize:15}}>{r.found?"✅":"❌"}</span>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.text}}>{r.l}</div>
+                          <div style={{fontSize:10,color:T.muted}}>Standard: {r.std}</div>
+                        </div>
                       </div>
-                      <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:16,fontWeight:800,color:r.found?"#10b981":"#ef4444",fontFamily:"monospace"}}>{r.found?`${r.pct}%`:"Not found"}</div>
-                      </div>
+                      <div style={{fontSize:15,fontWeight:800,color:r.found?"#10b981":"#ef4444"}}>{r.found?`${r.pct}%`:"Not found"}</div>
                     </div>
                   ))}
-                  <div style={{marginTop:6,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:13,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
+                  <div style={{padding:"7px 12px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>VAT Status: <strong style={{color:T.text}}>{markup.vatStatus||"NOT STATED"}</strong></div>
+                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:12,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
                 </div>
               </Card>
               <Card>
-                <Label>Your Applied Margins (this session)</Label>
-                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
-                  {Object.entries(margins).map(([k,m])=>(
-                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:m.pct>0?"rgba(59,130,246,0.06)":T.dim,borderRadius:8,border:m.pct>0?`1px solid rgba(59,130,246,0.2)`:"none"}}>
-                      <span style={{fontSize:13,color:T.muted}}>{m.label}</span>
-                      <span style={{fontSize:14,fontWeight:800,color:m.pct>0?STR:"#64748b",fontFamily:"monospace"}}>{m.pct}%</span>
+                <Label>Your Applied Margins</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
+                  {Object.entries(marginsState).map(([k,m])=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:m.pct>0?"rgba(59,130,246,0.06)":T.dim,borderRadius:7}}>
+                      <span style={{fontSize:12,color:T.muted}}>{m.label}</span>
+                      <span style={{fontSize:13,fontWeight:800,color:m.pct>0?STR:"#64748b",fontFamily:"monospace"}}>{m.pct}%</span>
                     </div>
                   ))}
                   <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:`${STR}12`,border:`1px solid ${STR}33`,borderRadius:8,marginTop:4}}>
                     <span style={{fontSize:13,fontWeight:700,color:T.text}}>Combined uplift</span>
-                    <span style={{fontSize:15,fontWeight:900,color:STR}}>+{(Object.values(margins).reduce((a,m)=>(a*(1+m.pct/100)),1)-1)*100 |0}% approx</span>
+                    <span style={{fontSize:15,fontWeight:900,color:STR}}>+{((Object.values(marginsState).reduce((a,m)=>(a*(1+m.pct/100)),1)-1)*100).toFixed(1)}%</span>
                   </div>
-                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>Margins are applied multiplicatively: (1+Mat%)×(1+Lab%)×(1+OH%)×(1+Con%)×(1+Prof%) on the AI base cost.</div>
                 </div>
               </Card>
             </div>
           )}
 
-          <div style={{marginTop:16,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>
-            ⚠️ AI-generated BOM review for reference only. All quantities, costs, and margins must be verified by a licensed Quantity Surveyor or Engineer before submission to DPWH or any client.
+          {/* COMPARISON TAB */}
+          {activeTab==="compare" && compareResult && (
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                {[{label:"BOM #1 — Original",r:result,c:"#f59e0b"},{label:"BOM #2 — Revised",r:compareResult,c:"#10b981"}].map(({label,r,c})=>(
+                  <Card key={label} style={{border:`1.5px solid ${c}33`}}>
+                    <div style={{fontSize:11,fontWeight:800,color:c,marginBottom:10,textTransform:"uppercase"}}>{label}</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                      {[
+                        {l:"Status",     v:r.summary.overallStatus,    col:STATUS_COL[r.summary.overallStatus]},
+                        {l:"Risk",       v:r.summary.contractorRisk,   col:RISK_COL[r.summary.contractorRisk]},
+                        {l:"BOM Total",  v:fmt(r.summary.bomTotalEstimate), col:T.text},
+                        {l:"AI Base",    v:fmt(r.summary.aiAdjustedEstimate), col:STR},
+                        {l:"Missing",    v:`${(r.missingItems||[]).length} items`, col:"#8b5cf6"},
+                        {l:"Critical",   v:`${r.summary.criticalCount} issues`, col:"#ef4444"},
+                      ].map(s=>(
+                        <div key={s.l} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}>
+                          <span style={{fontSize:12,color:T.muted}}>{s.l}</span>
+                          <span style={{fontSize:12,fontWeight:800,color:s.col}}>{s.v}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{marginTop:10,fontSize:11,color:T.muted,lineHeight:1.5,background:T.dim,padding:"8px 10px",borderRadius:7}}>{r.summary.notes}</div>
+                  </Card>
+                ))}
+              </div>
+              <Card>
+                <Label>Delta — What Changed Between BOMs</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
+                  {[
+                    {l:"BOM Total",     a:result.summary.bomTotalEstimate,        b:compareResult.summary.bomTotalEstimate,       isMoney:true},
+                    {l:"AI Base",       a:result.summary.aiAdjustedEstimate,       b:compareResult.summary.aiAdjustedEstimate,    isMoney:true},
+                    {l:"Missing Items", a:(result.missingItems||[]).length,         b:(compareResult.missingItems||[]).length,      isMoney:false},
+                    {l:"Critical Issues",a:result.summary.criticalCount,           b:compareResult.summary.criticalCount,          isMoney:false},
+                    {l:"Warnings",      a:result.summary.warningCount,             b:compareResult.summary.warningCount,           isMoney:false},
+                  ].map(r=>{
+                    const diff=r.b-r.a; const improved=diff<0; const neutral=diff===0;
+                    const col=neutral?"#64748b":improved?"#10b981":"#ef4444";
+                    return (<div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",background:T.dim,borderRadius:9}}>
+                      <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{r.isMoney?fmt(r.a):r.a} → {r.isMoney?fmt(r.b):r.b}</span>
+                        <span style={{fontSize:13,fontWeight:800,color:col}}>{diff>0?"+":""}{r.isMoney?fmt(diff):diff} {neutral?"–":improved?"✅":"⚠️"}</span>
+                      </div>
+                    </div>);
+                  })}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          <div style={{marginTop:12,padding:"9px 14px",background:T.dim,borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.5}}>
+            ⚠️ AI-assisted review. All findings must be verified by a licensed QS or Engineer before submission. · PH Engineering Suite
           </div>
         </div>
       )}
 
-      {/* Placeholder when empty */}
+      {/* Empty state */}
       {!result && !busy && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
           {[
-            {i:"🔢",t:"Quantity Validation",d:"AI counts items in plan vs. your BOM"},
-            {i:"💰",t:"Unit Cost Check",d:"Validated against PH market rates"},
-            {i:"🔴",t:"Missing Items",d:"Materials in plan but absent from BOM"},
-            {i:"🟡",t:"Excess Items",d:"BOM items with no plan basis"},
-            {i:"⚙️",t:"Margin Control",d:"Materials · Labor · Overhead · Contingency · Profit"},
-            {i:"📄",t:"Exportable Report",d:"Print-ready PDF with full breakdown"},
+            {i:"🔢",t:"Quantity Validation",        d:"AI counts items in plan vs. BOM"},
+            {i:"💰",t:"Unit Cost Check",             d:"vs. 2025 NCR or DPWH Blue Book rates"},
+            {i:"📈",t:"Scope Completeness Scores",   d:"Score per trade: Structural, Electrical, Plumbing…"},
+            {i:"🛡️",t:"Contractor Risk Rating",      d:"LOW / MEDIUM / HIGH / DO NOT AWARD"},
+            {i:"🔄",t:"Compare 2 BOMs",              d:"Original vs. Revised — catch what was gamed"},
+            {i:"📅",t:"Price Escalation Warning",    d:"Flags outdated BOM date + material cost drift"},
+            {i:"🏛️",t:"DPWH / Private Toggle",       d:"Benchmark against the right rate table"},
+            {i:"📄",t:"Full PDF Export",              d:"QS-grade report with all findings"},
           ].map(x=>(
-            <Card key={x.t} style={{textAlign:"center",padding:20}}>
-              <div style={{fontSize:28,marginBottom:8}}>{x.i}</div>
-              <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{x.t}</div>
-              <div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{x.d}</div>
+            <Card key={x.t} style={{textAlign:"center",padding:18}}>
+              <div style={{fontSize:24,marginBottom:7}}>{x.i}</div>
+              <div style={{fontWeight:700,fontSize:12,color:T.text,marginBottom:3}}>{x.t}</div>
+              <div style={{fontSize:10,color:T.muted,lineHeight:1.5}}>{x.d}</div>
             </Card>
           ))}
         </div>
@@ -2856,8 +2993,9 @@ function BOMReview({ apiKey }) {
 
 // ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
 function StructiCode({ apiKey }) {
-  const [tool,setTool] = useState("checker");
+  const [tool,setTool] = useState("bom");
   const TOOLS = [
+    {key:"bom",     icon:"📋", label:"BOM Review", badge:"⭐"},
     {key:"checker", icon:"🤖", label:"AI Plan Checker"},
     {key:"seismic", icon:"🌍", label:"Seismic Load"},
     {key:"beam",    icon:"📐", label:"Beam Design"},
@@ -2865,7 +3003,6 @@ function StructiCode({ apiKey }) {
     {key:"footing", icon:"🪨", label:"Footing Design"},
     {key:"slab",    icon:"🔩", label:"Slab Design"},
     {key:"loads",   icon:"📊", label:"Load Combinations"},
-    {key:"bom",     icon:"📋", label:"BOM Review"},
   ];
   return (
     <div>
@@ -2873,7 +3010,7 @@ function StructiCode({ apiKey }) {
       <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
         {TOOLS.map(t=>(
           <button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?"#3b82f6":T.border}`,background:tool===t.key?"rgba(59,130,246,0.12)":"transparent",color:tool===t.key?"#3b82f6":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-            <span>{t.icon}</span><span>{t.label}</span>
+            <span>{t.icon}</span><span>{t.label}</span>{t.badge&&<span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
           </button>
         ))}
       </div>
@@ -3454,8 +3591,8 @@ function SaniCode({ apiKey }) {
 
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 const TABS = [
-  { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#f59e0b" },
   { key:"structural", icon:"🏗️", label:"StructiCode", color:"#3b82f6" },
+  { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#f59e0b" },
   { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#10b981" },
 ];
 
@@ -3980,7 +4117,7 @@ function LoginModal({ onClose, onSuccess }) {
 
 // ─── DASHBOARD (logged-in app) ────────────────────────────────────────────────
 function Dashboard({ user, onLogout }) {
-  const [module, setModule] = useState("electrical");
+  const [module, setModule] = useState("structural");
   const [etab,   setEtab]   = useState("checker");
   const [apiKey, setApiKey] = useState(() => {
     const saved = localStorage.getItem("phen_key") || "";
