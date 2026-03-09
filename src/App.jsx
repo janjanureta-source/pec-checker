@@ -279,20 +279,25 @@ const exportRevisionPDF = (result, corrections, revNum) => {
   setTimeout(()=>w.print(), 500);
 };
 
-// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
+// ─── DESIGN TOKENS — Engineering palette ─────────────────────────────────────
+// Inspired by Autodesk Construction Cloud + Procore + Bentley Systems
+// Primary:   #0284c7 Steel Blue   — trust, precision, industry standard
+// Secondary: #ea580c Safety Orange — construction energy, action, alerts  
+// Tertiary:  #0891b2 Cyan          — sanitary/water/plumbing
+// Background: Deep navy-slate — professional dark engineering UI
 const T = {
-  bg:     "#0f1117",
-  card:   "#161b27",
-  border: "rgba(255,255,255,0.07)",
-  accent: "#f59e0b",
-  accentDim: "rgba(245,158,11,0.12)",
-  text:   "#e2e8f0",
-  muted:  "#64748b",
-  dim:    "#1e2535",
-  success:"#10b981",
-  danger: "#ef4444",
-  warn:   "#f59e0b",
-  info:   "#3b82f6",
+  bg:        "#070c14",
+  card:      "#0d1421",
+  border:    "rgba(148,163,184,0.1)",
+  accent:    "#0284c7",
+  accentDim: "rgba(2,132,199,0.12)",
+  text:      "#e2e8f0",
+  muted:     "#64748b",
+  dim:       "#111827",
+  success:   "#16a34a",
+  danger:    "#dc2626",
+  warn:      "#d97706",
+  info:      "#0284c7",
 };
 
 // ─── SHARED UI COMPONENTS ────────────────────────────────────────────────────
@@ -2224,21 +2229,20 @@ function LoadCombinations() {
 // ─── STRUCTICODE: BOM REVIEW ──────────────────────────────────────────────────
 const BOM_SYSTEM_PROMPT = `You are a senior Quantity Surveyor and Cost Estimator licensed in the Philippines with 20+ years of experience in residential, commercial, and government projects. You have deep expertise in DPWH unit costs, Philippine construction materials pricing, NSCP 2015, and current NCR market rates.
 
-You validate Bills of Materials against engineering plans.
+You help contractors and estimators build accurate, complete, and competitive Bills of Materials. Your role is to IMPROVE the estimate — identify gaps, correct pricing, and ensure nothing is missed before submission.
 
 COST REFERENCES:
 - PRIVATE projects: use current NCR market rates (2025). Rebar 10mm ~₱170/pc, 16mm ~₱410/pc. Ready-mix 3000psi ~₱6,500/m3. CHB 5in ~₱380/m2. Portland cement ~₱290/bag.
-- GOVERNMENT/DPWH projects: benchmark against DPWH Blue Book latest edition. Flag items that exceed allowable DPWH unit costs.
+- GOVERNMENT/DPWH projects: benchmark against DPWH Blue Book latest edition. Note items that may exceed allowable DPWH unit costs so they can be adjusted.
 
 Perform ALL of the following:
-1. QUANTITY VALIDATION — Are quantities consistent with the plan? Flag over/under.
-2. UNIT COST VALIDATION — Are unit costs realistic for the rate type? Flag high/low.
-3. MISSING ITEMS — Materials shown in plan but absent from BOM.
-4. EXCESS ITEMS — BOM items with no plan basis.
-5. MARKUP/OCM — Flag if contingency (5-10%), overhead (5-10%), and profit (8-15%) are absent or inadequate.
-6. DATE WARNING — If BOM date is detectable and appears older than 3 months, set bomDateWarning to a short warning string about price escalation risk.
-7. SCOPE COMPLETENESS — Score each trade 0-100 in tradeCompleteness.
-8. CONTRACTOR RISK — Based on severity of findings, underpricing, missing scope, and markup adequacy, set contractorRisk to: LOW, MEDIUM, HIGH, or DO NOT AWARD. Explain in contractorRiskReason (under 40 words).
+1. QUANTITY CHECK — Are quantities consistent with the plan? Note items that may be over or under-estimated.
+2. UNIT COST CHECK — Are unit costs realistic for current PH market rates? Flag items priced significantly above or below market to help avoid losing the bid or underpricing.
+3. MISSING ITEMS — Materials visible in the plan but not yet in the BOM. These are items the estimator should add to avoid cost overruns during construction.
+4. EXCESS ITEMS — BOM entries with no clear plan basis — review these to ensure accuracy.
+5. MARKUP/OCM — Review if contingency (5-10%), overhead (5-10%), and profit (8-15%) are included and adequate. Suggest improvements.
+6. DATE WARNING — If BOM date is detectable and appears older than 3 months, set bomDateWarning to a short note about re-validating prices against current market rates.
+7. SCOPE COMPLETENESS — Score each trade 0-100 in tradeCompleteness. Higher score = more complete coverage.
 
 Respond ONLY as valid JSON (no markdown, no preamble, no backticks):
 {
@@ -2248,8 +2252,6 @@ Respond ONLY as valid JSON (no markdown, no preamble, no backticks):
     "projectScope": "one-line scope description",
     "discipline": "Structural|Architectural|MEP|Civil|Mixed",
     "overallStatus": "NEEDS REVISION|ACCEPTABLE WITH NOTES|VALIDATED",
-    "contractorRisk": "LOW|MEDIUM|HIGH|DO NOT AWARD",
-    "contractorRiskReason": "under 40 words",
     "bomTotalEstimate": 0,
     "aiAdjustedEstimate": 0,
     "variancePercent": 0,
@@ -2257,7 +2259,7 @@ Respond ONLY as valid JSON (no markdown, no preamble, no backticks):
     "warningCount": 0,
     "infoCount": 0,
     "bomDateWarning": null,
-    "notes": "overall assessment under 80 words",
+    "notes": "overall assessment under 80 words — constructive tone, focused on helping the estimator improve",
     "tradeCompleteness": {
       "structural": 0,
       "architectural": 0,
@@ -2330,7 +2332,7 @@ function BOMReview({ apiKey }) {
   const planRef = useRef(null);
   const bomRef  = useRef(null);
   const bom2Ref = useRef(null);
-  const STR = "#3b82f6";
+  const STR = "#0696d7";
   const tick = () => new Promise(r => setTimeout(r, 0));
 
   const PROJECT_PRESETS = [
@@ -2345,8 +2347,7 @@ function BOMReview({ apiKey }) {
     { value:"road",                label:"Road / Pavement Works" },
   ];
 
-  const RISK_COL = { "LOW":"#10b981","MEDIUM":"#f59e0b","HIGH":"#ef4444","DO NOT AWARD":"#dc2626" };
-  const RISK_BG  = { "LOW":"rgba(16,185,129,0.08)","MEDIUM":"rgba(245,158,11,0.08)","HIGH":"rgba(239,68,68,0.08)","DO NOT AWARD":"rgba(220,38,38,0.12)" };
+
   const STATUS_COL = { "NEEDS REVISION":"#ef4444","ACCEPTABLE WITH NOTES":"#f59e0b","VALIDATED":"#10b981" };
   const QTY_COL  = { OK:"#10b981",OVER:"#f59e0b",UNDER:"#ef4444",MISSING:"#8b5cf6",EXCESS:"#64748b" };
   const COST_COL = { OK:"#10b981",HIGH:"#f59e0b",LOW:"#ef4444",UNKNOWN:"#64748b" };
@@ -2413,7 +2414,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
       let parsed1;
       try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed1);
-      addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, risk:parsed1?.summary?.contractorRisk, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.recommendation||"" } });
+      addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.notes||"" } });
 
       // Comparison BOM
       if (mode === "compare" && bomFiles2.length) {
@@ -2493,7 +2494,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
     ${missingItems.length ? `<h2>Missing Items (${missingItems.length})</h2><table><tr><th>Priority</th><th>Description</th><th>Category</th><th>Est. Qty</th><th>Est. Cost</th><th>Plan Basis</th></tr>${missRows}</table>` : ""}
     <h2>Markup Assessment</h2>
     <p style="font-style:italic;color:#6b7280">${markup?.recommendation||""}</p>
-    <p style="margin-top:28px;font-size:10px;color:#9ca3af">AI-assisted BOM review. All findings must be verified by a licensed QS or Engineer before submission. · PH Engineering Suite · Powered by Claude AI</p>
+    <p style="margin-top:28px;font-size:10px;color:#9ca3af">AI-assisted BOM review. All findings must be verified by a licensed QS or Engineer before submission. · Buildify · Powered by Claude AI</p>
     </body></html>`);
     w.document.close(); setTimeout(()=>w.print(), 400);
   };
@@ -2557,19 +2558,26 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
 
         {/* Upload zones */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="compare"?3:2},1fr)`,gap:12,marginBottom:14}}>
-          <div>
-            <div style={{fontSize:10,fontWeight:700,color:STR,marginBottom:5}}>📐 Engineering Plans *</div>
+          <div style={{display:"flex",flexDirection:"column"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
+              <div style={{fontSize:10,fontWeight:700,color:STR}}>📐 Engineering Plans *</div>
+              <div style={{fontSize:10,color:"transparent",userSelect:"none"}}>placeholder</div>
+            </div>
             <DropZone label="Upload Plans" sublabel="PDF · JPG · PNG" files={planFiles} onAdd={addPlanFiles} onRemove={id=>setPlanFiles(p=>p.filter(f=>f.id!==id))} dragState={dragPlan} setDrag={setDragPlan} inputRef={planRef} icon="📐" accent={STR}/>
           </div>
-          <div>
-            <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",marginBottom:4}}>{mode==="compare"?"📋 BOM #1 — Original":"📋 Draft BOM"} <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
-            <div style={{fontSize:10,color:T.muted,marginBottom:5}}>💡 Excel → File → Save As → PDF first</div>
-            <DropZone label={mode==="compare"?"Original BOM (PDF)":"Upload BOM (PDF)"} sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#f59e0b"/>
+          <div style={{display:"flex",flexDirection:"column"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#ff6b2b"}}>{mode==="compare"?"📋 BOM #1 — Original":"📋 Draft BOM"} <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
+              <div style={{fontSize:10,color:T.muted}}>💡 Excel → Save As PDF before uploading</div>
+            </div>
+            <DropZone label={mode==="compare"?"Original BOM (PDF)":"Upload BOM (PDF)"} sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#ff6b2b"/>
           </div>
           {mode==="compare" && (
-            <div>
-              <div style={{fontSize:10,fontWeight:700,color:"#10b981",marginBottom:4}}>📋 BOM #2 — Revised <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
-              <div style={{fontSize:10,color:T.muted,marginBottom:5}}>💡 Contractor's revised / updated BOM</div>
+            <div style={{display:"flex",flexDirection:"column"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#10b981"}}>📋 BOM #2 — Revised <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
+                <div style={{fontSize:10,color:T.muted}}>💡 Contractor's revised / updated BOM</div>
+              </div>
               <DropZone label="Revised BOM (PDF)" sublabel="PDF only" files={bomFiles2} onAdd={addBomFiles2} onRemove={id=>setBomFiles2(p=>p.filter(f=>f.id!==id))} dragState={dragBom2} setDrag={setDragBom2} inputRef={bom2Ref} icon="🔄" accent="#10b981"/>
             </div>
           )}
@@ -2605,7 +2613,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
 
         {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
 
-        <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
+        <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#0369a1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
           {busy ? (busyMsg||"⚙️ Processing…") : mode==="compare" ? "📋 Run BOM Comparison Review" : "📋 Run BOM Review"}
         </button>
         {busy && (
@@ -2653,13 +2661,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
                     {adjustedTotal>bomTotal?`▲ ${((adjustedTotal/bomTotal-1)*100).toFixed(1)}% vs submitted`:`▼ ${((1-adjustedTotal/bomTotal)*100).toFixed(1)}% vs submitted`}
                   </div>}
                 </div>
-                {risk && (
-                  <div style={{background:RISK_BG[risk],border:`1.5px solid ${RISK_COL[risk]}44`,borderRadius:9,padding:"10px 14px"}}>
-                    <div style={{fontSize:9,color:T.muted,marginBottom:3}}>CONTRACTOR RISK</div>
-                    <div style={{fontSize:14,fontWeight:900,color:RISK_COL[risk],letterSpacing:"0.3px"}}>{risk}</div>
-                    <div style={{fontSize:10,color:T.muted,marginTop:3,lineHeight:1.4}}>{result.summary.contractorRiskReason}</div>
-                  </div>
-                )}
+
                 <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:9,padding:"8px 14px",textAlign:"center"}}>
                   <div style={{fontSize:9,color:T.muted,marginBottom:2}}>OVERALL STATUS</div>
                   <div style={{fontSize:12,fontWeight:800,color:STATUS_COL[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
@@ -2976,7 +2978,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
             {i:"🔢",t:"Quantity Validation",        d:"AI counts items in plan vs. BOM"},
             {i:"💰",t:"Unit Cost Check",             d:"vs. 2025 NCR or DPWH Blue Book rates"},
             {i:"📈",t:"Scope Completeness Scores",   d:"Score per trade: Structural, Electrical, Plumbing…"},
-            {i:"🛡️",t:"Contractor Risk Rating",      d:"LOW / MEDIUM / HIGH / DO NOT AWARD"},
+            {i:"📈",t:"Scope Completeness Score",     d:"Trade-by-trade completeness 0–100%"},
             {i:"🔄",t:"Compare 2 BOMs",              d:"Original vs. Revised — catch what was gamed"},
             {i:"📅",t:"Price Escalation Warning",    d:"Flags outdated BOM date + material cost drift"},
             {i:"🏛️",t:"DPWH / Private Toggle",       d:"Benchmark against the right rate table"},
@@ -3116,7 +3118,7 @@ function CostEstimator({ apiKey }) {
   const [adhocItems,    setAdhocItems]    = useState("");           // free text
 
   const fileRef = useRef(null);
-  const STR = "#3b82f6";
+  const STR = "#0696d7";
   const GOLD = "#f59e0b";
   const tick  = () => new Promise(r => setTimeout(r, 0));
   const fmt   = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -3842,7 +3844,7 @@ function StructiCode({ apiKey, initialTool }) {
 
 
 // ─── SANICODE DATA ────────────────────────────────────────────────────────────
-const SC = "#10b981";
+const SC = "#06b6d4";
 
 const NPC_SYSTEM_PROMPT = `You are a licensed Sanitary Engineer expert in the National Plumbing Code of the Philippines (NPC 2000), Sanitation Code of the Philippines (PD 856), and Philippine Green Building Code. You review plumbing and sanitary plans for compliance.
 
@@ -4451,32 +4453,32 @@ function DashboardHome({ onNavigate }) {
 
   const MODULE_FILTERS = [
     { v:"all",        l:"All",        color:"#94a3b8" },
-    { v:"structural", l:"🏗️ StructiCode", color:"#3b82f6" },
-    { v:"electrical", l:"⚡ ElectriCode", color:"#f59e0b" },
-    { v:"sanitary",   l:"🚿 SaniCode",    color:"#10b981" },
+    { v:"structural", l:"🏗️ StructiCode", color:"#0696d7" },
+    { v:"electrical", l:"⚡ ElectriCode", color:"#ff6b2b" },
+    { v:"sanitary",   l:"🚿 SaniCode",    color:"#06b6d4" },
   ];
 
   const TOOL_META = {
-    bom:        { icon:"📋", label:"BOM Review",       module:"structural", color:"#3b82f6" },
+    bom:        { icon:"📋", label:"BOM Review",       module:"structural", color:"#0696d7" },
     estimate:   { icon:"💰", label:"Cost Estimator",   module:"structural", color:"#f59e0b" },
-    structural: { icon:"🤖", label:"Structural Check", module:"structural", color:"#3b82f6" },
-    seismic:    { icon:"🌍", label:"Seismic Load",     module:"structural", color:"#3b82f6" },
-    beam:       { icon:"📐", label:"Beam Design",      module:"structural", color:"#3b82f6" },
-    column:     { icon:"🏛️", label:"Column Design",   module:"structural", color:"#3b82f6" },
-    footing:    { icon:"🪨", label:"Footing Design",   module:"structural", color:"#3b82f6" },
-    slab:       { icon:"🔩", label:"Slab Design",      module:"structural", color:"#3b82f6" },
-    loads:      { icon:"📊", label:"Load Combos",      module:"structural", color:"#3b82f6" },
-    electrical: { icon:"🔍", label:"Electrical Check", module:"electrical", color:"#f59e0b" },
-    vdrop:      { icon:"📉", label:"Voltage Drop",     module:"electrical", color:"#f59e0b" },
-    fault:      { icon:"⚡", label:"Short Circuit",    module:"electrical", color:"#f59e0b" },
-    load:       { icon:"📊", label:"Load Calc",        module:"electrical", color:"#f59e0b" },
-    plumbing:   { icon:"🔍", label:"Plumbing Check",   module:"sanitary",   color:"#10b981" },
-    fixture:    { icon:"🚿", label:"Fixture Units",    module:"sanitary",   color:"#10b981" },
-    pipe:       { icon:"📏", label:"Pipe Sizing",      module:"sanitary",   color:"#10b981" },
-    septic:     { icon:"🪣", label:"Septic Tank",      module:"sanitary",   color:"#10b981" },
-    water:      { icon:"💧", label:"Water Demand",     module:"sanitary",   color:"#10b981" },
-    pressure:   { icon:"🔢", label:"Pressure Loss",    module:"sanitary",   color:"#10b981" },
-    storm:      { icon:"🌧️", label:"Storm Drainage",  module:"sanitary",   color:"#10b981" },
+    structural: { icon:"🤖", label:"Structural Check", module:"structural", color:"#0696d7" },
+    seismic:    { icon:"🌍", label:"Seismic Load",     module:"structural", color:"#0696d7" },
+    beam:       { icon:"📐", label:"Beam Design",      module:"structural", color:"#0696d7" },
+    column:     { icon:"🏛️", label:"Column Design",   module:"structural", color:"#0696d7" },
+    footing:    { icon:"🪨", label:"Footing Design",   module:"structural", color:"#0696d7" },
+    slab:       { icon:"🔩", label:"Slab Design",      module:"structural", color:"#0696d7" },
+    loads:      { icon:"📊", label:"Load Combos",      module:"structural", color:"#0696d7" },
+    electrical: { icon:"🔍", label:"Electrical Check", module:"electrical", color:"#ff6b2b" },
+    vdrop:      { icon:"📉", label:"Voltage Drop",     module:"electrical", color:"#ff6b2b" },
+    fault:      { icon:"⚡", label:"Short Circuit",    module:"electrical", color:"#ff6b2b" },
+    load:       { icon:"📊", label:"Load Calc",        module:"electrical", color:"#ff6b2b" },
+    plumbing:   { icon:"🔍", label:"Plumbing Check",   module:"sanitary",   color:"#06b6d4" },
+    fixture:    { icon:"🚿", label:"Fixture Units",    module:"sanitary",   color:"#06b6d4" },
+    pipe:       { icon:"📏", label:"Pipe Sizing",      module:"sanitary",   color:"#06b6d4" },
+    septic:     { icon:"🪣", label:"Septic Tank",      module:"sanitary",   color:"#06b6d4" },
+    water:      { icon:"💧", label:"Water Demand",     module:"sanitary",   color:"#06b6d4" },
+    pressure:   { icon:"🔢", label:"Pressure Loss",    module:"sanitary",   color:"#06b6d4" },
+    storm:      { icon:"🌧️", label:"Storm Drainage",  module:"sanitary",   color:"#06b6d4" },
   };
 
   const filtered = activeModule === "all" ? history : history.filter(e => e.module === activeModule);
@@ -4490,17 +4492,16 @@ function DashboardHome({ onNavigate }) {
   const totalEstimated = history.filter(e => e.tool === "estimate" && e.meta?.totalHigh).reduce((s,e) => s + (e.meta?.totalHigh||0), 0);
 
   const QUICK_LAUNCH = [
-    { icon:"📋", label:"BOM Review",       sub:"Upload plan + BOM",         module:"structural", tool:"bom",       color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1", badge:"⭐ Flagship" },
+    { icon:"📋", label:"BOM Review",       sub:"Upload plan + BOM",         module:"structural", tool:"bom",       color:"#0696d7", grad:"135deg,#0696d7,#0569a8", badge:"⭐ Flagship" },
     { icon:"💰", label:"Cost Estimator",   sub:"Upload plan → estimate",    module:"structural", tool:"estimate",  color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"NEW" },
-    { icon:"🔍", label:"Electrical Check", sub:"PEC 2017 compliance",       module:"electrical", tool:"checker",   color:"#f59e0b", grad:"135deg,#fb923c,#ef4444" },
-    { icon:"🤖", label:"Structural Check", sub:"NSCP 2015 compliance",      module:"structural", tool:"checker",   color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1" },
-    { icon:"🚿", label:"Plumbing Check",   sub:"NPC 2000 compliance",       module:"sanitary",   tool:"checker",   color:"#10b981", grad:"135deg,#10b981,#059669" },
-    { icon:"📉", label:"Voltage Drop",     sub:"PEC wire sizing",           module:"electrical", tool:"vdrop",     color:"#f59e0b", grad:"135deg,#f59e0b,#f97316" },
-    { icon:"🌍", label:"Seismic Load",     sub:"NSCP zone & base shear",    module:"structural", tool:"seismic",   color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1" },
-    { icon:"💧", label:"Water Demand",     sub:"NPC fixture demand",        module:"sanitary",   tool:"water",     color:"#10b981", grad:"135deg,#10b981,#059669" },
+    { icon:"🔍", label:"Electrical Check", sub:"PEC 2017 compliance",       module:"electrical", tool:"checker",   color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
+    { icon:"🤖", label:"Structural Check", sub:"NSCP 2015 compliance",      module:"structural", tool:"checker",   color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
+    { icon:"🚿", label:"Plumbing Check",   sub:"NPC 2000 compliance",       module:"sanitary",   tool:"checker",   color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
+    { icon:"📉", label:"Voltage Drop",     sub:"PEC wire sizing",           module:"electrical", tool:"vdrop",     color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
+    { icon:"🌍", label:"Seismic Load",     sub:"NSCP zone & base shear",    module:"structural", tool:"seismic",   color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
+    { icon:"💧", label:"Water Demand",     sub:"NPC fixture demand",        module:"sanitary",   tool:"water",     color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
   ];
 
-  const RISK_COLOR = { "LOW":"#10b981","MEDIUM":"#f59e0b","HIGH":"#ef4444","DO NOT AWARD":"#dc2626" };
   const STATUS_COLOR = { "COMPLIANT":"#10b981","COMPLIANT WITH WARNINGS":"#f59e0b","NON-COMPLIANT":"#ef4444" };
 
   return (
@@ -4589,7 +4590,7 @@ function DashboardHome({ onNavigate }) {
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
                       <span style={{ fontWeight:800, fontSize:13, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.projectName || "Untitled Project"}</span>
                       <span style={{ fontSize:9, background:`${meta.color}18`, color:meta.color, padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{meta.label}</span>
-                      {entry.meta?.risk && <span style={{ fontSize:9, background:`${RISK_COLOR[entry.meta.risk]||"#94a3b8"}18`, color:RISK_COLOR[entry.meta.risk]||"#94a3b8", padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{entry.meta.risk}</span>}
+
                       {entry.meta?.status && <span style={{ fontSize:9, background:`${STATUS_COLOR[entry.meta.status]||"#94a3b8"}18`, color:STATUS_COLOR[entry.meta.status]||"#94a3b8", padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{entry.meta.status}</span>}
                     </div>
                     <div style={{ display:"flex", gap:12, alignItems:"center" }}>
@@ -4616,9 +4617,9 @@ function DashboardHome({ onNavigate }) {
 
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 const TABS = [
-  { key:"structural", icon:"🏗️", label:"StructiCode", color:"#3b82f6" },
-  { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#f59e0b" },
-  { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#10b981" },
+  { key:"structural", icon:"🏗️", label:"StructiCode", color:"#0696d7" },
+  { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#ff6b2b" },
+  { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#06b6d4" },
 ];
 
 // ─── AUTH CONFIG ─────────────────────────────────────────────────────────────
@@ -4628,446 +4629,477 @@ const ADMIN_PASS = "PHEngSuite2025!";
 // ─── LANDING PAGE ────────────────────────────────────────────────────────────
 function LandingPage({ onLogin }) {
   const [showLogin, setShowLogin] = useState(false);
-  const [scrolled,  setScrolled]  = useState(false);
+  const [scrollY,   setScrollY]   = useState(0);
+  const [visible,   setVisible]   = useState({});
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", handler);
-    return () => window.removeEventListener("scroll", handler);
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", onScroll, { passive:true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) setVisible(v => ({ ...v, [e.target.dataset.reveal]: true }));
+      });
+    }, { threshold:0.1 });
+    document.querySelectorAll("[data-reveal]").forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+
+  const reveal = (key, delay=0) => ({
+    "data-reveal": key,
+    style: {
+      opacity: visible[key] ? 1 : 0,
+      transform: visible[key] ? "translateY(0)" : "translateY(40px)",
+      transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
+    }
+  });
+
+  const BLUE   = "#0696d7";
+  const ORANGE = "#ff6b2b";
+  const CYAN   = "#06b6d4";
+  const GREEN  = "#22c55e";
+  const NAVY   = "#080d18";
+  const navSolid = scrollY > 60;
+
   const STATS = [
-    { num:"₱500K+", label:"Avg. Annual Savings Per Firm" },
-    { num:"25×",    label:"ROI on Subscription" },
-    { num:"5 min",  label:"Full BOM Review" },
-    { num:"100%",   label:"Philippine Codes" },
+    { num:"5 min",   label:"Full BOM Review",          sub:"vs. 6–16 hrs manually" },
+    { num:"₱500K+",  label:"Avg. Annual Value Caught",  sub:"per firm, 20 projects/yr" },
+    { num:"25×",     label:"ROI on Subscription",       sub:"₱42K/yr subscription" },
+    { num:"100%",    label:"Philippine Codes",           sub:"NSCP · PEC · NPC · DPWH" },
   ];
 
-  const BOM_FINDINGS = [
-    { icon:"🔴", label:"Typographical errors in cost entries", example:"e.g. ₱3,000 entered instead of ₱30,000" },
-    { icon:"🔴", label:"Rebar unit costs below 2025 market rates", example:"10mm bar at ₱140 vs market ₱170/pc" },
-    { icon:"🔴", label:"Insufficient window budget", example:"₱550K lump sum for 33 analok panels — short by ₱200K+" },
-    { icon:"🔴", label:"Missing OCM, contingency, and profit", example:"2.3% profit on ₱8.8M project — should be 10–15%" },
-    { icon:"🟡", label:"Missing scope items vs. plan", example:"Roof deck waterproofing, AC rough-in, door shortfall" },
-    { icon:"🟡", label:"Concrete unit cost below ready-mix rates", example:"₱5,600/m³ vs current NCR ₱6,200–7,000/m³" },
+  const PAIN_POINTS = [
+    { icon:"😓", pain:"Estimating takes 2 days per project", fix:"AI reads your plans in 5 minutes and drafts your quantities" },
+    { icon:"😬", pain:"You underbid and lose money mid-project", fix:"Market-rate validation against 2025 NCR/DPWH rates before you sign" },
+    { icon:"📋", pain:"Missing items discovered during construction", fix:"AI cross-checks BOM vs. plan drawings — nothing slips through" },
+    { icon:"📉", pain:"Low-margin bids that barely cover your costs", fix:"Markup analysis ensures OCM, contingency, and profit are protected" },
   ];
 
-  const SAVINGS = [
-    { icon:"⏱️", color:"#f59e0b", title:"Engineer Time Saved", amount:"₱24,000–₱60,000/yr", detail:"Manual PEC/NSCP/NPC compliance checks take 4–6 hrs each. AI does it in 5 min. At 20 projects/year, that's days of recovered time." },
-    { icon:"📋", color:"#3b82f6", title:"BOM Review Labor", amount:"₱45,000–₱192,000/yr", detail:"A senior QS spends 6–16 hrs per BOM review at ₱500–800/hr. AI does first-pass in 5 min. 15 projects/year = massive savings." },
-    { icon:"🛡️", color:"#10b981", title:"Error Prevention", amount:"₱300,000–₱500,000/yr", detail:"One caught underestimate, one missed waterproofing line, one rebar pricing error. Catching even one per project saves more than a year of subscription." },
-    { icon:"📉", color:"#8b5cf6", title:"Revision Cycle Cost", amount:"₱50,000–₱200,000/yr", detail:"Every DPWH or LGU rejection costs time and reputation. AI checkers catch non-compliance before submission." },
+  const HOW_STEPS = [
+    { n:"01", icon:"📐", title:"Upload Your Plans",       desc:"Drop engineering plans in PDF, JPG, or PNG. Floor plans, elevations, site plan — any format." },
+    { n:"02", icon:"📋", title:"Add Your Draft BOM",      desc:"Upload your Bill of Materials PDF. Or run plans-only for a full scope and quantity estimate." },
+    { n:"03", icon:"🤖", title:"AI Validates Everything", desc:"Quantities vs. plan. Unit costs vs. 2025 market rates. Missing items. Markup completeness." },
+    { n:"04", icon:"📄", title:"Export Clean Report",     desc:"Download a professional estimate report. Ready to review, refine, and submit with confidence." },
   ];
 
   const MODULES = [
-    { icon:"📋", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", name:"BOM Review", code:"DPWH Rates · NCR Market Pricing · 2025",
-      badge:"⭐ Flagship Feature",
-      tools:["Quantity validation vs. plans","Unit cost vs. PH market rates","Missing & excess item detection","Markup & profit assessment","Full PDF report"] },
-    { icon:"⚡", color:"#fb923c", grad:"135deg,#fb923c,#ef4444", name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building Code",
-      tools:["AI Plan Checker","Voltage Drop Calculator","Short Circuit Analysis","Load Schedule Calculator"] },
-    { icon:"🏗️", color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1", name:"StructiCode", code:"NSCP 2015 · DPWH Blue Book",
-      tools:["AI Plan Checker","Seismic Load","Beam Design","Column Design","Footing Design","Slab Design","Load Combinations"] },
-    { icon:"🚿", color:"#10b981", grad:"135deg,#10b981,#059669", name:"SaniCode", code:"NPC 2000 · PD 856",
-      tools:["AI Plan Checker","Fixture Units","Pipe Sizing","Septic Tank","Water Demand","Pressure Loss","Storm Drainage"] },
+    {
+      icon:"🏗️", color:BLUE, grad:`135deg,${BLUE},#0569a8`, name:"StructiCode", code:"NSCP 2015 · DPWH Blue Book",
+      badge:"⭐ Flagship", live:true,
+      tools:["📋 BOM Review — quantities, costs, missing items","💰 Cost Estimator — parametric from plan upload","🤖 AI Plan Checker (NSCP 2015)","🌍 Seismic Load · 📐 Beam · 🏛️ Column · 🪨 Footing · 🔩 Slab","📊 Load Combinations"]
+    },
+    {
+      icon:"⚡", color:ORANGE, grad:`135deg,${ORANGE},#e85520`, name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building",
+      live:true,
+      tools:["🔍 AI Plan Checker (PEC 2017 / FSIC)","📉 Voltage Drop Calculator","⚡ Short Circuit Analysis","📊 Load Schedule Calculator"]
+    },
+    {
+      icon:"🚿", color:CYAN, grad:`135deg,${CYAN},#0891b2`, name:"SaniCode", code:"NPC 2000 · PD 856 Sanitation Code",
+      live:true,
+      tools:["🔍 AI Plan Checker (NPC 2000)","🚿 Fixture Unit Calculator","📏 Pipe Sizing · 🪣 Septic Tank","💧 Water Demand · 🔢 Pressure Loss · 🌧️ Storm Drainage"]
+    },
+    {
+      icon:"🏛️", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344 · Green Building",
+      live:false,
+      tools:["AI Plan Checker (NBC Philippines)","BP 344 Accessibility Compliance","Green Building Code Checker","Fire Code (RA 9514) Review","Parking & Setback Calculator"]
+    },
+    {
+      icon:"⚙️", color:"#94a3b8", grad:"135deg,#94a3b8,#64748b", name:"MechaniCode", code:"PSME Code · ASHRAE · Mechanical PE",
+      live:false,
+      tools:["HVAC Load Calculator","Duct Sizing & Static Pressure","Chiller & AHU Selection","Mechanical Plan Checker","Ventilation Rate Calculator"]
+    },
+  ];
+
+  const SAVINGS = [
+    {
+      icon:"⏱️", color:BLUE,
+      title:"Estimating Time Saved",
+      amount:"₱36,000–₱150,000/yr",
+      calc:"15 estimates/yr × 8–20 hrs × ₱300–500/hr → AI does first-pass in 5 min",
+    },
+    {
+      icon:"🎯", color:ORANGE,
+      title:"Bid Accuracy Protection",
+      amount:"₱250,000–₱500,000/yr",
+      calc:"Catch one 5% underbid on a ₱5M project = ₱250K saved. One project/year pays the subscription 6×",
+    },
+    {
+      icon:"🧱", color:CYAN,
+      title:"Procurement Rework Avoided",
+      amount:"₱80,000–₱200,000/yr",
+      calc:"Wrong quantities caught before purchase orders = 10–15% material cost savings per project",
+    },
+    {
+      icon:"🏆", color:GREEN,
+      title:"More Bids Won",
+      amount:"₱300,000–₱1,000,000/yr",
+      calc:"Faster estimates = more bids submitted. Even 1 additional project/year at 10% margin = significant upside",
+    },
   ];
 
   const TESTIMONIALS = [
     { quote:"Nakita agad ng BOM Review yung kulang na waterproofing at mali sa rebar pricing. Nakatipid kami ng halos ₱300K sa isang project.", name:"R. Santos", role:"Project Manager, Antipolo" },
-    { quote:"Before, 2 days ang BOM checking namin bago mag-award ng contract. Ngayon, 10 minutes. Game changer.", name:"M. dela Cruz", role:"Senior QS, Metro Manila" },
-    { quote:"As a sole practitioner, this is like having a full QS team checking my estimates 24/7.", name:"A. Reyes", role:"Structural Engineer, Davao" },
+    { quote:"Before, 2 days ang estimate namin per project. Ngayon, 30 minutes — at mas accurate pa. Game changer.", name:"M. dela Cruz", role:"Senior Estimator, Metro Manila" },
+    { quote:"As a sole contractor, this is like having a full estimating team on call 24/7. The cost per project has dropped significantly.", name:"A. Reyes", role:"General Contractor, Davao" },
   ];
 
   const PRICING = [
-    {
-      name:"Solo Practitioner",
-      price:"₱499",
-      period:"/month",
-      color:"#64748b",
-      tagline:"For freelance engineers & architects",
-      features:[
-        "Full Suite — all 3 modules",
-        "BOM Review (PDF upload)",
-        "AI Plan Checkers",
-        "All calculation tools",
-        "PDF report export",
-      ],
-    },
-    {
-      name:"Small Firm",
-      price:"₱3,500",
-      period:"/month",
-      color:"#f59e0b",
-      popular:true,
-      tagline:"For A/E firms with 5–20 engineers",
-      features:[
-        "Up to 10 users",
-        "Full Suite — all 3 modules",
-        "BOM Review (unlimited)",
-        "AI Plan Checkers",
-        "All calculation tools",
-        "Priority support",
-      ],
-    },
-    {
-      name:"Developer / Mid-Firm",
-      price:"₱12,000",
-      period:"/month",
-      color:"#10b981",
-      tagline:"For developers & firms with 20+ engineers",
-      features:[
-        "Unlimited users",
-        "Full Suite — all modules",
-        "BOM Review (unlimited)",
-        "AI Plan Checkers",
-        "Dedicated account manager",
-        "Custom onboarding",
-      ],
-    },
+    { name:"Solo Contractor",   price:"₱499",    period:"/month", color:"#64748b",
+      desc:"For freelance estimators and sole contractors",
+      features:["Full suite — all 3 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
+    { name:"Small Firm",        price:"₱3,500",  period:"/month", color:BLUE, best:true,
+      desc:"For contracting firms and design-build teams",
+      features:["Everything in Solo","Up to 10 users","Dashboard + project history","Priority support","Unlimited runs"] },
+    { name:"Mid-Size Firm",     price:"₱12,000", period:"/month", color:ORANGE,
+      desc:"For larger contractors and developers",
+      features:["Everything in Small Firm","Unlimited users","Dedicated onboarding","Custom code references","Early access to new modules"] },
   ];
 
   return (
-    <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", overflowX:"hidden" }}>
+    <div style={{ background:NAVY, color:"#e8edf5", fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", overflowX:"hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes glow{0%,100%{box-shadow:0 0 40px rgba(245,158,11,0.15)}50%{box-shadow:0 0 80px rgba(245,158,11,0.3)}}
-        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
-        .land-btn:hover{transform:translateY(-2px)!important;box-shadow:0 12px 40px rgba(245,158,11,0.45)!important}
-        .land-btn-outline:hover{background:rgba(245,158,11,0.08)!important;border-color:rgba(245,158,11,0.6)!important}
-        .module-card:hover{transform:translateY(-4px)}
-        .prob-card:hover{transform:translateY(-2px)}
-        .price-card:hover{transform:translateY(-4px)}
-        input::-webkit-inner-spin-button{-webkit-appearance:none}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(6,150,215,0.25);border-radius:4px}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+        @keyframes floatR{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+        @keyframes grid-scroll{0%{transform:translateY(0)}100%{transform:translateY(60px)}}
+        @keyframes spin-slow{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        .stat-card:hover{border-color:var(--c)!important;background:rgba(6,150,215,0.06)!important}
+        .stat-card{transition:all 0.2s}
+        .mod-card:hover{transform:translateY(-6px)}
+        .mod-card{transition:transform 0.25s ease,border-color 0.2s ease}
+        .mod-card:hover .mod-top-bar{opacity:1!important}
+        .mod-top-bar{transition:opacity 0.2s}
+        .pain-card:hover{border-color:rgba(6,150,215,0.3)!important}
+        .pain-card{transition:border-color 0.2s}
+        .cta-btn{transition:all 0.2s ease}
+        .cta-btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
+        .nav-link:hover{color:#e8edf5!important}
+        .nav-link{transition:color 0.15s}
+        .pricing-card:hover{transform:translateY(-4px)}
+        .pricing-card{transition:transform 0.2s ease}
       `}</style>
 
       {/* ── NAV ── */}
-      <nav style={{
-        position:"fixed", top:0, left:0, right:0, zIndex:200,
-        background: scrolled ? "rgba(15,17,23,0.95)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px)" : "none",
-        borderBottom: scrolled ? `1px solid ${T.border}` : "1px solid transparent",
-        transition:"all 0.3s ease", padding:"0 32px", height:64,
-        display:"flex", alignItems:"center", justifyContent:"space-between"
-      }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 14px rgba(245,158,11,0.4)" }}>📋</div>
+      <nav style={{ position:"fixed",top:0,left:0,right:0,zIndex:1000,height:64,padding:"0 40px",display:"flex",alignItems:"center",justifyContent:"space-between",
+        background:navSolid?"rgba(8,13,24,0.96)":"transparent",
+        backdropFilter:navSolid?"blur(24px)":"none",
+        borderBottom:navSolid?"1px solid rgba(6,150,215,0.12)":"none",
+        transition:"all 0.3s ease" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+          <div style={{ width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${BLUE},#0569a8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:`0 4px 16px rgba(6,150,215,0.4)` }}>🏗️</div>
           <div>
-            <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PH Engineering Suite</div>
-            <div style={{ fontSize:9, color:T.muted, letterSpacing:"0.8px", textTransform:"uppercase" }}>by Jon Ureta</div>
+            <div style={{ fontWeight:900,fontSize:16,color:"#e8edf5",letterSpacing:"-0.5px" }}>Buildify</div>
+            <div style={{ fontSize:9,color:"#475569",letterSpacing:"0.8px",textTransform:"uppercase" }}>Engineering Suite · PH</div>
           </div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <a href="#bom" style={{ fontSize:13, color:"#f59e0b", textDecoration:"none", fontWeight:700 }}>BOM Review</a>
-          <a href="#modules" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Modules</a>
-          <a href="#savings" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Savings</a>
-          <a href="#pricing" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Pricing</a>
-          <button onClick={() => setShowLogin(true)} className="land-btn" style={{
-            background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
-            fontWeight:800, fontSize:13, padding:"8px 22px", borderRadius:10, cursor:"pointer",
-            transition:"all 0.2s", boxShadow:"0 4px 20px rgba(245,158,11,0.3)"
-          }}>Log In →</button>
+        <div style={{ display:"flex",gap:28,alignItems:"center" }}>
+          {[["Why Buildify","#why"],["Modules","#modules"],["Pricing","#pricing"]].map(([l,h]) => (
+            <a key={l} href={h} className="nav-link" style={{ fontSize:13,color:"#64748b",textDecoration:"none",fontWeight:600 }}>{l}</a>
+          ))}
         </div>
+        <button onClick={()=>setShowLogin(true)} className="cta-btn"
+          style={{ background:`linear-gradient(135deg,${BLUE},#0569a8)`,border:"none",color:"#fff",fontWeight:700,fontSize:13,padding:"9px 22px",borderRadius:10,cursor:"pointer",boxShadow:`0 4px 20px rgba(6,150,215,0.35)` }}>
+          Sign In →
+        </button>
       </nav>
 
       {/* ── HERO ── */}
-      <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"100px 24px 60px", position:"relative", overflow:"hidden" }}>
-        <div style={{ position:"absolute", top:"20%", left:"10%", width:500, height:500, borderRadius:"50%", background:"radial-gradient(circle,rgba(245,158,11,0.07) 0%,transparent 70%)", pointerEvents:"none" }}/>
-        <div style={{ position:"absolute", bottom:"20%", right:"5%", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,rgba(16,185,129,0.05) 0%,transparent 70%)", pointerEvents:"none" }}/>
-
-        {/* Badge */}
-        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:100, padding:"6px 18px", marginBottom:28, animation:"fadeUp 0.6s ease both" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:"#f59e0b", display:"inline-block", animation:"pulse 2s ease infinite" }}/>
-          <span style={{ fontSize:12, color:"#f59e0b", fontWeight:700, letterSpacing:"0.3px" }}>Built for Filipino Engineers · Philippine Codes Only</span>
+      <section style={{ minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"120px 40px 80px",position:"relative",overflow:"hidden",textAlign:"center" }}>
+        {/* Background */}
+        <div style={{ position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none" }}>
+          <svg width="100%" height="130%" style={{ position:"absolute",top:0,left:0,opacity:0.035,animation:"grid-scroll 25s linear infinite" }}>
+            <defs><pattern id="eng-grid" width="64" height="64" patternUnits="userSpaceOnUse">
+              <path d="M 64 0 L 0 0 0 64" fill="none" stroke={BLUE} strokeWidth="1"/>
+              <circle cx="0" cy="0" r="1.5" fill={BLUE}/>
+            </pattern></defs>
+            <rect width="100%" height="200%" fill="url(#eng-grid)"/>
+          </svg>
+          <div style={{ position:"absolute",top:"15%",left:"8%",width:320,height:320,borderRadius:"50%",background:`radial-gradient(circle,rgba(6,150,215,0.1),transparent 65%)`,animation:"float 7s ease-in-out infinite" }}/>
+          <div style={{ position:"absolute",bottom:"15%",right:"6%",width:260,height:260,borderRadius:"50%",background:`radial-gradient(circle,rgba(255,107,43,0.08),transparent 65%)`,animation:"floatR 9s ease-in-out infinite 1s" }}/>
+          <div style={{ position:"absolute",top:"55%",right:"18%",width:200,height:200,borderRadius:"50%",background:`radial-gradient(circle,rgba(6,182,212,0.07),transparent 65%)`,animation:"float 8s ease-in-out infinite 3s" }}/>
+          {/* Parallax lines */}
+          <svg style={{ position:"absolute",inset:0,width:"100%",height:"100%",opacity:0.05,transform:`translateY(${scrollY*0.12}px)` }} preserveAspectRatio="none">
+            <line x1="0" y1="35%" x2="100%" y2="35%" stroke={BLUE} strokeWidth="1" strokeDasharray="10 16"/>
+            <line x1="0" y1="65%" x2="100%" y2="65%" stroke={ORANGE} strokeWidth="1" strokeDasharray="10 16"/>
+            <line x1="22%" y1="0" x2="22%" y2="100%" stroke={CYAN} strokeWidth="1" strokeDasharray="10 16"/>
+            <line x1="72%" y1="0" x2="72%" y2="100%" stroke={BLUE} strokeWidth="1" strokeDasharray="10 16"/>
+          </svg>
         </div>
 
-        {/* Headline */}
-        <h1 style={{ fontSize:"clamp(36px,6vw,76px)", fontWeight:900, lineHeight:1.0, letterSpacing:"-2.5px", marginBottom:24, animation:"fadeUp 0.7s ease 0.1s both", maxWidth:980 }}>
-          Your Contractor's BOM<br/>
-          <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316,#ef4444)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
-            Could Be Costing You Millions.
-          </span>
-        </h1>
-
-        <p style={{ fontSize:"clamp(16px,2vw,21px)", color:T.muted, maxWidth:700, lineHeight:1.7, marginBottom:14, animation:"fadeUp 0.7s ease 0.2s both" }}>
-          PH Engineering Suite catches underpriced materials, missing scope items, and wrong unit costs in minutes —
-          before you sign the contract.
-        </p>
-        <p style={{ fontSize:14, color:"rgba(100,116,139,0.7)", marginBottom:44, animation:"fadeUp 0.7s ease 0.25s both" }}>
-          Also includes AI compliance checkers for PEC 2017 · NSCP 2015 · NPC 2000 · PD 856.
-        </p>
-
-        <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.3s both", marginBottom:72 }}>
-          <button onClick={() => setShowLogin(true)} className="land-btn" style={{
-            background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
-            fontWeight:800, fontSize:16, padding:"16px 40px", borderRadius:14, cursor:"pointer",
-            transition:"all 0.2s", boxShadow:"0 8px 32px rgba(245,158,11,0.4)", letterSpacing:"-0.3px"
-          }}>Try BOM Review Now →</button>
-          <a href="#savings" className="land-btn-outline" style={{
-            border:"1.5px solid rgba(255,255,255,0.15)", color:T.text, background:"transparent",
-            fontWeight:700, fontSize:16, padding:"16px 36px", borderRadius:14, cursor:"pointer",
-            transition:"all 0.2s", letterSpacing:"-0.3px", textDecoration:"none", display:"inline-flex", alignItems:"center"
-          }}>See the Savings ↓</a>
-        </div>
-
-        {/* Stats row */}
-        <div style={{ display:"flex", gap:48, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.4s both" }}>
-          {STATS.map(s => (
-            <div key={s.label} style={{ textAlign:"center" }}>
-              <div style={{ fontSize:"clamp(22px,3vw,32px)", fontWeight:900, color:T.text, letterSpacing:"-1px" }}>{s.num}</div>
-              <div style={{ fontSize:11, color:T.muted, marginTop:4, textTransform:"uppercase", letterSpacing:"0.8px", fontWeight:600 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── BOM HERO SECTION ── */}
-      <section id="bom" style={{ padding:"80px 24px", background:"rgba(245,158,11,0.03)", borderTop:`1px solid rgba(245,158,11,0.1)`, borderBottom:`1px solid rgba(245,158,11,0.1)` }}>
-        <div style={{ maxWidth:1100, margin:"0 auto" }}>
-          <div style={{ textAlign:"center", marginBottom:56 }}>
-            <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:100, padding:"5px 16px", marginBottom:16 }}>
-              <span style={{ fontSize:11, color:"#f59e0b", fontWeight:800, letterSpacing:"1px", textTransform:"uppercase" }}>⭐ Flagship Feature</span>
-            </div>
-            <h2 style={{ fontSize:"clamp(28px,4vw,52px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>
-              AI-Powered BOM Review
-            </h2>
-            <p style={{ fontSize:17, color:T.muted, maxWidth:660, margin:"0 auto", lineHeight:1.7 }}>
-              Upload your engineering plans and contractor BOM. Get a full QS-grade review in 5 minutes —
-              quantities validated, unit costs benchmarked against 2025 NCR market rates, missing items flagged.
-            </p>
+        <div style={{ position:"relative",maxWidth:900,width:"100%" }}>
+          {/* Badge */}
+          <div style={{ display:"inline-flex",alignItems:"center",gap:8,background:"rgba(6,150,215,0.08)",border:"1px solid rgba(6,150,215,0.25)",borderRadius:99,padding:"6px 16px",marginBottom:28,animation:"fadeUp 0.6s ease both" }}>
+            <span style={{ width:7,height:7,borderRadius:"50%",background:BLUE,boxShadow:`0 0 10px ${BLUE}`,display:"inline-block",animation:"float 2s ease-in-out infinite" }}/>
+            <span style={{ fontSize:11,color:BLUE,fontWeight:700,letterSpacing:"0.8px",textTransform:"uppercase" }}>AI-Powered · Built for Filipino Contractors · 2025</span>
           </div>
 
-          {/* Two-column: what it catches + mock result */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:40, alignItems:"start" }}>
-            {/* Left: findings list */}
-            <div>
-              <div style={{ fontSize:13, fontWeight:800, color:T.muted, letterSpacing:"1px", textTransform:"uppercase", marginBottom:20 }}>What BOM Review Catches</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                {BOM_FINDINGS.map((f,i) => (
-                  <div key={i} style={{ display:"flex", gap:14, alignItems:"flex-start", background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px" }}>
-                    <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{f.icon}</span>
-                    <div>
-                      <div style={{ fontWeight:700, fontSize:13, color:T.text, marginBottom:3 }}>{f.label}</div>
-                      <div style={{ fontSize:11, color:T.muted, lineHeight:1.5 }}>{f.example}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <h1 style={{ fontSize:"clamp(34px,5.5vw,68px)",fontWeight:900,letterSpacing:"-2px",lineHeight:1.05,marginBottom:20,animation:"fadeUp 0.7s ease 0.1s both" }}>
+            Estimate Smarter.<br/>
+            <span style={{ background:`linear-gradient(135deg,${BLUE},${CYAN})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>Win More. Build Profitably.</span>
+          </h1>
 
-            {/* Right: sample output card */}
-            <div style={{ background:T.card, border:"1.5px solid rgba(245,158,11,0.3)", borderRadius:20, padding:28, boxShadow:"0 8px 40px rgba(0,0,0,0.4)" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-                <div style={{ fontWeight:800, fontSize:15, color:T.text }}>BOM Review Report</div>
-                <span style={{ background:"rgba(239,68,68,0.12)", color:"#ef4444", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"3px 10px", fontSize:11, fontWeight:800 }}>NEEDS REVISION</span>
-              </div>
-              <div style={{ fontSize:11, color:T.muted, marginBottom:16 }}>Sison Two-Storey Duplex · 435 sqm · Antipolo City</div>
-
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:20 }}>
-                {[{n:"4",l:"Critical",c:"#ef4444"},{n:"7",l:"Warnings",c:"#f59e0b"},{n:"5",l:"Missing",c:"#8b5cf6"},{n:"1",l:"Excess",c:"#64748b"}].map(s=>(
-                  <div key={s.l} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${T.border}`, borderRadius:10, padding:"12px 8px", textAlign:"center" }}>
-                    <div style={{ fontSize:24, fontWeight:900, color:s.c }}>{s.n}</div>
-                    <div style={{ fontSize:10, color:T.muted, marginTop:2 }}>{s.l}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
-                {[
-                  {c:"#ef4444", t:"Grounding wire: ₱3,000 entered, should be ₱30,000"},
-                  {c:"#ef4444", t:"Window budget short by est. ₱100K–₱250K"},
-                  {c:"#ef4444", t:"Rebar costs 15–25% below 2025 market rates"},
-                  {c:"#f59e0b", t:"Roof deck waterproofing not in BOM (~₱80K–₱150K)"},
-                  {c:"#f59e0b", t:"4 missing D-3 flush doors vs. plan schedule"},
-                ].map((item,i)=>(
-                  <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", fontSize:12, color:T.muted }}>
-                    <span style={{ color:item.c, fontWeight:800, fontSize:14, flexShrink:0, marginTop:-1 }}>●</span>
-                    <span>{item.t}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:16 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-                  <span style={{ color:T.muted }}>BOM Total (submitted)</span>
-                  <span style={{ color:T.text, fontWeight:700 }}>₱9,048,614.80</span>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
-                  <span style={{ color:"#f59e0b", fontWeight:700 }}>Recommended Revised Total</span>
-                  <span style={{ color:"#f59e0b", fontWeight:800 }}>₱11.5M – ₱12.0M</span>
-                </div>
-              </div>
-
-              <div style={{ marginTop:16, background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:10, padding:"10px 14px", fontSize:11, color:"rgba(245,158,11,0.8)" }}>
-                ⚠️ Submitted BOM was understated by est. <strong>₱2.5M–₱3.0M</strong>. Catching this before contract signing protects the client from costly overruns.
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── SAVINGS SECTION ── */}
-      <section id="savings" style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:56 }}>
-          <div style={{ fontSize:12, color:"#10b981", fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>THE BUSINESS CASE</div>
-          <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>
-            The numbers speak for themselves.
-          </h2>
-          <p style={{ fontSize:16, color:T.muted, maxWidth:600, margin:"0 auto" }}>
-            A small A/E firm doing 15–20 projects per year saves an estimated <strong style={{color:T.text}}>₱370K–₱750K annually</strong> — against a subscription cost of ₱42,000/year. That's a 10–25× return.
+          <p style={{ fontSize:"clamp(15px,1.8vw,19px)",color:"#94a3b8",maxWidth:640,margin:"0 auto 36px",lineHeight:1.75,animation:"fadeUp 0.7s ease 0.2s both" }}>
+            Buildify helps Philippine contractors and estimators produce accurate BOMs, catch missing items, validate 2025 market rates, and generate professional estimates — in minutes, not days.
           </p>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:20 }}>
-          {SAVINGS.map(s => (
-            <div key={s.title} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:28, transition:"all 0.2s" }} className="prob-card">
-              <div style={{ fontSize:32, marginBottom:14 }}>{s.icon}</div>
-              <div style={{ fontSize:13, fontWeight:800, color:s.color, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.title}</div>
-              <div style={{ fontSize:24, fontWeight:900, color:T.text, letterSpacing:"-0.5px", marginBottom:10 }}>{s.amount}</div>
-              <div style={{ fontSize:13, color:T.muted, lineHeight:1.6 }}>{s.detail}</div>
-            </div>
-          ))}
-        </div>
 
-        {/* ROI callout */}
-        <div style={{ marginTop:40, background:"linear-gradient(135deg,rgba(245,158,11,0.06),rgba(16,185,129,0.06))", border:"1.5px solid rgba(245,158,11,0.2)", borderRadius:20, padding:"32px 40px", display:"flex", alignItems:"center", gap:40, flexWrap:"wrap", justifyContent:"center", textAlign:"center" }}>
-          <div>
-            <div style={{ fontSize:48, fontWeight:900, color:"#f59e0b", letterSpacing:"-2px" }}>25×</div>
-            <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>Average ROI for small firms</div>
+          <div style={{ display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",animation:"fadeUp 0.7s ease 0.3s both",marginBottom:64 }}>
+            <button onClick={()=>setShowLogin(true)} className="cta-btn"
+              style={{ background:`linear-gradient(135deg,${BLUE},#0569a8)`,border:"none",color:"#fff",fontWeight:800,fontSize:15,padding:"15px 38px",borderRadius:12,cursor:"pointer",boxShadow:`0 8px 32px rgba(6,150,215,0.45)`,letterSpacing:"-0.3px" }}>
+              Start Free → Try BOM Review
+            </button>
+            <a href="#why" style={{ display:"inline-flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"1.5px solid rgba(255,255,255,0.1)",color:"#94a3b8",fontWeight:600,fontSize:14,padding:"14px 28px",borderRadius:12,textDecoration:"none",transition:"all 0.2s" }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=BLUE;e.currentTarget.style.color="#e8edf5"}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";e.currentTarget.style.color="#94a3b8"}}>
+              ▶ See How It Works
+            </a>
           </div>
-          <div style={{ width:1, height:60, background:T.border, flexShrink:0 }}/>
-          <div style={{ maxWidth:480 }}>
-            <div style={{ fontWeight:800, fontSize:18, color:T.text, marginBottom:8, letterSpacing:"-0.5px" }}>
-              One caught BOM error pays for an entire year.
-            </div>
-            <div style={{ fontSize:14, color:T.muted, lineHeight:1.7 }}>
-              The Sison project BOM was understated by ₱2.5M–₱3.0M. A developer or firm that caught this before signing the contract would have avoided a massive overrun. The annual subscription costs less than <strong style={{color:T.text}}>1.5% of that one catch.</strong>
-            </div>
+
+          {/* Stats */}
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:1,background:"rgba(255,255,255,0.04)",borderRadius:16,overflow:"hidden",border:"1px solid rgba(255,255,255,0.06)" }}>
+            {STATS.map((s,i) => (
+              <div key={i} className="stat-card" style={{ "--c":BLUE,padding:"20px 16px",textAlign:"center",background:NAVY,borderRight:i<3?"1px solid rgba(255,255,255,0.05)":"none",animation:`fadeUp 0.8s ease ${0.2+i*0.12}s both` }}>
+                <div style={{ fontSize:"clamp(18px,2.5vw,26px)",fontWeight:900,color:BLUE,fontFamily:"monospace",letterSpacing:"-0.5px" }}>{s.num}</div>
+                <div style={{ fontSize:11,color:"#e8edf5",fontWeight:700,marginTop:4 }}>{s.label}</div>
+                <div style={{ fontSize:9,color:"#475569",marginTop:2 }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── WHY BUILDIFY ── */}
+      <section id="why" style={{ padding:"100px 40px",borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+        <div style={{ maxWidth:1100,margin:"0 auto" }}>
+          <div {...reveal("why-h")} style={{ textAlign:"center",marginBottom:60 }}>
+            <div style={{ fontSize:11,color:ORANGE,fontWeight:700,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10 }}>WHY BUILDIFY</div>
+            <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px",lineHeight:1.1 }}>
+              Every Estimator Knows<br/><span style={{color:ORANGE}}>These Exact Problems</span>
+            </h2>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:16 }}>
+            {PAIN_POINTS.map((p,i) => (
+              <div key={i} className="pain-card" {...reveal(`pain-${i}`, i*0.1)}
+                style={{ background:"#0f1624",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,padding:"24px",position:"relative",overflow:"hidden" }}>
+                <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${BLUE},transparent)` }}/>
+                <div style={{ fontSize:28,marginBottom:14 }}>{p.icon}</div>
+                <div style={{ fontSize:13,color:"#ef4444",fontWeight:700,marginBottom:10,lineHeight:1.4 }}>"{p.pain}"</div>
+                <div style={{ height:1,background:"rgba(255,255,255,0.05)",marginBottom:10 }}/>
+                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6 }}>
+                  <span style={{ color:GREEN,fontWeight:700 }}>✓ </span>{p.fix}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section style={{ padding:"100px 40px",background:"rgba(6,150,215,0.02)",borderTop:"1px solid rgba(6,150,215,0.07)",borderBottom:"1px solid rgba(6,150,215,0.07)" }}>
+        <div style={{ maxWidth:1100,margin:"0 auto" }}>
+          <div {...reveal("how-h")} style={{ textAlign:"center",marginBottom:60 }}>
+            <div style={{ fontSize:11,color:BLUE,fontWeight:700,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10 }}>HOW IT WORKS</div>
+            <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
+              Plan to Estimate<br/><span style={{color:BLUE}}>in 4 Steps</span>
+            </h2>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:16 }}>
+            {HOW_STEPS.map((s,i) => (
+              <div key={i} {...reveal(`how-${i}`, i*0.1)}
+                style={{ background:"#0f1624",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,padding:"28px 24px",position:"relative" }}>
+                <div style={{ position:"absolute",top:14,right:16,fontSize:28,fontWeight:900,color:"rgba(6,150,215,0.08)",fontFamily:"monospace" }}>{s.n}</div>
+                <div style={{ width:48,height:48,borderRadius:12,background:"rgba(6,150,215,0.1)",border:"1px solid rgba(6,150,215,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:16 }}>{s.icon}</div>
+                <div style={{ fontWeight:800,fontSize:15,color:"#e8edf5",marginBottom:8 }}>{s.title}</div>
+                <div style={{ fontSize:12,color:"#64748b",lineHeight:1.65 }}>{s.desc}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── MODULES ── */}
-      <section id="modules" style={{ padding:"80px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}` }}>
-        <div style={{ maxWidth:1100, margin:"0 auto" }}>
-          <div style={{ textAlign:"center", marginBottom:56 }}>
-            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>FULL SUITE</div>
-            <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>Everything a Philippine engineer needs.</h2>
-            <p style={{ fontSize:16, color:T.muted }}>BOM Review + AI compliance checkers + calculation tools. One subscription.</p>
+      <section id="modules" style={{ padding:"100px 40px" }}>
+        <div style={{ maxWidth:1200,margin:"0 auto" }}>
+          <div {...reveal("mod-h")} style={{ textAlign:"center",marginBottom:60 }}>
+            <div style={{ fontSize:11,color:CYAN,fontWeight:700,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10 }}>THE SUITE</div>
+            <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
+              Every Engineering Discipline.<br/><span style={{color:CYAN}}>One Platform.</span>
+            </h2>
+            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>3 modules live now · 2 coming soon · All built for Philippine codes</p>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:20 }}>
-            {MODULES.map(m => (
-              <div key={m.name} className="module-card" style={{ background:T.card, border:`1.5px solid ${m.badge ? "rgba(245,158,11,0.35)" : T.border}`, borderRadius:20, padding:28, transition:"all 0.2s", position:"relative", overflow:"hidden" }}>
-                {m.badge && <div style={{ position:"absolute", top:14, right:14, background:"linear-gradient(135deg,#f59e0b,#f97316)", color:"#000", fontSize:9, fontWeight:800, padding:"3px 10px", borderRadius:100, letterSpacing:"0.3px" }}>{m.badge}</div>}
-                <div style={{ width:48, height:48, borderRadius:14, background:`linear-gradient(${m.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, marginBottom:16, boxShadow:`0 6px 20px ${m.color}33` }}>{m.icon}</div>
-                <div style={{ fontWeight:800, fontSize:17, color:T.text, marginBottom:4 }}>{m.name}</div>
-                <div style={{ fontSize:10, color:m.color, fontWeight:700, letterSpacing:"0.5px", marginBottom:14, textTransform:"uppercase" }}>{m.code}</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-                  {m.tools.map(tool => (
-                    <div key={tool} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:T.muted }}>
-                      <span style={{ color:m.color, fontWeight:800, fontSize:10 }}>✓</span>{tool}
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20 }}>
+            {MODULES.map((m,i) => (
+              <div key={i} className="mod-card" {...reveal(`mod-${i}`, i*0.1)}
+                style={{ background:m.live?"#0f1624":"#0a1020",border:`1px solid ${m.live?"rgba(255,255,255,0.07)":"rgba(255,255,255,0.04)"}`,borderRadius:20,padding:"28px",position:"relative",overflow:"hidden",opacity:m.live?1:0.75 }}>
+                <div className="mod-top-bar" style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${m.color},transparent)`,opacity:0.5 }}/>
+                {!m.live && (
+                  <div style={{ position:"absolute",top:14,right:14,fontSize:9,background:"rgba(148,163,184,0.1)",color:"#94a3b8",padding:"3px 8px",borderRadius:5,fontWeight:800,letterSpacing:"0.5px",border:"1px solid rgba(148,163,184,0.15)" }}>COMING SOON</div>
+                )}
+                <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20 }}>
+                  <div style={{ width:44,height:44,borderRadius:11,background:`linear-gradient(${m.grad})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:`0 6px 20px ${m.color}30`,flexShrink:0 }}>{m.icon}</div>
+                  <div>
+                    <div style={{ fontWeight:900,fontSize:16,color:m.live?"#e8edf5":"#64748b" }}>{m.name}</div>
+                    <div style={{ fontSize:10,color:"#475569",marginTop:2 }}>{m.code}</div>
+                  </div>
+                  {m.badge && <span style={{ marginLeft:"auto",fontSize:9,background:`${m.color}18`,color:m.color,padding:"3px 8px",borderRadius:5,fontWeight:800,whiteSpace:"nowrap",border:`1px solid ${m.color}30` }}>{m.badge}</span>}
+                </div>
+                <div style={{ display:"flex",flexDirection:"column",gap:7,marginBottom:20 }}>
+                  {m.tools.map((t,j) => (
+                    <div key={j} style={{ fontSize:11,color:m.live?"#94a3b8":"#475569",display:"flex",alignItems:"flex-start",gap:6,lineHeight:1.4 }}>
+                      <div style={{ width:4,height:4,borderRadius:"50%",background:m.color,flexShrink:0,marginTop:5 }}/>
+                      <span>{t}</span>
                     </div>
                   ))}
                 </div>
+                {m.live && (
+                  <button onClick={()=>setShowLogin(true)}
+                    style={{ width:"100%",background:`${m.color}12`,border:`1.5px solid ${m.color}35`,color:m.color,fontWeight:700,fontSize:12,padding:"10px",borderRadius:10,cursor:"pointer",transition:"all 0.15s" }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=`${m.color}22`}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=`${m.color}12`}}>
+                    Open {m.name} →
+                  </button>
+                )}
+                {!m.live && (
+                  <div style={{ width:"100%",background:"rgba(148,163,184,0.05)",border:"1px solid rgba(148,163,184,0.1)",color:"#475569",fontWeight:700,fontSize:11,padding:"10px",borderRadius:10,textAlign:"center" }}>
+                    🔔 Notify Me When Live
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SAVINGS / ROI ── */}
+      <section style={{ padding:"100px 40px",background:`linear-gradient(180deg,rgba(6,150,215,0.02),rgba(6,150,215,0.05))`,borderTop:"1px solid rgba(6,150,215,0.07)",borderBottom:"1px solid rgba(6,150,215,0.07)" }}>
+        <div style={{ maxWidth:1100,margin:"0 auto" }}>
+          <div {...reveal("roi-h")} style={{ textAlign:"center",marginBottom:60 }}>
+            <div style={{ fontSize:11,color:GREEN,fontWeight:700,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10 }}>ROI FOR CONTRACTORS</div>
+            <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
+              The Math Is Simple.<br/><span style={{color:GREEN}}>Buildify Pays for Itself.</span>
+            </h2>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:16,marginBottom:36 }}>
+            {SAVINGS.map((s,i) => (
+              <div key={i} {...reveal(`roi-${i}`, i*0.1)}
+                style={{ background:"#0f1624",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,padding:"24px",position:"relative",overflow:"hidden" }}>
+                <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${s.color},transparent)` }}/>
+                <div style={{ fontSize:26,marginBottom:12 }}>{s.icon}</div>
+                <div style={{ fontSize:10,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6 }}>{s.title}</div>
+                <div style={{ fontSize:20,fontWeight:900,color:s.color,fontFamily:"monospace",letterSpacing:"-0.5px",marginBottom:10 }}>{s.amount}</div>
+                <div style={{ fontSize:11,color:"#64748b",lineHeight:1.65,background:"rgba(255,255,255,0.02)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(255,255,255,0.04)" }}>{s.calc}</div>
+              </div>
+            ))}
+          </div>
+          <div {...reveal("roi-total")} style={{ background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:16,padding:"28px 32px",textAlign:"center" }}>
+            <div style={{ fontSize:12,color:"#64748b",marginBottom:6 }}>Small firm · 15 estimates/yr · 2 projects improved/yr</div>
+            <div style={{ fontSize:"clamp(28px,4vw,52px)",fontWeight:900,color:GREEN,fontFamily:"monospace",letterSpacing:"-1px" }}>₱666,000–₱1,850,000/yr</div>
+            <div style={{ fontSize:13,color:"#64748b",marginTop:8 }}>estimated total value captured · subscription cost: <strong style={{color:"#e8edf5"}}>₱42,000/yr</strong> · ROI: <strong style={{color:GREEN}}>16–44×</strong></div>
           </div>
         </div>
       </section>
 
       {/* ── TESTIMONIALS ── */}
-      <section style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:48 }}>
-          <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>TESTIMONIALS</div>
-          <h2 style={{ fontSize:"clamp(24px,3vw,40px)", fontWeight:900, letterSpacing:"-1px" }}>Filipino engineers trust PH Engineering Suite.</h2>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:20 }}>
-          {TESTIMONIALS.map(t => (
-            <div key={t.name} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:"28px 24px" }}>
-              <div style={{ fontSize:28, color:"#f59e0b", marginBottom:14, lineHeight:1 }}>"</div>
-              <p style={{ fontSize:14, color:T.text, lineHeight:1.7, marginBottom:20, fontStyle:"italic" }}>{t.quote}</p>
-              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"#000", flexShrink:0 }}>{t.name[0]}</div>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:T.text }}>{t.name}</div>
-                  <div style={{ fontSize:11, color:T.muted }}>{t.role}</div>
+      <section style={{ padding:"100px 40px" }}>
+        <div style={{ maxWidth:1100,margin:"0 auto" }}>
+          <div {...reveal("test-h")} style={{ textAlign:"center",marginBottom:60 }}>
+            <div style={{ fontSize:11,color:"#8b5cf6",fontWeight:700,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10 }}>FROM THE FIELD</div>
+            <h2 style={{ fontSize:"clamp(26px,4vw,40px)",fontWeight:900,letterSpacing:"-1px" }}>Contractors Already Using Buildify</h2>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20 }}>
+            {TESTIMONIALS.map((t,i) => (
+              <div key={i} {...reveal(`test-${i}`, i*0.15)}
+                style={{ background:"#0f1624",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,padding:"28px" }}>
+                <div style={{ fontSize:36,color:BLUE,lineHeight:1,marginBottom:12 }}>"</div>
+                <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.8,marginBottom:20,fontStyle:"italic" }}>{t.quote}</div>
+                <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:14,display:"flex",alignItems:"center",gap:10 }}>
+                  <div style={{ width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${BLUE},${CYAN})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff" }}>{t.name[0]}</div>
+                  <div>
+                    <div style={{ fontWeight:700,fontSize:13,color:"#e8edf5" }}>{t.name}</div>
+                    <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>{t.role}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── PRICING ── */}
-      <section id="pricing" style={{ padding:"80px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}` }}>
-        <div style={{ maxWidth:960, margin:"0 auto" }}>
-          <div style={{ textAlign:"center", marginBottom:56 }}>
-            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>PRICING</div>
-            <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>One subscription. Entire suite.</h2>
-            <p style={{ fontSize:16, color:T.muted }}>No per-module fees. Full access to BOM Review, all AI checkers, and every calculation tool.</p>
+      <section id="pricing" style={{ padding:"100px 40px",background:"rgba(255,255,255,0.01)",borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+        <div style={{ maxWidth:1000,margin:"0 auto" }}>
+          <div {...reveal("price-h")} style={{ textAlign:"center",marginBottom:60 }}>
+            <div style={{ fontSize:11,color:ORANGE,fontWeight:700,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10 }}>PRICING</div>
+            <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
+              Straightforward Pricing.<br/><span style={{color:ORANGE}}>Full Suite on Every Plan.</span>
+            </h2>
+            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>StructiCode · ElectriCode · SaniCode included. ArchiCode & MechaniCode free when launched.</p>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:24 }}>
-            {PRICING.map(p => (
-              <div key={p.name} className="price-card" style={{ background:T.card, border:`2px solid ${p.popular ? "rgba(245,158,11,0.5)" : T.border}`, borderRadius:24, padding:32, position:"relative", transition:"all 0.2s" }}>
-                {p.popular && <div style={{ position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#f59e0b,#f97316)", color:"#000", fontSize:10, fontWeight:800, padding:"4px 16px", borderRadius:100, whiteSpace:"nowrap", letterSpacing:"0.5px" }}>BEST VALUE</div>}
-                <div style={{ fontSize:13, fontWeight:800, color:p.color, marginBottom:4 }}>{p.name}</div>
-                <div style={{ fontSize:12, color:T.muted, marginBottom:16 }}>{p.tagline}</div>
-                <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:20 }}>
-                  <span style={{ fontSize:42, fontWeight:900, color:T.text, letterSpacing:"-2px" }}>{p.price}</span>
-                  <span style={{ fontSize:13, color:T.muted }}>{p.period}</span>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:20,alignItems:"start" }}>
+            {PRICING.map((p,i) => (
+              <div key={i} className="pricing-card" {...reveal(`price-${i}`, i*0.12)}
+                style={{ background:p.best?"rgba(6,150,215,0.05)":"#0f1624",border:`1.5px solid ${p.best?BLUE:"rgba(255,255,255,0.07)"}`,borderRadius:20,padding:"32px 28px",position:"relative",overflow:"hidden" }}>
+                {p.best && <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${BLUE},${CYAN})` }}/>}
+                {p.best && <div style={{ position:"absolute",top:16,right:14,fontSize:9,background:`rgba(6,150,215,0.15)`,color:BLUE,padding:"3px 8px",borderRadius:5,fontWeight:800,letterSpacing:"0.5px",border:`1px solid rgba(6,150,215,0.3)` }}>⭐ BEST VALUE</div>}
+                <div style={{ fontWeight:800,fontSize:14,color:"#94a3b8",marginBottom:4 }}>{p.name}</div>
+                <div style={{ fontSize:11,color:"#475569",marginBottom:14 }}>{p.desc}</div>
+                <div style={{ display:"flex",alignItems:"baseline",gap:4,marginBottom:20 }}>
+                  <span style={{ fontSize:38,fontWeight:900,color:p.color,fontFamily:"monospace",letterSpacing:"-1px" }}>{p.price}</span>
+                  <span style={{ fontSize:13,color:"#475569" }}>{p.period}</span>
                 </div>
-                <div style={{ height:1, background:T.border, marginBottom:20 }}/>
-                <div style={{ display:"flex", flexDirection:"column", gap:11, marginBottom:28 }}>
-                  {p.features.map(f => (
-                    <div key={f} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:13, color:T.muted }}>
-                      <span style={{ color:p.color, fontWeight:800, flexShrink:0, marginTop:1 }}>✓</span>{f}
+                <div style={{ height:1,background:"rgba(255,255,255,0.06)",marginBottom:18 }}/>
+                <div style={{ display:"flex",flexDirection:"column",gap:9,marginBottom:24 }}>
+                  {p.features.map((f,j) => (
+                    <div key={j} style={{ display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#94a3b8" }}>
+                      <span style={{ color:GREEN,fontWeight:800,fontSize:13 }}>✓</span>{f}
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setShowLogin(true)} style={{ width:"100%", background:p.popular ? "linear-gradient(135deg,#f59e0b,#f97316)" : "transparent", border:`1.5px solid ${p.popular ? "transparent" : T.border}`, color:p.popular ? "#000" : T.text, fontWeight:700, fontSize:14, padding:"12px", borderRadius:12, cursor:"pointer", transition:"all 0.2s" }}>
-                  Get Started →
+                <button onClick={()=>setShowLogin(true)}
+                  style={{ width:"100%",background:p.best?`linear-gradient(135deg,${BLUE},#0569a8)`:"transparent",border:`1.5px solid ${p.color}44`,color:p.best?"#fff":p.color,fontWeight:700,fontSize:13,padding:"12px",borderRadius:11,cursor:"pointer",transition:"all 0.15s" }}
+                  onMouseEnter={e=>{if(!p.best)e.currentTarget.style.background=`${p.color}12`}}
+                  onMouseLeave={e=>{if(!p.best)e.currentTarget.style.background="transparent"}}>
+                  {p.best?"Get Started →":"Start Free Trial →"}
                 </button>
               </div>
             ))}
-          </div>
-          <div style={{ textAlign:"center", marginTop:32, fontSize:13, color:T.muted }}>
-            All plans include the full suite. No per-module pricing. · VAT exclusive. · Annual billing available at 2 months free.
           </div>
         </div>
       </section>
 
       {/* ── FINAL CTA ── */}
-      <section style={{ padding:"80px 24px", textAlign:"center", borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.02)" }}>
-        <div style={{ maxWidth:700, margin:"0 auto" }}>
-          <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:16 }}>START TODAY</div>
-          <h2 style={{ fontSize:"clamp(28px,4vw,52px)", fontWeight:900, letterSpacing:"-2px", lineHeight:1.05, marginBottom:20 }}>
-            Stop signing contracts<br/>with underestimated BOMs.<br/>
-            <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>Start catching them first.</span>
+      <section style={{ padding:"100px 40px",textAlign:"center",position:"relative",overflow:"hidden" }}>
+        <div style={{ position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 50%,rgba(6,150,215,0.07),transparent 70%)`,pointerEvents:"none" }}/>
+        <div {...reveal("cta-final")} style={{ position:"relative",maxWidth:660,margin:"0 auto" }}>
+          <h2 style={{ fontSize:"clamp(26px,4vw,48px)",fontWeight:900,letterSpacing:"-1.5px",lineHeight:1.1,marginBottom:16 }}>
+            Stop leaving money<br/><span style={{color:BLUE}}>on the table.</span>
           </h2>
-          <p style={{ fontSize:16, color:T.muted, marginBottom:40, lineHeight:1.7 }}>
-            One BOM catch pays for years of subscription. Used by Filipino engineers and developers across Metro Manila, Rizal, Laguna, and beyond.
-          </p>
-          <button onClick={() => setShowLogin(true)} className="land-btn" style={{
-            background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
-            fontWeight:800, fontSize:18, padding:"18px 52px", borderRadius:16, cursor:"pointer",
-            transition:"all 0.2s", boxShadow:"0 8px 40px rgba(245,158,11,0.4)", letterSpacing:"-0.5px"
-          }}>Try BOM Review Free →</button>
-          <div style={{ marginTop:16, fontSize:12, color:"rgba(100,116,139,0.5)" }}>Philippine codes only · Built for Filipino engineers · Powered by Claude AI</div>
+          <p style={{ fontSize:15,color:"#64748b",marginBottom:36,lineHeight:1.75 }}>Join Filipino contractors and engineers using Buildify to estimate accurately, win more bids, and protect their margins — backed by 2025 PH market rates.</p>
+          <button onClick={()=>setShowLogin(true)} className="cta-btn"
+            style={{ background:`linear-gradient(135deg,${BLUE},#0569a8)`,border:"none",color:"#fff",fontWeight:800,fontSize:16,padding:"17px 48px",borderRadius:14,cursor:"pointer",boxShadow:`0 12px 48px rgba(6,150,215,0.45)`,letterSpacing:"-0.3px" }}>
+            Start Free → Try BOM Review
+          </button>
+          <div style={{ marginTop:18,fontSize:11,color:"#475569" }}>No credit card required · Cancel anytime · NSCP · PEC · NPC · DPWH</div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ borderTop:`1px solid ${T.border}`, padding:"24px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>📋</div>
-          <div style={{ fontSize:13, color:T.muted }}>PH Engineering Suite · <strong style={{ color:T.text }}>Jon Ureta</strong> · Philippines</div>
+      <footer style={{ borderTop:"1px solid rgba(255,255,255,0.05)",padding:"28px 40px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+          <div style={{ width:26,height:26,borderRadius:7,background:`linear-gradient(135deg,${BLUE},#0569a8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13 }}>🏗️</div>
+          <span style={{ fontWeight:800,fontSize:13,color:"#e8edf5" }}>Buildify</span>
+          <span style={{ color:"#1e293b",fontSize:12 }}>·</span>
+          <span style={{ fontSize:11,color:"#1e293b" }}>by Jon Ureta · Philippines · Powered by Claude AI</span>
         </div>
-        <div style={{ fontSize:12, color:"rgba(100,116,139,0.4)" }}>Powered by Claude AI · PEC 2017 · NSCP 2015 · NPC 2000 · PD 856 · DPWH Rates</div>
+        <div style={{ fontSize:11,color:"#1e293b" }}>NSCP 2015 · PEC 2017 · NPC 2000 · DPWH Blue Book · NBC Philippines</div>
       </footer>
 
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onSuccess={onLogin} />}
+      {showLogin && <LoginModal onClose={()=>setShowLogin(false)} onSuccess={u=>{setShowLogin(false);onLogin(u);}}/>}
     </div>
   );
 }
@@ -5097,9 +5129,9 @@ function LoginModal({ onClose, onSuccess }) {
       <div style={{ background:T.card, border:"1px solid rgba(245,158,11,0.25)", borderRadius:24, padding:"44px 40px", maxWidth:420, width:"100%", boxShadow:"0 32px 80px rgba(0,0,0,0.6)", animation:"fadeUp 0.3s ease" }}>
         {/* Logo */}
         <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:60, height:60, borderRadius:16, margin:"0 auto 14px", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, boxShadow:"0 8px 28px rgba(245,158,11,0.4)" }}>⚡</div>
+          <div style={{ width:60, height:60, borderRadius:16, margin:"0 auto 14px", background:"linear-gradient(135deg,#0284c7,#0ea5e9)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, boxShadow:"0 8px 28px rgba(2,132,199,0.4)" }}>🏗️</div>
           <div style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-0.5px" }}>Welcome back</div>
-          <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>PH Engineering Suite</div>
+          <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>Buildify</div>
         </div>
 
         {/* Fields */}
@@ -5128,7 +5160,7 @@ function LoginModal({ onClose, onSuccess }) {
 
         {err && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:13, color:T.danger }}>⚠️ {err}</div>}
 
-        <button onClick={submit} disabled={busy} style={{ width:"100%", background:busy?"rgba(245,158,11,0.3)":"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:busy?"#555":"#000", fontWeight:800, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", transition:"all 0.2s", marginBottom:16 }}>
+        <button onClick={submit} disabled={busy} style={{ width:"100%", background:busy?"rgba(2,132,199,0.3)":"linear-gradient(135deg,#0284c7,#0ea5e9)", border:"none", color:busy?"#555":"#fff", fontWeight:800, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", transition:"all 0.2s", marginBottom:16 }}>
           {busy ? "Signing in…" : "Sign In →"}
         </button>
 
@@ -5145,6 +5177,15 @@ function Dashboard({ user, onLogout }) {
   const [module, setModule] = useState("home");
   const [etab,   setEtab]   = useState("checker");
   const [structTool, setStructTool] = useState("bom");
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try { return localStorage.getItem("buildify_sidebar") !== "collapsed"; } catch { return true; }
+  });
+
+  const toggleSidebar = () => setSidebarOpen(p => {
+    const next = !p;
+    try { localStorage.setItem("buildify_sidebar", next ? "open" : "collapsed"); } catch {}
+    return next;
+  });
 
   const navigateTo = (mod, tool) => {
     setModule(mod);
@@ -5165,8 +5206,16 @@ function Dashboard({ user, onLogout }) {
     {key:"load",    icon:"📊", label:"Load Calc"},
   ];
 
+  const SB = sidebarOpen ? 220 : 58;
+  const NAV_ITEMS = [
+    { key:"home",       icon:"🏠", label:"Home",        color:"#0696d7" },
+    { key:"structural", icon:"🏗️", label:"StructiCode", color:"#0696d7" },
+    { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#ff6b2b" },
+    { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#06b6d4" },
+  ];
+
   return (
-    <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", display:"flex" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -5175,141 +5224,162 @@ function Dashboard({ user, onLogout }) {
         @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
         @keyframes glow{0%,100%{box-shadow:0 0 40px rgba(245,158,11,0.15)}50%{box-shadow:0 0 80px rgba(245,158,11,0.3)}}
         input::-webkit-inner-spin-button{-webkit-appearance:none}
+        .sidebar-transition{transition:width 0.22s cubic-bezier(0.4,0,0.2,1)}
+        .nav-item-label{transition:opacity 0.15s,width 0.22s;white-space:nowrap;overflow:hidden}
       `}</style>
 
-      {/* Top bar */}
-      <div style={{ background:"rgba(22,27,39,0.95)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, position:"sticky", top:0, zIndex:100 }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
-          {/* Logo */}
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:34, height:34, borderRadius:9, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, boxShadow:"0 4px 14px rgba(245,158,11,0.35)" }}>⚡</div>
-            <div>
-              <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PH Engineering Suite</div>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:"0.6px" }}>by Jon Ureta · Philippines</div>
+      {/* ── SIDEBAR ── */}
+      <div className="sidebar-transition" style={{ width:SB, flexShrink:0, background:"rgba(15,17,23,0.98)", borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"fixed", top:0, left:0, height:"100vh", zIndex:200, overflow:"hidden" }}>
+
+        {/* Logo + toggle */}
+        <div style={{ padding:"14px 12px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:10, minHeight:58 }}>
+          <div style={{ width:34, height:34, borderRadius:9, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0, boxShadow:"0 4px 14px rgba(6,150,215,0.35)", cursor:"pointer" }} onClick={toggleSidebar}>🏗️</div>
+          {sidebarOpen && (
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:800, fontSize:13, color:T.text, letterSpacing:"-0.3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>Buildify</div>
+              <div style={{ fontSize:9, color:T.muted, letterSpacing:"0.5px" }}>by Jon Ureta · PH</div>
             </div>
-          </div>
-          {/* Module tabs */}
-          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-            <button onClick={() => setModule("home")} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 13px", borderRadius:8, border:`1px solid ${module==="home"?"#f59e0b66":T.border}`, background:module==="home"?"rgba(245,158,11,0.12)":"transparent", color:module==="home"?"#f59e0b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>🏠 Home</button>
-            {TABS.map(t => (
-              <button key={t.key} onClick={() => setModule(t.key)} style={{
-                display:"flex", alignItems:"center", gap:6, padding:"6px 13px", borderRadius:8,
-                border:`1px solid ${module===t.key?t.color+"66":T.border}`,
-                background:module===t.key?t.color+"18":"transparent",
-                color:module===t.key?t.color:T.muted,
-                cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s"
-              }}>
-                <span>{t.icon}</span><span>{t.label}</span>
-              </button>
-            ))}
-          </div>
-          {/* User badge + logout */}
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            {/* Compact always-visible key input */}
-            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(0,0,0,0.3)",border:`1.5px solid ${apiKey.startsWith("sk-")?"#10b981":"rgba(245,158,11,0.5)"}`,borderRadius:9,padding:"4px 4px 4px 10px",minWidth:220}}>
-              <span style={{fontSize:11,whiteSpace:"nowrap",color:apiKey.startsWith("sk-")?"#10b981":"#f59e0b",fontWeight:700}}>🔑</span>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={e => {
-                  const v = e.target.value;
-                  setApiKey(v);
-                  window.__PHEN_KEY__ = v;
-                  if (v.startsWith("sk-")) localStorage.setItem("phen_key", v);
-                }}
-                onKeyDown={e => { if(e.key==="Enter" && apiKey.startsWith("sk-")){ window.__PHEN_KEY__=apiKey; localStorage.setItem("phen_key",apiKey); }}}
-                placeholder={apiKey.startsWith("sk-") ? "API key saved ✓" : "Paste sk-ant-... key here"}
-                style={{background:"transparent",border:"none",outline:"none",color:apiKey.startsWith("sk-")?"#10b981":T.text,fontSize:11,fontFamily:"monospace",width:160,padding:"2px 0"}}
-              />
-              {apiKey.startsWith("sk-")
-                ? <span style={{fontSize:10,background:"rgba(16,185,129,0.15)",color:"#10b981",padding:"3px 7px",borderRadius:6,whiteSpace:"nowrap",fontWeight:700}}>✓ Saved</span>
-                : <button onClick={()=>{if(apiKey.startsWith("sk-")){window.__PHEN_KEY__=apiKey;localStorage.setItem("phen_key",apiKey);}}} style={{background:"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",color:"#000",fontWeight:700,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>Save</button>
-              }
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:8, padding:"5px 12px" }}>
-              <div style={{ width:22, height:22, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#000" }}>
-                {user.username[0].toUpperCase()}
-              </div>
-              <div>
-                <div style={{ fontSize:12, fontWeight:700, color:T.text, lineHeight:1 }}>{user.username}</div>
-                <div style={{ fontSize:9, color:T.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px" }}>{user.role}</div>
-              </div>
-            </div>
-            <button onClick={onLogout} style={{ padding:"6px 12px", borderRadius:8, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>Sign Out</button>
-          </div>
+          )}
+          {sidebarOpen && (
+            <button onClick={toggleSidebar} style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:6, width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:12, flexShrink:0 }}>◀</button>
+          )}
         </div>
 
-        {/* Key prompt banner — only shown when no key is set */}
-        {!apiKey.startsWith("sk-") && (
-          <div style={{ borderTop:`1px solid rgba(245,158,11,0.3)`, background:"rgba(245,158,11,0.07)", padding:"10px 24px" }}>
-            <div style={{ maxWidth:1100, margin:"0 auto", fontSize:12, color:"#f59e0b" }}>
-              ⚠️ <strong>API key required for all AI features.</strong> Paste your Anthropic key (starts with <code style={{background:"rgba(0,0,0,0.3)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>) into the field above, then press <strong>Enter</strong> or click <strong>Save</strong>. Get your key at <strong>console.anthropic.com → API Keys</strong>.
-            </div>
+        {/* Nav items */}
+        <div style={{ flex:1, padding:"10px 8px", display:"flex", flexDirection:"column", gap:4, overflowY:"auto" }}>
+          {NAV_ITEMS.map(item => {
+            const active = module === item.key;
+            return (
+              <button key={item.key} onClick={() => setModule(item.key)} title={!sidebarOpen ? item.label : undefined}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:sidebarOpen?"10px 12px":"10px", borderRadius:10, border:`1.5px solid ${active?item.color+"55":"transparent"}`, background:active?`${item.color}14`:"transparent", color:active?item.color:T.muted, cursor:"pointer", fontSize:13, fontWeight:active?800:600, transition:"all 0.15s", width:"100%", textAlign:"left" }}
+                onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background="rgba(255,255,255,0.04)"; e.currentTarget.style.color=T.text; }}}
+                onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=T.muted; }}}>
+                <span style={{ fontSize:18, flexShrink:0, lineHeight:1 }}>{item.icon}</span>
+                {sidebarOpen && <span className="nav-item-label" style={{ fontSize:13 }}>{item.label}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Expand button when collapsed */}
+        {!sidebarOpen && (
+          <div style={{ padding:"10px 8px", borderTop:`1px solid ${T.border}` }}>
+            <button onClick={toggleSidebar} title="Expand sidebar" style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:8, width:"100%", height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:12 }}>▶</button>
           </div>
         )}
+
+        {/* User badge at bottom */}
+        <div style={{ padding:"10px 8px", borderTop:`1px solid ${T.border}` }}>
+          {sidebarOpen ? (
+            <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.15)", borderRadius:10 }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"#000", flexShrink:0 }}>{user.username[0].toUpperCase()}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.username}</div>
+                <div style={{ fontSize:9, color:T.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px" }}>{user.role}</div>
+              </div>
+              <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:"none", color:T.muted, cursor:"pointer", fontSize:14, padding:2 }}>⏻</button>
+            </div>
+          ) : (
+            <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:8, width:"100%", height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:14 }}>⏻</button>
+          )}
+        </div>
       </div>
 
-      {/* Page content */}
-      <div style={{ maxWidth:1100, margin:"0 auto", padding:"28px 24px" }}>
-        {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
-        {module==="electrical" && (
-          <>
-            <div style={{ marginBottom:20 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>ElectriCode</div>
-                  <div style={{ fontSize:11, color:T.muted }}>PEC 2017 · FSIC RA 9514 · Philippine Green Building Code</div>
+      {/* ── MAIN AREA ── */}
+      <div style={{ marginLeft:SB, flex:1, display:"flex", flexDirection:"column", minWidth:0, transition:"margin-left 0.22s cubic-bezier(0.4,0,0.2,1)" }}>
+
+        {/* Top bar */}
+        <div style={{ background:"rgba(22,27,39,0.95)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, position:"sticky", top:0, zIndex:100 }}>
+          <div style={{ padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
+            {/* Page title */}
+            <div style={{ fontWeight:800, fontSize:15, color:T.text }}>
+              {module==="home" && "🏠 Dashboard"}
+              {module==="structural" && "🏗️ StructiCode"}
+              {module==="electrical" && "⚡ ElectriCode"}
+              {module==="sanitary" && "🚿 SaniCode"}
+            </div>
+            {/* API key + user */}
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(0,0,0,0.3)",border:`1.5px solid ${apiKey.startsWith("sk-")?"#22c55e":"rgba(6,150,215,0.5)"}`,borderRadius:9,padding:"4px 4px 4px 10px",minWidth:200}}>
+                <span style={{fontSize:11,whiteSpace:"nowrap",color:apiKey.startsWith("sk-")?"#10b981":"#f59e0b",fontWeight:700}}>🔑</span>
+                <input type="password" value={apiKey}
+                  onChange={e => { const v=e.target.value; setApiKey(v); window.__PHEN_KEY__=v; if(v.startsWith("sk-")) localStorage.setItem("phen_key",v); }}
+                  onKeyDown={e => { if(e.key==="Enter" && apiKey.startsWith("sk-")){ window.__PHEN_KEY__=apiKey; localStorage.setItem("phen_key",apiKey); }}}
+                  placeholder={apiKey.startsWith("sk-") ? "API key saved ✓" : "Paste sk-ant-... key"}
+                  style={{background:"transparent",border:"none",outline:"none",color:apiKey.startsWith("sk-")?"#10b981":T.text,fontSize:11,fontFamily:"monospace",width:140,padding:"2px 0"}}/>
+                {apiKey.startsWith("sk-")
+                  ? <span style={{fontSize:10,background:"rgba(16,185,129,0.15)",color:"#10b981",padding:"3px 7px",borderRadius:6,fontWeight:700}}>✓</span>
+                  : <button onClick={()=>{if(apiKey.startsWith("sk-")){window.__PHEN_KEY__=apiKey;localStorage.setItem("phen_key",apiKey);}}} style={{background:"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",color:"#000",fontWeight:700,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontSize:11}}>Save</button>}
+              </div>
+            </div>
+          </div>
+          {!apiKey.startsWith("sk-") && (
+            <div style={{ borderTop:`1px solid rgba(245,158,11,0.3)`, background:"rgba(245,158,11,0.07)", padding:"8px 24px" }}>
+              <div style={{ fontSize:12, color:"#f59e0b" }}>⚠️ <strong>API key required.</strong> Paste your Anthropic key above (starts with <code style={{background:"rgba(0,0,0,0.3)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>). Get yours at <strong>console.anthropic.com → API Keys</strong>.</div>
+            </div>
+          )}
+        </div>
+
+        {/* Page content */}
+        <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
+          {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
+          {module==="electrical" && (
+            <>
+              <div style={{ marginBottom:20 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+                  <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#ff6b2b,#e85520)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
+                  <div>
+                    <div style={{ fontWeight:800, fontSize:18, color:T.text }}>ElectriCode</div>
+                    <div style={{ fontSize:11, color:T.muted }}>PEC 2017 · FSIC RA 9514 · Philippine Green Building Code</div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {ETABS.map(t => (
+                    <button key={t.key} onClick={() => setEtab(t.key)} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${etab===t.key?"#ff6b2b":T.border}`, background:etab===t.key?"rgba(255,107,43,0.1)":"transparent", color:etab===t.key?"#ff6b2b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>
+                      <span>{t.icon}</span><span>{t.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                {ETABS.map(t => (
-                  <button key={t.key} onClick={() => setEtab(t.key)} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${etab===t.key?"#f59e0b":T.border}`, background:etab===t.key?"rgba(245,158,11,0.1)":"transparent", color:etab===t.key?"#f59e0b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>
-                    <span>{t.icon}</span><span>{t.label}</span>
-                  </button>
-                ))}
+              <Card>
+                {etab==="checker" && <PlanChecker apiKey={apiKey}/>}
+                {etab==="vdrop"   && <VoltageDropCalc/>}
+                {etab==="fault"   && <ShortCircuitCalc/>}
+                {etab==="load"    && <LoadCalc/>}
+              </Card>
+            </>
+          )}
+          {module==="structural" && (
+            <>
+              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🏗️</div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>StructiCode</div>
+                  <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
+                </div>
               </div>
-            </div>
-            <Card>
-              {etab==="checker" && <PlanChecker apiKey={apiKey}/>}
-              {etab==="vdrop"   && <VoltageDropCalc/>}
-              {etab==="fault"   && <ShortCircuitCalc/>}
-              {etab==="load"    && <LoadCalc/>}
-            </Card>
-          </>
-        )}
-
-        {module==="structural" && (
-          <>
-            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#3b82f6,#6366f1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🏗️</div>
-              <div>
-                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>StructiCode</div>
-                <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
+              <Card><StructiCode apiKey={apiKey} initialTool={structTool}/></Card>
+            </>
+          )}
+          {module==="sanitary" && (
+            <>
+              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🚿</div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>SaniCode</div>
+                  <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
+                </div>
               </div>
-            </div>
-            <Card><StructiCode apiKey={apiKey} initialTool={structTool}/></Card>
-          </>
-        )}
+              <Card><SaniCode apiKey={apiKey}/></Card>
+            </>
+          )}
+        </div>
 
-        {module==="sanitary" && (
-          <>
-            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#10b981,#059669)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🚿</div>
-              <div>
-                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>SaniCode</div>
-                <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
-              </div>
-            </div>
-            <Card><SaniCode apiKey={apiKey}/></Card>
-          </>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div style={{ borderTop:`1px solid ${T.border}`, marginTop:40, padding:"20px 24px", textAlign:"center" }}>
-        <div style={{ fontSize:12, color:"rgba(100,116,139,0.5)" }}>
-          PH Engineering Suite · Developed by <strong style={{ color:T.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
+        {/* Footer */}
+        <div style={{ borderTop:`1px solid ${T.border}`, padding:"16px 24px", textAlign:"center" }}>
+          <div style={{ fontSize:12, color:"rgba(100,116,139,0.4)" }}>
+            Buildify · Developed by <strong style={{ color:T.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
+          </div>
         </div>
       </div>
     </div>
