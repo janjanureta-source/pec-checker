@@ -2315,10 +2315,32 @@ function BOMReview({ apiKey }) {
     return v;
   };
 
+  // Parse spreadsheet (xlsx/csv) into readable text using SheetJS
+  const parseSpreadsheet = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        let out = "";
+        wb.SheetNames.forEach(name => {
+          const ws = wb.Sheets[name];
+          const csv = XLSX.utils.sheet_to_csv(ws, { skipHidden: true });
+          // filter out totally empty rows
+          const rows = csv.split("\n").filter(r => r.replace(/,/g,"").trim().length > 0);
+          out += `[SHEET: ${name}]\n${rows.join("\n")}\n\n`;
+        });
+        resolve(out.trim());
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+
   const run = async () => {
     if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
 
-    // ── Size gate — check BEFORE encoding anything ──
     const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
     setBusy(true); setError(null); setResult(null);
     try {
@@ -2327,31 +2349,43 @@ function BOMReview({ apiKey }) {
       for (let i = 0; i < allFiles.length; i++) {
         const fo = allFiles[i];
         setBusyMsg(`📂 Reading file ${i + 1} of ${allFiles.length}: ${fo.name}…`);
-        await tick(); // let React render the progress message
+        await tick();
 
+        // ── Spreadsheet → parse to text with SheetJS ──
+        if (fo.name.match(/\.(xlsx?|csv)$/i) || fo.type.includes("sheet") || fo.type.includes("excel")) {
+          setBusyMsg(`📊 Parsing spreadsheet: ${fo.name}…`);
+          await tick();
+          try {
+            const csvText = await parseSpreadsheet(fo.file);
+            blocks.push({ type:"text", text:`[BOM SPREADSHEET: ${fo.name}]\nThe following is the full Bill of Materials extracted from the uploaded Excel file. Use this data for all quantity, unit cost, and total validation:\n\n${csvText}` });
+          } catch {
+            // fallback: read as plain text
+            const text = await fo.file.text().catch(() => `[Could not read ${fo.name}]`);
+            blocks.push({ type:"text", text:`[BOM SPREADSHEET: ${fo.name}]\n${text}` });
+          }
+          continue;
+        }
+
+        // ── Image → compress ──
         let b64;
         if (fo.type.startsWith("image/")) {
           setBusyMsg(`🗜️ Compressing image ${i + 1} of ${allFiles.length}: ${fo.name}…`);
           await tick();
           b64 = await compressImage(fo.file);
-        } else {
+          blocks.push({type:"image", source:{type:"base64",media_type:"image/jpeg",data:b64}});
+          blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
+        } else if (fo.type==="application/pdf") {
           b64 = await toBase64(fo.file);
+          blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}});
+          blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
+        } else {
+          blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
         }
-
-        const label = `[${fo.role}: ${fo.name}]`;
-        if (fo.type.startsWith("image/"))
-          { blocks.push({type:"image",    source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:label}); }
-        else if (fo.type==="application/pdf")
-          { blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:label}); }
-        else if (fo.type.includes("sheet") || fo.name.match(/\.(xlsx?|csv)$/i))
-          { blocks.push({type:"text",text:`${label} — spreadsheet BOM attached`}); }
-        else
-          { blocks.push({type:"text",text:label}); }
       }
 
-      blocks.push({ type:"text", text:`Validate this BOM against the plan. Apply Philippine market unit costs (current NCR rates as baseline). Return ONLY the JSON specified in your instructions.` });
+      blocks.push({ type:"text", text:`Validate the BOM data above against the plan. Apply Philippine market unit costs (2025 NCR rates as baseline). Return ONLY the JSON specified in your instructions.` });
 
-      setBusyMsg("🤖 Sending to AI — reviewing quantities, costs, and compliance…");
+      setBusyMsg("🤖 AI is reviewing quantities, costs, and compliance…");
       await tick();
 
       const data = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
