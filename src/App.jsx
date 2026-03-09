@@ -1067,6 +1067,7 @@ const CL_LABELS = {
 function PlanChecker({ apiKey }) {
   const [files, setFiles]   = useState([]);
   const [busy, setBusy]     = useState(false);
+  const [busyMsg, setBusyMsg] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError]         = useState(null);
   const [drag, setDrag]           = useState(false);
@@ -1077,38 +1078,37 @@ function PlanChecker({ apiKey }) {
   const [correcting, setCorrecting]   = useState(false);
   const [revNum, setRevNum]           = useState(1);
   const ref = useRef(null);
+  const tick = () => new Promise(r => setTimeout(r, 0));
 
   const addFiles = useCallback(fs=>{
     setFiles(p=>[...p,...Array.from(fs).map(f=>({file:f,id:Math.random().toString(36).slice(2),name:f.name,size:f.size,type:f.type||"application/octet-stream"}))]);
     setResult(null); setError(null);
   },[]);
 
-  const buildContent = async fobjs => {
-    const blocks=[];
-    for(const fo of fobjs){
-      const b64 = fo.type.startsWith("image/") ? await compressImage(fo.file) : await toBase64(fo.file);
-      if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
-      else if(fo.type==="application/pdf") { blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:`[PDF: ${fo.name}]`}); }
-      else blocks.push({type:"text",text:`[File: ${fo.name} — analyze context for electrical compliance]`});
-    }
-    blocks.push({type:"text",text:"Analyze uploaded electrical plans for PEC 2017, FSIC, and Green Building Code compliance. Return only JSON."});
-    return blocks;
-  };
-
   const run = async () => {
     if(!files.length) return;
+    const oversized = files.filter(f => f.size > 4 * 1024 * 1024);
+    if(oversized.length) { setError(`File too large: ${oversized.map(f=>f.name).join(", ")}. Max 4MB. For PDFs, export only the relevant sheets.`); return; }
     setBusy(true); setError(null); setResult(null);
     try {
-      const content = await buildContent(files);
-      const hdrs = {"Content-Type":"application/json"};
-      if(apiKey) hdrs["x-api-key"]=apiKey;
-      const data = await callAI({ apiKey, system:PEC_SYSTEM_PROMPT, messages:[{role:"user",content}] });
+      const blocks=[];
+      for(let i=0;i<files.length;i++){
+        const fo=files[i];
+        setBusyMsg(`📂 Reading file ${i+1} of ${files.length}: ${fo.name}…`); await tick();
+        const b64 = fo.type.startsWith("image/") ? (setBusyMsg(`🗜️ Compressing ${fo.name}…`), await tick(), await compressImage(fo.file)) : await toBase64(fo.file);
+        if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
+        else if(fo.type==="application/pdf") { blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:`[PDF: ${fo.name}]`}); }
+        else blocks.push({type:"text",text:`[File: ${fo.name}]`});
+      }
+      blocks.push({type:"text",text:"Analyze uploaded electrical plans for PEC 2017, FSIC, and Green Building Code compliance. Return only JSON."});
+      setBusyMsg("🤖 AI is checking PEC 2017 compliance…"); await tick();
+      const data = await callAI({ apiKey, system:PEC_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw = data.content?.map(b=>b.text||"").join("");
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
       setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
     } catch(e) { setError(e.message||"Analysis failed."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setBusyMsg(""); }
   };
 
   const findings = result?.findings||[];
@@ -1178,7 +1178,7 @@ Be very specific with corrected values and drafting instructions. Reference typi
 
       {files.length>0 && (
         <button onClick={run} disabled={busy} style={{ width:"100%", background:busy?"rgba(245,158,11,0.2)":`linear-gradient(135deg,${T.accent},#f97316)`, border:"none", color:busy?"#666":"#000", fontWeight:700, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", marginBottom:20, boxShadow:busy?"none":"0 6px 24px rgba(245,158,11,0.25)", transition:"all 0.2s" }}>
-          {busy ? "⚙️  Analyzing against PEC 2017 + FSIC + Green Building Code…" : `⚡ Run Full Compliance Check  (${files.length} file${files.length>1?"s":""})`}
+          {busy ? (busyMsg || "⚙️ Analyzing…") : `⚡ Run Full Compliance Check  (${files.length} file${files.length>1?"s":""})`}
         </button>
       )}
 
@@ -1437,25 +1437,32 @@ function StructuralChecker({ apiKey }) {
     setResult(null); setError(null);
   },[]);
 
+  const [busyMsg, setBusyMsg] = useState("");
+  const tick = () => new Promise(r => setTimeout(r, 0));
+
   const run = async () => {
     if(!files.length) return;
+    const oversized = files.filter(f => f.size > 4 * 1024 * 1024);
+    if(oversized.length) { setError(`File too large: ${oversized.map(f=>f.name).join(", ")}. Max 4MB. Export only the relevant sheets.`); return; }
     setBusy(true); setError(null); setResult(null);
     try {
       const blocks=[];
-      for(const fo of files){
-        const b64 = fo.type.startsWith("image/") ? await compressImage(fo.file) : await toBase64(fo.file);
+      for(let i=0;i<files.length;i++){
+        const fo=files[i];
+        setBusyMsg(`📂 Reading file ${i+1} of ${files.length}: ${fo.name}…`); await tick();
+        const b64 = fo.type.startsWith("image/") ? (setBusyMsg(`🗜️ Compressing ${fo.name}…`), await tick(), await compressImage(fo.file)) : await toBase64(fo.file);
         if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
         else if(fo.type==="application/pdf") { blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:`[PDF: ${fo.name}]`}); }
         else blocks.push({type:"text",text:`[File: ${fo.name}]`});
       }
       blocks.push({type:"text",text:"Analyze uploaded structural plans for NSCP 2015 compliance. Return only JSON."});
-      const hdrs={"Content-Type":"application/json"}; if(apiKey) hdrs["x-api-key"]=apiKey;
+      setBusyMsg("🤖 AI is checking NSCP 2015 compliance…"); await tick();
       const data = await callAI({ apiKey, system:NSCP_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed=JSON.parse(raw); } catch { throw new Error("Could not parse AI response."); }
       setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
     } catch(e){ setError(e.message||"Analysis failed."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setBusyMsg(""); }
   };
 
   const findings = result?.findings||[];
@@ -1499,7 +1506,7 @@ Respond ONLY as valid JSON array:
         <div style={{display:"inline-block",background:"linear-gradient(135deg,#3b82f6,#6366f1)",color:"#fff",fontWeight:700,padding:"9px 22px",borderRadius:10,fontSize:14}}>Choose Files</div>
       </div>
       {files.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=>(<div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:T.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>))}</div>)}
-      {files.length>0&&(<button onClick={run} disabled={busy} style={{width:"100%",background:busy?"rgba(59,130,246,0.2)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?"⚙️ Analyzing against NSCP 2015…":`🏗️ Run Structural Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>)}
+      {files.length>0&&(<button onClick={run} disabled={busy} style={{width:"100%",background:busy?"rgba(59,130,246,0.2)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?(busyMsg||"⚙️ Analyzing…"):`🏗️ Run Structural Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>)}
       {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
 
       {result&&(
@@ -2273,10 +2280,14 @@ function BOMReview({ apiKey }) {
   const planRef = useRef(null);
   const bomRef  = useRef(null);
 
-  const addPlanFiles = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, type:f.type||"application/octet-stream" }))]), []);
-  const addBomFiles  = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, type:f.type||"application/octet-stream" }))]), []);
+  const addPlanFiles = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
+  const addBomFiles  = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
 
   const STR = "#3b82f6";
+  const [busyMsg, setBusyMsg] = useState("");
+
+  // Yield to browser so UI can update between heavy operations
+  const tick = () => new Promise(r => setTimeout(r, 0));
 
   // Compute margin-adjusted total
   const computeAdjusted = (base) => {
@@ -2289,31 +2300,60 @@ function BOMReview({ apiKey }) {
     return v;
   };
 
+  const MAX_FILE_MB = 4;
+
   const run = async () => {
     if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
+
+    // ── Size gate — check BEFORE encoding anything ──
+    const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
+    const oversized = allFiles.filter(f => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (oversized.length) {
+      setError(`File too large: ${oversized.map(f=>`${f.name} (${(f.size/1024/1024).toFixed(1)}MB)`).join(", ")}. Max ${MAX_FILE_MB}MB per file. For PDFs, export only the relevant sheets/pages before uploading.`);
+      return;
+    }
+
     setBusy(true); setError(null); setResult(null);
     try {
       const blocks = [];
-      const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
-      for (const fo of allFiles) {
-        const b64 = fo.type.startsWith("image/") ? await compressImage(fo.file) : await toBase64(fo.file);
+
+      for (let i = 0; i < allFiles.length; i++) {
+        const fo = allFiles[i];
+        setBusyMsg(`📂 Reading file ${i + 1} of ${allFiles.length}: ${fo.name}…`);
+        await tick(); // let React render the progress message
+
+        let b64;
+        if (fo.type.startsWith("image/")) {
+          setBusyMsg(`🗜️ Compressing image ${i + 1} of ${allFiles.length}: ${fo.name}…`);
+          await tick();
+          b64 = await compressImage(fo.file);
+        } else {
+          b64 = await toBase64(fo.file);
+        }
+
         const label = `[${fo.role}: ${fo.name}]`;
-        if (fo.type.startsWith("image/"))          { blocks.push({type:"image",    source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:label}); }
-        else if (fo.type==="application/pdf")       { blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:label}); }
-        else if (fo.type.includes("sheet") || fo.name.match(/\.(xlsx?|csv)$/i)) { blocks.push({type:"text",text:`${label} — NOTE: spreadsheet uploaded, extract all BOM rows you can read from filename context and user message.`}); }
-        else                                         { blocks.push({type:"text",text:label}); }
+        if (fo.type.startsWith("image/"))
+          { blocks.push({type:"image",    source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:label}); }
+        else if (fo.type==="application/pdf")
+          { blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:label}); }
+        else if (fo.type.includes("sheet") || fo.name.match(/\.(xlsx?|csv)$/i))
+          { blocks.push({type:"text",text:`${label} — spreadsheet BOM attached`}); }
+        else
+          { blocks.push({type:"text",text:label}); }
       }
+
       blocks.push({ type:"text", text:`Validate this BOM against the plan. Apply Philippine market unit costs (current NCR rates as baseline). Return ONLY the JSON specified in your instructions.` });
 
-      const hdrs = { "Content-Type":"application/json" };
-      if (apiKey) hdrs["x-api-key"] = apiKey;
+      setBusyMsg("🤖 Sending to AI — reviewing quantities, costs, and compliance…");
+      await tick();
+
       const data = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw  = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Try again."); }
       setResult(parsed);
       setActiveTab("summary");
     } catch(e) { setError(e.message || "Analysis failed."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setBusyMsg(""); }
   };
 
   const fmt  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -2487,8 +2527,14 @@ function BOMReview({ apiKey }) {
         {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
 
         <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"14px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
-          {busy?"⚙️ Reviewing BOM against plans…":"📋 Run BOM Review"}
+          {busy ? (busyMsg || "⚙️ Processing…") : "📋 Run BOM Review"}
         </button>
+        {busy && (
+          <div style={{marginTop:10,background:"rgba(59,130,246,0.06)",border:`1px solid rgba(59,130,246,0.2)`,borderRadius:10,padding:"10px 16px",fontSize:12,color:"#3b82f6",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⏳</span>
+            <span>{busyMsg || "Working…"}</span>
+          </div>
+        )}
 
         {!planFiles.length && <div style={{textAlign:"center",fontSize:12,color:T.muted,marginTop:8}}>Upload at least one plan file to begin</div>}
       </Card>
@@ -2893,18 +2939,29 @@ function PlumbingChecker({ apiKey }) {
   const [revNum,setRevNum]=useState(1);
   const ref=useRef(null);
   const addFiles=useCallback(fs=>{setFiles(p=>[...p,...Array.from(fs).map(f=>({file:f,id:Math.random().toString(36).slice(2),name:f.name,size:f.size,type:f.type||"application/octet-stream"}))]);setResult(null);setError(null);},[]);
+  const [busyMsg,setBusyMsg]=useState("");
+  const tick=()=>new Promise(r=>setTimeout(r,0));
   const run=async()=>{
-    if(!files.length)return;setBusy(true);setError(null);setResult(null);
+    if(!files.length)return;
+    const oversized=files.filter(f=>f.size>4*1024*1024);
+    if(oversized.length){setError(`File too large: ${oversized.map(f=>f.name).join(", ")}. Max 4MB.`);return;}
+    setBusy(true);setError(null);setResult(null);
     try{
       const blocks=[];
-      for(const fo of files){const b64=fo.type.startsWith("image/")?await compressImage(fo.file):await toBase64(fo.file);if(fo.type.startsWith("image/")){blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}});blocks.push({type:"text",text:`[Image: ${fo.name}]`});}else if(fo.type==="application/pdf"){blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}});blocks.push({type:"text",text:`[PDF: ${fo.name}]`});}}
+      for(let i=0;i<files.length;i++){
+        const fo=files[i];
+        setBusyMsg(`📂 Reading ${i+1}/${files.length}: ${fo.name}…`);await tick();
+        const b64=fo.type.startsWith("image/")?(setBusyMsg(`🗜️ Compressing ${fo.name}…`),await tick(),await compressImage(fo.file)):await toBase64(fo.file);
+        if(fo.type.startsWith("image/")){blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}});blocks.push({type:"text",text:`[Image: ${fo.name}]`});}
+        else if(fo.type==="application/pdf"){blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}});blocks.push({type:"text",text:`[PDF: ${fo.name}]`});}
+      }
       blocks.push({type:"text",text:"Analyze for NPC 2000 and PD 856 compliance. Return only JSON."});
-      const hdrs={"Content-Type":"application/json"};if(apiKey)hdrs["x-api-key"]=apiKey;
+      setBusyMsg("🤖 AI is checking NPC 2000 compliance…");await tick();
       const data=await callAI({ apiKey, system:NPC_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed;try{parsed=JSON.parse(raw);}catch{throw new Error("Could not parse AI response.");}
       setResult(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
-    }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);}
+    }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);setBusyMsg("");}
   };
   const findings=result?.findings||[];
   const filtered=tab==="all"?findings:findings.filter(f=>f.severity===tab);
@@ -2933,7 +2990,7 @@ function PlumbingChecker({ apiKey }) {
         <div style={{display:"inline-block",background:`linear-gradient(135deg,${SC},#059669)`,color:"#fff",fontWeight:700,padding:"9px 22px",borderRadius:10,fontSize:14}}>Choose Files</div>
       </div>
       {files.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=><div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:T.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>)}</div>}
-      {files.length>0&&<button onClick={run} disabled={busy} style={{width:"100%",background:busy?`rgba(16,185,129,0.2)`:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?"⚙️ Analyzing against NPC 2000 + PD 856…":`🚿 Run Plumbing Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>}
+      {files.length>0&&<button onClick={run} disabled={busy} style={{width:"100%",background:busy?`rgba(16,185,129,0.2)`:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?(busyMsg||"⚙️ Analyzing…"):`🚿 Run Plumbing Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>}
       {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
       {result&&(
         <div style={{animation:"fadeIn 0.35s ease"}}>
