@@ -53,6 +53,45 @@ const DEMAND_FACTORS = {
 const toBase64 = f => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.onerror=rej; r.readAsDataURL(f); });
 const fmtSize  = n => n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
 
+// ─── SMART AI CALLER ─────────────────────────────────────────────────────────
+// When messages contain file data (images/PDFs), call Anthropic directly from
+// the browser to avoid Vercel's 4.5MB body limit (413 errors).
+// Falls back to the /api/anthropic proxy for text-only requests.
+const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
+  const hasFiles = messages.some(m =>
+    Array.isArray(m.content) && m.content.some(b => b.type === "image" || b.type === "document")
+  );
+
+  const payload = { model: "claude-sonnet-4-20250514", max_tokens, system, messages };
+
+  if (hasFiles) {
+    // Direct browser → Anthropic (no size limit from Vercel)
+    const key = apiKey || window.__PHEN_KEY__;
+    if (!key) throw new Error("No API key. Click the 🔑 button in the top bar and enter your Anthropic API key.");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || "Anthropic API error");
+    return data;
+  } else {
+    // Text-only → go through proxy (uses server-side env key)
+    const hdrs = { "Content-Type": "application/json" };
+    if (apiKey) hdrs["x-api-key"] = apiKey;
+    const res = await fetch("/api/anthropic", { method: "POST", headers: hdrs, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || "API error");
+    return data;
+  }
+};
+
 const repairJSON = str => {
   try { return JSON.parse(str); } catch {}
   let s = str;
@@ -1042,9 +1081,7 @@ function PlanChecker({ apiKey }) {
       const content = await buildContent(files);
       const hdrs = {"Content-Type":"application/json"};
       if(apiKey) hdrs["x-api-key"]=apiKey;
-      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:PEC_SYSTEM_PROMPT,messages:[{role:"user",content}]})});
-      const data = await res.json();
-      if(data.error) throw new Error(data.error.message||"API Error");
+      const data = await callAI({ apiKey, system:PEC_SYSTEM_PROMPT, messages:[{role:"user",content}] });
       const raw = data.content?.map(b=>b.text||"").join("");
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
@@ -1080,9 +1117,7 @@ Respond ONLY as valid JSON array (no markdown):
 
 Be very specific with corrected values and drafting instructions. Reference typical drawing sheet names (E-1, E-2, etc.).`;
 
-      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
-      const data = await res.json();
-      if(data.error) throw new Error(data.error.message||"API Error");
+      const data = await callAI({ apiKey, messages:[{role:"user",content:prompt}], max_tokens:4000 });
       const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed = JSON.parse(raw);
       setCorrections(parsed);
@@ -1394,9 +1429,7 @@ function StructuralChecker({ apiKey }) {
       }
       blocks.push({type:"text",text:"Analyze uploaded structural plans for NSCP 2015 compliance. Return only JSON."});
       const hdrs={"Content-Type":"application/json"}; if(apiKey) hdrs["x-api-key"]=apiKey;
-      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:NSCP_SYSTEM_PROMPT,messages:[{role:"user",content:blocks}]})});
-      const data = await res.json();
-      if(data.error) throw new Error(data.error.message||"API Error");
+      const data = await callAI({ apiKey, system:NSCP_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed=JSON.parse(raw); } catch { throw new Error("Could not parse AI response."); }
       setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
@@ -1423,9 +1456,7 @@ ${selected.map((f,i)=>`${i+1}. [${f.severity}] ${f.title} — ${f.description} (
 
 Respond ONLY as valid JSON array:
 [{"id":1,"title":"...","severity":"...","description":"...","nscpReference":"...","recommendation":"...","correctedValues":"Specific corrected value e.g. Increase column size from 300x300 to 400x400mm, add 8-25mm dia. bars","draftingInstruction":"Exact instruction e.g. On Sheet S-3, Detail A, revise column reinforcement schedule. Add revision cloud."}]`;
-      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
-      const data = await res.json();
-      if(data.error) throw new Error(data.error.message||"API Error");
+      const data = await callAI({ apiKey, messages:[{role:"user",content:prompt}], max_tokens:4000 });
       const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       setCorrections(JSON.parse(raw));
     } catch(e){ alert("Could not generate corrections: "+e.message); }
@@ -2255,9 +2286,7 @@ function BOMReview({ apiKey }) {
 
       const hdrs = { "Content-Type":"application/json" };
       if (apiKey) hdrs["x-api-key"] = apiKey;
-      const res  = await fetch("/api/anthropic", { method:"POST", headers:hdrs, body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:8000, system:BOM_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] }) });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message || "API Error");
+      const data = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw  = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Try again."); }
       setResult(parsed);
@@ -2850,8 +2879,7 @@ function PlumbingChecker({ apiKey }) {
       for(const fo of files){const b64=await toBase64(fo.file);if(fo.type.startsWith("image/")){blocks.push({type:"image",source:{type:"base64",media_type:fo.type,data:b64}});blocks.push({type:"text",text:`[Image: ${fo.name}]`});}else if(fo.type==="application/pdf"){blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}});blocks.push({type:"text",text:`[PDF: ${fo.name}]`});}}
       blocks.push({type:"text",text:"Analyze for NPC 2000 and PD 856 compliance. Return only JSON."});
       const hdrs={"Content-Type":"application/json"};if(apiKey)hdrs["x-api-key"]=apiKey;
-      const res=await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:NPC_SYSTEM_PROMPT,messages:[{role:"user",content:blocks}]})});
-      const data=await res.json();if(data.error)throw new Error(data.error.message||"API Error");
+      const data=await callAI({ apiKey, system:NPC_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed;try{parsed=JSON.parse(raw);}catch{throw new Error("Could not parse AI response.");}
       setResult(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
@@ -2868,8 +2896,7 @@ function PlumbingChecker({ apiKey }) {
     try{
       const hdrs={"Content-Type":"application/json"};if(apiKey)hdrs["x-api-key"]=apiKey;
       const prompt=`You are a licensed Sanitary Engineer. For each finding, generate specific NPC 2000 correction instructions.\nFindings:\n${selected.map((f,i)=>`${i+1}. [${f.severity}] ${f.title} — ${f.description} (${f.npcReference})`).join("\n")}\nRespond ONLY as valid JSON array: [{"id":1,"title":"...","severity":"...","description":"...","npcReference":"...","recommendation":"...","correctedValues":"specific corrected value e.g. Increase drain from 50mm to 75mm","draftingInstruction":"exact drafting instruction with sheet reference"}]`;
-      const res=await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
-      const data=await res.json();if(data.error)throw new Error(data.error.message);
+      const data=await callAI({ apiKey, messages:[{role:"user",content:prompt}], max_tokens:4000 });
       const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       setCorrections(JSON.parse(raw));
     }catch(e){alert("Could not generate corrections: "+e.message);}finally{setCorrecting(false);}
@@ -3862,7 +3889,7 @@ function Dashboard({ user, onLogout }) {
             <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center" }}>
               <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:600 }}>Anthropic API Key</span>
               <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}/>
-              <button onClick={() => setShowKey(false)} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
+              <button onClick={() => { window.__PHEN_KEY__ = apiKey; setShowKey(false); }} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
             </div>
           </div>
         )}
