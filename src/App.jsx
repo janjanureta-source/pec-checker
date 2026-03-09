@@ -5497,7 +5497,7 @@ function Dashboard({ user, onLogout }) {
                 style={{ display:"flex", alignItems:"center", gap:10, padding:sidebarOpen?"10px 12px":"10px", borderRadius:10, border:`1.5px solid ${active?item.color+"55":"transparent"}`, background:active?`${item.color}14`:"transparent", color:active?item.color:T.muted, cursor:"pointer", fontSize:13, fontWeight:active?800:600, transition:"all 0.15s", width:"100%", textAlign:"left" }}
                 onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background="rgba(255,255,255,0.04)"; e.currentTarget.style.color=T.text; }}}
                 onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=T.muted; }}}>
-                <span style={{ flexShrink:0, display:"flex", alignItems:"center" }}><Icon name={item.icon} size={18} color={activeModule===item.key ? item.color : "#64748b"}/></span>
+                <span style={{ flexShrink:0, display:"flex", alignItems:"center" }}><Icon name={item.icon} size={18} color={module===item.key ? item.color : "#64748b"}/></span>
                 {sidebarOpen && <span className="nav-item-label" style={{ fontSize:13 }}>{item.label}</span>}
               </button>
             );
