@@ -1317,19 +1317,879 @@ Be very specific with corrected values and drafting instructions. Reference typi
   );
 }
 
+// ─── STRUCTURAL CODE DATA ────────────────────────────────────────────────────
+const NSCP_SYSTEM_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE) expert in the National Structural Code of the Philippines (NSCP) 2015 7th Edition, and DPWH Blue Book. You review structural plans and documents for compliance.
+
+Be CONCISE. Max 15 findings. Each description ≤60 words, recommendation ≤40 words, codeBasis ≤30 words.
+
+Check:
+1. Load Combinations (NSCP Section 203)
+2. Seismic Design (NSCP Section 208)
+3. Wind Load (NSCP Section 207)
+4. Concrete Design (NSCP Section 405–411)
+5. Steel Design (NSCP Section 502–510)
+6. Foundation Design (NSCP Section 303)
+7. Beam/Column Detailing (NSCP Section 407–408)
+8. Slab Design (NSCP Section 406)
+9. Connection Design (NSCP Section 504)
+10. Material Specifications (NSCP Section 403)
+
+Respond ONLY as valid JSON (no markdown, no preamble):
+{"summary":{"projectName":"string","structureType":"Residential|Commercial|Industrial|Bridge|Retaining Wall|Unknown","fileType":"string","overallStatus":"NON-COMPLIANT|COMPLIANT WITH WARNINGS|COMPLIANT","criticalCount":0,"warningCount":0,"infoCount":0,"analysisNotes":"under 60 words"},"findings":[{"id":1,"severity":"CRITICAL|WARNING|INFO","category":"Load Combination|Seismic|Wind|Concrete|Steel|Foundation|Beam/Column|Slab|Connection|Materials|Other","nscpReference":"NSCP 2015 Sec. X.X","title":"under 8 words","description":"under 60 words","recommendation":"under 40 words","codeBasis":"under 30 words"}],"checklist":{"loadCombinations":true,"seismicDesign":true,"windLoad":true,"concreteDesign":true,"steelDesign":null,"foundationDesign":true,"beamColumnDetailing":true,"slabDesign":true,"connectionDesign":null,"materialSpecs":true}}`;
+
+// Seismic zone data for Philippines (NSCP 2015 Section 208)
+const PH_SEISMIC_ZONES = {
+  "Zone 2": { Z: 0.20, desc: "Low seismicity — Palawan, parts of Mindanao" },
+  "Zone 4": { Z: 0.40, desc: "High seismicity — most of Luzon, Visayas, Mindanao" },
+};
+
+const SOIL_TYPES = {
+  "SA - Hard Rock":        { Fa: 0.8,  Fv: 0.8  },
+  "SB - Rock":             { Fa: 1.0,  Fv: 1.0  },
+  "SC - Very Dense Soil":  { Fa: 1.2,  Fv: 1.7  },
+  "SD - Stiff Soil":       { Fa: 1.6,  Fv: 2.4  },
+  "SE - Soft Clay":        { Fa: 2.5,  Fv: 3.5  },
+};
+
+const OCCUPANCY_I = {
+  "I - Standard":  1.0,
+  "II - Essential": 1.25,
+  "III - Hazardous": 1.5,
+};
+
+// Concrete mix design (MPa)
+const CONCRETE_GRADES = { "f'c 17.2 (2500 psi)":17.2, "f'c 20.7 (3000 psi)":20.7, "f'c 24.1 (3500 psi)":24.1, "f'c 27.6 (4000 psi)":27.6, "f'c 34.5 (5000 psi)":34.5 };
+const REBAR_GRADES    = { "Grade 40 (276 MPa)":276, "Grade 60 (414 MPa)":414, "Grade 75 (517 MPa)":517 };
+
+// ─── STRUCTICODE: AI PLAN CHECKER ────────────────────────────────────────────
+function StructuralChecker({ apiKey }) {
+  const [files,setFiles]   = useState([]);
+  const [result,setResult] = useState(null);
+  const [busy,setBusy]     = useState(false);
+  const [error,setError]   = useState(null);
+  const [drag,setDrag]     = useState(false);
+  const [tab,setTab]       = useState("all");
+  const [open,setOpen]     = useState({});
+  const [checked,setChecked]   = useState({});
+  const [corrections,setCorrections] = useState(null);
+  const [correcting,setCorrecting]   = useState(false);
+  const [revNum,setRevNum] = useState(1);
+  const ref = useRef(null);
+
+  const addFiles = useCallback(fs=>{
+    setFiles(p=>[...p,...Array.from(fs).map(f=>({file:f,id:Math.random().toString(36).slice(2),name:f.name,size:f.size,type:f.type||"application/octet-stream"}))]);
+    setResult(null); setError(null);
+  },[]);
+
+  const run = async () => {
+    if(!files.length) return;
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const blocks=[];
+      for(const fo of files){
+        const b64=await toBase64(fo.file);
+        if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:fo.type,data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
+        else if(fo.type==="application/pdf") { blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:`[PDF: ${fo.name}]`}); }
+        else blocks.push({type:"text",text:`[File: ${fo.name}]`});
+      }
+      blocks.push({type:"text",text:"Analyze uploaded structural plans for NSCP 2015 compliance. Return only JSON."});
+      const hdrs={"Content-Type":"application/json"}; if(apiKey) hdrs["x-api-key"]=apiKey;
+      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:NSCP_SYSTEM_PROMPT,messages:[{role:"user",content:blocks}]})});
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message||"API Error");
+      const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
+      let parsed; try { parsed=JSON.parse(raw); } catch { throw new Error("Could not parse AI response."); }
+      setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+    } catch(e){ setError(e.message||"Analysis failed."); }
+    finally { setBusy(false); }
+  };
+
+  const findings = result?.findings||[];
+  const filtered = tab==="all"?findings:findings.filter(f=>f.severity===tab);
+  const checkedCount = Object.values(checked).filter(Boolean).length;
+  const allChecked = findings.length>0 && findings.every(f=>checked[f.id]);
+  const toggleAll = ()=>{ if(allChecked) setChecked({}); else { const a={}; findings.forEach(f=>a[f.id]=true); setChecked(a); } };
+
+  const generateCorrections = async () => {
+    const selected = findings.filter(f=>checked[f.id]);
+    if(!selected.length) return;
+    setCorrecting(true); setCorrections(null);
+    try {
+      const hdrs={"Content-Type":"application/json"}; if(apiKey) hdrs["x-api-key"]=apiKey;
+      const prompt=`You are a licensed PSCE. For each structural finding below, generate specific drafting correction instructions.
+
+Findings:
+${selected.map((f,i)=>`${i+1}. [${f.severity}] ${f.title} — ${f.description} (${f.nscpReference})`).join("\n")}
+
+Respond ONLY as valid JSON array:
+[{"id":1,"title":"...","severity":"...","description":"...","nscpReference":"...","recommendation":"...","correctedValues":"Specific corrected value e.g. Increase column size from 300x300 to 400x400mm, add 8-25mm dia. bars","draftingInstruction":"Exact instruction e.g. On Sheet S-3, Detail A, revise column reinforcement schedule. Add revision cloud."}]`;
+      const res = await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message||"API Error");
+      const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
+      setCorrections(JSON.parse(raw));
+    } catch(e){ alert("Could not generate corrections: "+e.message); }
+    finally { setCorrecting(false); }
+  };
+
+  const S_STATUS = {"NON-COMPLIANT":"#dc2626","COMPLIANT WITH WARNINGS":"#d97706","COMPLIANT":"#16a34a"};
+
+  return (
+    <div>
+      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
+        onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}}
+        onClick={()=>ref.current?.click()}
+        style={{border:`2px dashed ${drag?"#3b82f6":T.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(59,130,246,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
+        <input ref={ref} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
+        <div style={{fontSize:40,marginBottom:12}}>📐</div>
+        <div style={{fontWeight:700,fontSize:16,color:T.text,marginBottom:6}}>Drop structural plans here</div>
+        <div style={{color:T.muted,fontSize:13,marginBottom:16}}>PDF drawings · JPG / PNG images</div>
+        <div style={{display:"inline-block",background:"linear-gradient(135deg,#3b82f6,#6366f1)",color:"#fff",fontWeight:700,padding:"9px 22px",borderRadius:10,fontSize:14}}>Choose Files</div>
+      </div>
+      {files.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=>(<div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:T.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>))}</div>)}
+      {files.length>0&&(<button onClick={run} disabled={busy} style={{width:"100%",background:busy?"rgba(59,130,246,0.2)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?"⚙️ Analyzing against NSCP 2015…":`🏗️ Run Structural Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>)}
+      {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
+
+      {result&&(
+        <div style={{animation:"fadeIn 0.35s ease"}}>
+          <Card style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+              <div>
+                <div style={{fontSize:11,color:T.muted,marginBottom:4}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:18,color:T.text}}>{result.summary.projectName}</div>
+                <div style={{fontSize:13,color:T.muted,marginTop:2}}>{result.summary.structureType} · {result.summary.fileType}</div>
+                <div style={{marginTop:12,display:"flex",gap:24}}>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#dc2626"}}>{result.summary.criticalCount}</div><div style={{fontSize:11,color:T.muted}}>CRITICAL</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#d97706"}}>{result.summary.warningCount}</div><div style={{fontSize:11,color:T.muted}}>WARNINGS</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#3b82f6"}}>{result.summary.infoCount}</div><div style={{fontSize:11,color:T.muted}}>INFO</div></div>
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{background:`${S_STATUS[result.summary.overallStatus]}14`,border:`2px solid ${S_STATUS[result.summary.overallStatus]}44`,borderRadius:12,padding:"10px 18px",marginBottom:8}}>
+                  <div style={{fontSize:10,color:T.muted,marginBottom:4}}>OVERALL STATUS</div>
+                  <div style={{fontSize:13,fontWeight:800,color:S_STATUS[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
+                </div>
+              </div>
+            </div>
+            <div style={{marginTop:12,fontSize:13,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.analysisNotes}</div>
+          </Card>
+
+          {findings.length>0&&(
+            <div>
+              <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {["all","CRITICAL","WARNING","INFO"].map(t=>{
+                    const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;
+                    const active=tab===t;
+                    return <button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${active?"#3b82f6":T.border}`,background:active?"rgba(59,130,246,0.12)":"transparent",color:active?"#3b82f6":T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="all"?"All":t} ({cnt})</button>;
+                  })}
+                </div>
+                <button onClick={toggleAll} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>{allChecked?"☑ Deselect All":"☐ Select All"}</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                {filtered.map(f=>{
+                  const col={CRITICAL:"#dc2626",WARNING:"#d97706",INFO:"#3b82f6"}[f.severity]||"#3b82f6";
+                  const bg={CRITICAL:"rgba(220,38,38,0.06)",WARNING:"rgba(217,119,6,0.06)",INFO:"rgba(59,130,246,0.06)"}[f.severity]||"rgba(59,130,246,0.06)";
+                  const isOpen=open[f.id]; const isChecked=!!checked[f.id];
+                  return (
+                    <div key={f.id} style={{background:isChecked?bg:"rgba(255,255,255,0.01)",border:`1.5px solid ${isChecked?col:T.border}`,borderRadius:12,overflow:"hidden",transition:"all 0.15s"}}>
+                      <div style={{padding:"13px 18px",display:"flex",alignItems:"flex-start",gap:12}}>
+                        <div onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))} style={{width:20,height:20,borderRadius:5,border:`2px solid ${isChecked?col:T.muted}`,background:isChecked?col:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
+                          {isChecked&&<span style={{color:"#fff",fontSize:12,fontWeight:800,lineHeight:1}}>✓</span>}
+                        </div>
+                        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:4,alignItems:"center"}}>
+                            <span style={{background:col,color:"#fff",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{f.severity}</span>
+                            <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{f.nscpReference}</span>
+                            <span style={{fontSize:11,color:T.muted,background:"rgba(255,255,255,0.04)",padding:"1px 8px",borderRadius:4}}>{f.category}</span>
+                          </div>
+                          <div style={{fontWeight:700,fontSize:14,color:T.text}}>{f.title}</div>
+                        </div>
+                        <span style={{color:T.muted,fontSize:12,marginTop:2,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
+                      </div>
+                      {isOpen&&(<div style={{padding:"0 18px 16px 50px",borderTop:`1px solid ${col}33`}}>
+                        <div style={{paddingTop:12,display:"flex",flexDirection:"column",gap:10}}>
+                          <div><Label>Finding</Label><div style={{fontSize:13,color:T.muted,lineHeight:1.6}}>{f.description}</div></div>
+                          <div><Label>Recommendation</Label><div style={{fontSize:13,color:T.success,lineHeight:1.6}}>✓ {f.recommendation}</div></div>
+                          {f.codeBasis&&<div style={{background:"rgba(0,0,0,0.2)",borderLeft:`3px solid ${col}`,padding:"10px 14px",borderRadius:"0 8px 8px 0",fontSize:12,color:T.muted,fontStyle:"italic",lineHeight:1.5}}>{f.codeBasis}</div>}
+                        </div>
+                      </div>)}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {checkedCount>0&&(
+                <div style={{background:"rgba(59,130,246,0.08)",border:"1.5px solid rgba(59,130,246,0.25)",borderRadius:12,padding:"16px 20px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,color:"#3b82f6"}}>{checkedCount} item{checkedCount>1?"s":""} selected for correction</div>
+                    <div style={{fontSize:12,color:T.muted,marginTop:2}}>AI will generate specific drafting instructions per NSCP 2015</div>
+                  </div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><Label>Rev No.</Label><input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{width:60,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"6px 10px",color:T.text,fontSize:14,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
+                    <button onClick={generateCorrections} disabled={correcting} style={{background:correcting?"rgba(59,130,246,0.3)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:correcting?"#666":"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:correcting?"not-allowed":"pointer",fontSize:13}}>
+                      {correcting?"⚙️ Generating…":"🤖 Generate Corrections"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {corrections&&(
+                <div style={{background:"rgba(16,185,129,0.05)",border:"1.5px solid rgba(16,185,129,0.25)",borderRadius:12,padding:20,marginBottom:16}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+                    <div><div style={{fontWeight:800,fontSize:15,color:T.success}}>✅ Corrections Generated — Rev {revNum}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{corrections.length} drafting instruction{corrections.length>1?"s":""} ready</div></div>
+                    <button onClick={()=>{
+                      const w=window.open("","_blank");
+                      const date=new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+                      const rows=corrections.map((c,i)=>`<tr><td style="padding:10px 8px;border:1px solid #e5e7eb;font-weight:700;color:#6b7280;text-align:center">REV-${String(i+1).padStart(2,"0")}</td><td style="padding:10px 8px;border:1px solid #e5e7eb;color:${{CRITICAL:"#dc2626",WARNING:"#d97706",INFO:"#2563eb"}[c.severity]};font-weight:700">${c.severity}</td><td style="padding:10px 8px;border:1px solid #e5e7eb;font-weight:600">${c.title}</td><td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:12px">${c.description}</td><td style="padding:10px 8px;border:1px solid #e5e7eb;background:#fefce8">${c.correctedValues||c.recommendation}</td><td style="padding:10px 8px;border:1px solid #e5e7eb;background:#f0fdf4;color:#15803d">${c.draftingInstruction||""}</td><td style="padding:10px 8px;border:1px solid #e5e7eb;font-size:11px;color:#6b7280">${c.nscpReference}</td></tr>`).join("");
+                      w.document.write(`<!DOCTYPE html><html><head><title>Structural Revision Report Rev ${revNum}</title><style>body{font-family:Arial,sans-serif;margin:40px;color:#111;font-size:13px}table{border-collapse:collapse;width:100%}th{background:#1f2937;color:#fff;padding:9px 8px;text-align:left;font-size:11px}h1{color:#1f2937}h2{border-bottom:2px solid #f3f4f6;padding-bottom:6px;margin-top:24px}@media print{button{display:none}}</style></head><body><h1>🏗️ Structural Revision Report — Rev ${revNum}</h1><p style="color:#6b7280">NSCP 2015 · ${date} · Developed by Jon Ureta</p><h2>Corrections (${corrections.length} items)</h2><table><tr><th>Rev No.</th><th>Severity</th><th>Issue</th><th>Finding</th><th style="background:#92400e">Corrected Value</th><th style="background:#166534">Drafting Instruction</th><th>NSCP Ref.</th></tr>${rows}</table><div style="margin-top:24px;background:#eff6ff;border:1px solid #3b82f6;border-radius:8px;padding:14px 18px"><strong>Instructions for Draftsman:</strong><ol style="margin:8px 0 0;padding-left:18px;line-height:2"><li>Apply all corrections to the drawing file</li><li>Update revision block: Rev ${revNum}, ${date}</li><li>Add revision clouds around modified areas</li><li>Tag each cloud with Rev No. (REV-01, REV-02, etc.)</li><li>Submit to Engineer-of-Record for review and signature</li></ol></div><p style="margin-top:24px;font-size:11px;color:#9ca3af">⚠️ AI-generated report. All corrections must be verified by a licensed PSCE before implementation.</p></body></html>`);
+                      w.document.close(); setTimeout(()=>w.print(),400);
+                    }} style={{background:"linear-gradient(135deg,#10b981,#059669)",border:"none",color:"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:"pointer",fontSize:13}}>📄 Download Revision PDF</button>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {corrections.map((c,i)=>(
+                      <div key={c.id||i} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:16}}>
+                        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                          <span style={{background:"#1f2937",color:"#3b82f6",fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:4}}>REV-{String(i+1).padStart(2,"0")}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:T.text}}>{c.title}</span>
+                          <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{c.nscpReference}</span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                          <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📐 Corrected Value</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.correctedValues||c.recommendation}</div></div>
+                          <div style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.success,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>✏️ Drafting Instruction</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.draftingInstruction||"Apply correction as indicated"}</div></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>⚠️ AI-generated report for reference only. All plans must be reviewed and stamped by a licensed PSCE before submission to DPWH or LGU.</div>
+        </div>
+      )}
+      {!files.length&&!result&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginTop:4}}>
+          {[{i:"🏠",t:"Residential",d:"Beams, columns, slabs, footings"},{i:"🏢",t:"Commercial",d:"Multi-storey RC/Steel structures"},{i:"🌉",t:"Bridge/Infrastructure",d:"DPWH Blue Book compliance"},{i:"🌍",t:"Seismic Check",d:"NSCP 2015 Section 208"}].map(x=>(
+            <Card key={x.t} style={{textAlign:"center",padding:18}}><div style={{fontSize:28,marginBottom:8}}>{x.i}</div><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{x.t}</div><div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{x.d}</div></Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: SEISMIC LOAD CALC ──────────────────────────────────────────
+function SeismicCalc() {
+  const [zone,setZone]     = useState("Zone 4");
+  const [soil,setSoil]     = useState("SD - Stiff Soil");
+  const [occ,setOcc]       = useState("I - Standard");
+  const [W,setW]           = useState(5000);    // kN
+  const [T,setTp]          = useState(0.3);     // period sec
+  const [R,setR]           = useState(8.5);     // response mod factor
+  const [result,setResult] = useState(null);
+
+  const calc = () => {
+    const Zv  = PH_SEISMIC_ZONES[zone].Z;
+    const {Fa,Fv} = SOIL_TYPES[soil];
+    const I   = OCCUPANCY_I[occ];
+    const Ca  = 0.4*Fa*Zv;
+    const Cv  = 0.4*Fv*Zv*1.5;
+    const Ts  = Cv/(2.5*Ca);
+    const T0  = 0.2*Ts;
+    let Sa;
+    if(T<=T0)      Sa = Ca*(0.6*(T/T0)+0.4);
+    else if(T<=Ts) Sa = 2.5*Ca;
+    else           Sa = Cv/T;
+    const Vmin = 0.11*Ca*I*W;
+    const Vmax = 2.5*Ca*I*W/R;
+    const V    = Math.max(Vmin, Math.min(Sa*I*W/R, Vmax));
+    const Cs   = V/W;
+    setResult({Ca,Cv,Ts,T0,Sa,V,Cs,Vmin,Vmax,Zv,I,Fa,Fv});
+  };
+
+  const TK = T; // local theme alias
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Seismic Zone (NSCP 2015 Sec. 208.4)</Label>
+        <Select value={zone} onChange={e=>setZone(e.target.value)} style={{marginBottom:4}}>
+          {Object.entries(PH_SEISMIC_ZONES).map(([k,v])=><option key={k} value={k}>{k} — Z={v.Z}</option>)}
+        </Select>
+        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>{PH_SEISMIC_ZONES[zone].desc}</div>
+
+        <Label>Soil Profile Type (NSCP Table 208-2)</Label>
+        <Select value={soil} onChange={e=>setSoil(e.target.value)} style={{marginBottom:16}}>
+          {Object.keys(SOIL_TYPES).map(k=><option key={k} value={k}>{k}</option>)}
+        </Select>
+
+        <Label>Occupancy Category</Label>
+        <Select value={occ} onChange={e=>setOcc(e.target.value)} style={{marginBottom:16}}>
+          {Object.keys(OCCUPANCY_I).map(k=><option key={k} value={k}>{k} (I={OCCUPANCY_I[k]})</option>)}
+        </Select>
+
+        <Label>Seismic Weight W (kN)</Label>
+        <Input type="number" value={W} onChange={e=>setW(+e.target.value)} style={{marginBottom:16}}/>
+
+        <Label>Fundamental Period T (seconds)</Label>
+        <Input type="number" value={TK} onChange={e=>setTp(+e.target.value)} step="0.05" style={{marginBottom:16}}/>
+
+        <Label>Response Modification Factor R</Label>
+        <Input type="number" value={R} onChange={e=>setR(+e.target.value)} step="0.5" style={{marginBottom:20}}/>
+        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>Typical: SMRF=8.5, OMRF=3.5, Shear Wall=5.5</div>
+
+        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🌍 Calculate Seismic Base Shear</button>
+      </Card>
+
+      {result ? (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(59,130,246,0.06)",border:"1.5px solid rgba(59,130,246,0.3)"}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>DESIGN BASE SHEAR</div>
+            <div style={{fontSize:42,fontWeight:900,color:"#3b82f6",letterSpacing:"-2px"}}>{result.V.toFixed(1)} <span style={{fontSize:18,fontWeight:400}}>kN</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Cs = {(result.Cs*100).toFixed(2)}% of seismic weight</div>
+          </Card>
+          {[
+            {l:"Seismic Zone Factor Z",v:`${result.Zv}`},
+            {l:"Site Coefficient Fa",v:`${result.Fa}`},
+            {l:"Site Coefficient Fv",v:`${result.Fv}`},
+            {l:"Seismic Coeff. Ca",v:`${result.Ca.toFixed(4)}`},
+            {l:"Seismic Coeff. Cv",v:`${result.Cv.toFixed(4)}`},
+            {l:"Spectral Accel. Sa",v:`${result.Sa.toFixed(4)} g`},
+            {l:"Characteristic Period Ts",v:`${result.Ts.toFixed(3)} s`},
+            {l:"Min Base Shear Vmin",v:`${result.Vmin.toFixed(1)} kN`},
+            {l:"Max Base Shear Vmax",v:`${result.Vmax.toFixed(1)} kN`},
+            {l:"Design Base Shear V",v:`${result.V.toFixed(1)} kN`,highlight:true},
+          ].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.1)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.3)":"none"}}>
+              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
+            Formula: V = Sa·I·W/R, bounded by Vmin = 0.11·Ca·I·W and Vmax = 2.5·Ca·I·W/R
+          </div>
+        </div>
+      ) : (
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+          <div style={{fontSize:48}}>🌍</div>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter parameters and click<br/>Calculate to see results</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: BEAM DESIGN ─────────────────────────────────────────────────
+function BeamDesign() {
+  const [fc,setFc]   = useState(27.6);
+  const [fy,setFy]   = useState(414);
+  const [b,setB]     = useState(300);    // mm
+  const [d,setD]     = useState(500);    // mm
+  const [Mu,setMu]   = useState(150);    // kN·m
+  const [Vu,setVu]   = useState(120);    // kN
+  const [result,setResult] = useState(null);
+
+  const calc = () => {
+    const bm=b/1000, dm=d/1000; // convert to meters
+    const phi_b=0.90, phi_v=0.85;
+    const Rn = (Mu*1000)/(phi_b*bm*dm*dm*1e6); // MPa
+    const rho_req = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
+    const rho_min = Math.max(1.4/fy, 0.25*Math.sqrt(fc)/fy);
+    const rho_max = 0.75*0.85*0.85*(fc/fy)*(600/(600+fy));
+    const rho_use = Math.max(rho_min, Math.min(rho_req, rho_max));
+    const As_req  = rho_use*b*d; // mm²
+    // Shear
+    const Vc = (1/6)*Math.sqrt(fc)*b*d/1000; // kN
+    const Vs_req = Vu/phi_v - Vc;
+    const needsStirrup = Vs_req > 0;
+    const s_max = Math.min(d/2, 600); // mm max stirrup spacing
+    const Av_req = needsStirrup ? (Vs_req*1000*s_max)/(fy*d) : 0; // mm²
+    const status_flex = rho_req <= rho_max ? "PASS" : "FAIL";
+    const status_shear = Vc >= Vu/phi_v ? "PASS" : "NEEDS STIRRUPS";
+    setResult({Rn,rho_req,rho_min,rho_max,rho_use,As_req,Vc,Vs_req,needsStirrup,s_max,Av_req,status_flex,status_shear});
+  };
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Concrete Strength f'c</Label>
+        <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <Label>Steel Yield Strength fy</Label>
+        <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div><Label>Width b (mm)</Label><Input type="number" value={b} onChange={e=>setB(+e.target.value)}/></div>
+          <div><Label>Eff. Depth d (mm)</Label><Input type="number" value={d} onChange={e=>setD(+e.target.value)}/></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+          <div><Label>Factored Moment Mu (kN·m)</Label><Input type="number" value={Mu} onChange={e=>setMu(+e.target.value)}/></div>
+          <div><Label>Factored Shear Vu (kN)</Label><Input type="number" value={Vu} onChange={e=>setVu(+e.target.value)}/></div>
+        </div>
+        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>📐 Design Beam Section</button>
+      </Card>
+
+      {result ? (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <Card style={{background:result.status_flex==="PASS"?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status_flex==="PASS"?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:4}}>FLEXURE</div>
+              <div style={{fontSize:28,fontWeight:900,color:result.status_flex==="PASS"?T.success:T.danger}}>{result.status_flex}</div>
+            </Card>
+            <Card style={{background:result.status_shear==="PASS"?"rgba(16,185,129,0.06)":"rgba(245,158,11,0.06)",border:`1.5px solid ${result.status_shear==="PASS"?"rgba(16,185,129,0.3)":"rgba(245,158,11,0.3)"}`}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:4}}>SHEAR</div>
+              <div style={{fontSize:18,fontWeight:900,color:result.status_shear==="PASS"?T.success:T.warn}}>{result.status_shear}</div>
+            </Card>
+          </div>
+          {[
+            {l:"Required As (flexure)",v:`${result.As_req.toFixed(0)} mm²`,highlight:true},
+            {l:"Req. steel ratio ρ",v:result.rho_req.toFixed(5)},
+            {l:"Min steel ratio ρmin",v:result.rho_min.toFixed(5)},
+            {l:"Max steel ratio ρmax",v:result.rho_max.toFixed(5)},
+            {l:"Design ratio ρuse",v:result.rho_use.toFixed(5)},
+            {l:"Nominal moment Rn",v:`${result.Rn.toFixed(2)} MPa`},
+            {l:"Concrete shear cap. Vc",v:`${result.Vc.toFixed(1)} kN`},
+            result.needsStirrup&&{l:"Required Av/s",v:`${result.Av_req.toFixed(1)} mm²/mm`,highlight:true},
+            result.needsStirrup&&{l:"Max stirrup spacing",v:`${result.s_max} mm`},
+          ].filter(Boolean).map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
+              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 405 · USD/Strength Method · φb=0.90, φv=0.85</div>
+        </div>
+      ) : (
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+          <div style={{fontSize:48}}>📐</div>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter beam parameters<br/>and click Design</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: COLUMN DESIGN ───────────────────────────────────────────────
+function ColumnDesign() {
+  const [fc,setFc]   = useState(27.6);
+  const [fy,setFy]   = useState(414);
+  const [b,setB]     = useState(400);
+  const [h,setH]     = useState(400);
+  const [Pu,setPu]   = useState(1500); // kN
+  const [Mu,setMu]   = useState(80);   // kN·m
+  const [type,setType] = useState("tied");
+  const [result,setResult] = useState(null);
+
+  const calc = () => {
+    const Ag = b*h; // mm²
+    const phi = type==="tied"?0.65:0.75;
+    const phi_b=0.65;
+    const rho_min=0.01, rho_max=0.08;
+    // Axial capacity at min/max rho
+    const Po_min = 0.85*fc*(Ag-rho_min*Ag)+fy*rho_min*Ag;
+    const Po_max = 0.85*fc*(Ag-rho_max*Ag)+fy*rho_max*Ag;
+    const phiPn_max = phi*(0.8*(0.85*fc*(Ag)+fy*rho_min*Ag));  // simplified
+    // Required Ast
+    const Pn_req = Pu*1000/phi;
+    const Ast_req = Math.max((Pn_req/0.80 - 0.85*fc*Ag)/(fy - 0.85*fc), rho_min*Ag);
+    const rho_req = Ast_req/Ag;
+    const phiPn = phi*0.80*(0.85*fc*(Ag-Ast_req)+fy*Ast_req)/1000; // kN
+    const ecc = Mu/Pu*1000; // mm
+    const status = (rho_req<=rho_max && rho_req>=rho_min && phiPn>=Pu) ? "PASS" : "FAIL";
+    setResult({Ag,Ast_req,rho_req,rho_min,rho_max,phiPn,ecc,status,phi});
+  };
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Concrete Strength f'c</Label>
+        <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <Label>Steel Yield Strength fy</Label>
+        <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <Label>Column Type</Label>
+        <Select value={type} onChange={e=>setType(e.target.value)} style={{marginBottom:16}}>
+          <option value="tied">Tied Column (φ=0.65)</option>
+          <option value="spiral">Spiral Column (φ=0.75)</option>
+        </Select>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div><Label>Width b (mm)</Label><Input type="number" value={b} onChange={e=>setB(+e.target.value)}/></div>
+          <div><Label>Depth h (mm)</Label><Input type="number" value={h} onChange={e=>setH(+e.target.value)}/></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+          <div><Label>Factored Axial Pu (kN)</Label><Input type="number" value={Pu} onChange={e=>setPu(+e.target.value)}/></div>
+          <div><Label>Factored Moment Mu (kN·m)</Label><Input type="number" value={Mu} onChange={e=>setMu(+e.target.value)}/></div>
+        </div>
+        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🏛️ Design Column Section</button>
+      </Card>
+
+      {result ? (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:result.status==="PASS"?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status==="PASS"?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>COLUMN STATUS</div>
+            <div style={{fontSize:42,fontWeight:900,color:result.status==="PASS"?T.success:T.danger}}>{result.status}</div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>φPn = {result.phiPn.toFixed(1)} kN vs Pu = {Pu} kN</div>
+          </Card>
+          {[
+            {l:"Gross Area Ag",v:`${result.Ag.toFixed(0)} mm²`},
+            {l:"Required Ast",v:`${result.Ast_req.toFixed(0)} mm²`,highlight:true},
+            {l:"Required ρ",v:`${(result.rho_req*100).toFixed(2)}%`},
+            {l:"Min ρ (1%)",v:"1.00%",ok:result.rho_req>=result.rho_min},
+            {l:"Max ρ (8%)",v:"8.00%",ok:result.rho_req<=result.rho_max},
+            {l:"φPn (capacity)",v:`${result.phiPn.toFixed(1)} kN`,highlight:true},
+            {l:"Eccentricity e",v:`${result.ecc.toFixed(1)} mm`},
+            {l:"Reduction factor φ",v:`${result.phi}`},
+          ].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
+              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 · Short column assumption · Compression-controlled</div>
+        </div>
+      ) : (
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+          <div style={{fontSize:48}}>🏛️</div>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter column parameters<br/>and click Design</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: FOOTING DESIGN ─────────────────────────────────────────────
+function FootingDesign() {
+  const [fc,setFc]     = useState(20.7);
+  const [fy,setFy]     = useState(276);
+  const [P,setP]       = useState(800);    // kN service load
+  const [qa,setQa]     = useState(150);    // kPa allowable bearing
+  const [Df,setDf]     = useState(1.5);    // m depth
+  const [conc_wt]      = useState(23.5);   // kN/m³
+  const [result,setResult] = useState(null);
+
+  const calc = () => {
+    const qnet = qa - conc_wt*Df;
+    const Areq = P/qnet;
+    const B    = Math.ceil(Math.sqrt(Areq)*10)/10; // round up to 0.1m
+    const A    = B*B;
+    const qu   = (1.2*P + 0.0)/A; // factored (simplified)
+    const Pu   = 1.2*P;
+    const qu_f = Pu/A;
+    // Depth from punching shear (assume d = B/5 min)
+    const d_min = B*1000/5; // mm
+    const d = Math.max(d_min, 250);
+    // One-way shear check
+    const Vc1 = (1/6)*Math.sqrt(fc)*(B*1000)*d/1000; // kN per meter width
+    // Flexure — cantilever moment
+    const c = (B - 0.4)/2; // assuming 400mm column
+    const Mu = qu_f*B*c*c/2; // kN·m
+    const phi=0.90;
+    const Rn = (Mu*1e6)/(phi*(B*1000)*d*d);
+    const rho = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
+    const rho_min = Math.max(0.0018, 1.4/fy);
+    const rho_use = Math.max(rho, rho_min);
+    const As = rho_use*(B*1000)*d; // mm²
+    setResult({qnet,B,A,qu_f,d,Mu,As,rho_use,rho_min});
+  };
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Concrete Strength f'c</Label>
+        <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <Label>Steel Yield Strength fy</Label>
+        <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <Label>Column Service Load P (kN)</Label>
+        <Input type="number" value={P} onChange={e=>setP(+e.target.value)} style={{marginBottom:16}}/>
+        <Label>Allowable Bearing Capacity qa (kPa)</Label>
+        <Input type="number" value={qa} onChange={e=>setQa(+e.target.value)} style={{marginBottom:16}}/>
+        <Label>Foundation Depth Df (m)</Label>
+        <Input type="number" value={Df} onChange={e=>setDf(+e.target.value)} step="0.1" style={{marginBottom:20}}/>
+        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🪨 Design Footing</button>
+      </Card>
+
+      {result ? (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(59,130,246,0.06)",border:"1.5px solid rgba(59,130,246,0.3)"}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>FOOTING SIZE</div>
+            <div style={{fontSize:42,fontWeight:900,color:"#3b82f6",letterSpacing:"-2px"}}>{result.B.toFixed(1)} <span style={{fontSize:18,fontWeight:400}}>m × {result.B.toFixed(1)} m</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Area = {result.A.toFixed(2)} m²</div>
+          </Card>
+          {[
+            {l:"Net bearing capacity qnet",v:`${result.qnet.toFixed(1)} kPa`},
+            {l:"Factored soil pressure qu",v:`${result.qu_f.toFixed(2)} kPa`},
+            {l:"Effective depth d",v:`${result.d.toFixed(0)} mm`},
+            {l:"Factored moment Mu",v:`${result.Mu.toFixed(1)} kN·m`,highlight:true},
+            {l:"Required As (each dir.)",v:`${result.As.toFixed(0)} mm²`,highlight:true},
+            {l:"Design steel ratio ρ",v:`${(result.rho_use*100).toFixed(3)}%`},
+            {l:"Min steel ratio ρmin",v:`${(result.rho_min*100).toFixed(3)}%`},
+          ].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
+              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 305–306 · Square isolated footing · USD method</div>
+        </div>
+      ) : (
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+          <div style={{fontSize:48}}>🪨</div>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter footing parameters<br/>and click Design</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: SLAB DESIGN ─────────────────────────────────────────────────
+function SlabDesign() {
+  const [fc,setFc]     = useState(20.7);
+  const [fy,setFy]     = useState(276);
+  const [slabType,setSlabType] = useState("one-way");
+  const [L,setL]       = useState(4.0);   // m span
+  const [S,setS]       = useState(3.0);   // m short span (two-way)
+  const [wDL,setWDL]   = useState(3.0);   // kPa dead load
+  const [wLL,setWLL]   = useState(2.4);   // kPa live load
+  const [result,setResult] = useState(null);
+
+  const calc = () => {
+    const wu = 1.2*wDL + 1.6*wLL;
+    if(slabType==="one-way"){
+      const h_min = L*1000/20; // mm (simply supported)
+      const h     = Math.max(Math.ceil(h_min/10)*10, 100);
+      const d     = h - 25; // mm cover
+      const Mu   = wu*L*L/8; // kN·m/m
+      const phi=0.90;
+      const Rn   = (Mu*1e6)/(phi*1000*d*d);
+      const rho  = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
+      const rho_min = Math.max(0.0018, 1.4/fy);
+      const rho_use = Math.max(rho, rho_min);
+      const As   = rho_use*1000*d; // mm²/m
+      const As_temp = 0.0018*1000*h; // temp/shrinkage
+      setResult({slabType,h,d,wu,Mu,As,As_temp,rho_use,rho_min,L,S:null,Ma:null,Mb:null});
+    } else {
+      // Two-way slab — coefficient method (NSCP Table 413-1, simply supported)
+      const ratio = S/L; // short/long
+      const Ca = ratio<=0.5?0.085:ratio<=0.6?0.071:ratio<=0.7?0.060:ratio<=0.8?0.051:ratio<=0.9?0.044:0.039;
+      const Cb = ratio<=0.5?0.015:ratio<=0.6?0.021:ratio<=0.7?0.028:ratio<=0.8?0.037:ratio<=0.9?0.049:0.062;
+      const h_min = S*1000/28;
+      const h     = Math.max(Math.ceil(h_min/10)*10, 100);
+      const d     = h - 25;
+      const Ma   = Ca*wu*S*S; // kN·m/m short dir
+      const Mb   = Cb*wu*S*S; // kN·m/m long dir
+      const phi=0.90;
+      const Rna  = (Ma*1e6)/(phi*1000*d*d);
+      const Rnb  = (Mb*1e6)/(phi*1000*d*d);
+      const rho_min=0.0018;
+      const rhoA = Math.max((0.85*fc/fy)*(1-Math.sqrt(1-(2*Rna)/(0.85*fc))), rho_min);
+      const rhoB = Math.max((0.85*fc/fy)*(1-Math.sqrt(1-(2*Rnb)/(0.85*fc))), rho_min);
+      const AsA  = rhoA*1000*d;
+      const AsB  = rhoB*1000*d;
+      const As_temp = 0.0018*1000*h;
+      setResult({slabType,h,d,wu,Mu:null,As:null,As_temp,rho_use:rhoA,rho_min,L,S,Ma,Mb,AsA,AsB,ratio});
+    }
+  };
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Slab Type</Label>
+        <Select value={slabType} onChange={e=>setSlabType(e.target.value)} style={{marginBottom:16}}>
+          <option value="one-way">One-Way Slab (L/S &gt; 2)</option>
+          <option value="two-way">Two-Way Slab (L/S ≤ 2)</option>
+        </Select>
+        <Label>Concrete f'c</Label>
+        <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <Label>Steel fy</Label>
+        <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        </Select>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div><Label>{slabType==="two-way"?"Short Span S (m)":"Span L (m)"}</Label><Input type="number" value={slabType==="two-way"?S:L} onChange={e=>slabType==="two-way"?setS(+e.target.value):setL(+e.target.value)} step="0.1"/></div>
+          {slabType==="two-way"&&<div><Label>Long Span L (m)</Label><Input type="number" value={L} onChange={e=>setL(+e.target.value)} step="0.1"/></div>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+          <div><Label>Dead Load wDL (kPa)</Label><Input type="number" value={wDL} onChange={e=>setWDL(+e.target.value)} step="0.1"/></div>
+          <div><Label>Live Load wLL (kPa)</Label><Input type="number" value={wLL} onChange={e=>setWLL(+e.target.value)} step="0.1"/></div>
+        </div>
+        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🔩 Design Slab</button>
+      </Card>
+
+      {result ? (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(59,130,246,0.06)",border:"1.5px solid rgba(59,130,246,0.3)"}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>SLAB THICKNESS</div>
+            <div style={{fontSize:42,fontWeight:900,color:"#3b82f6",letterSpacing:"-2px"}}>{result.h} <span style={{fontSize:18,fontWeight:400}}>mm</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Effective depth d = {result.d} mm</div>
+          </Card>
+          {result.slabType==="one-way" ? (
+            <>
+              {[
+                {l:"Factored load wu",v:`${result.wu.toFixed(2)} kPa`},
+                {l:"Factored moment Mu",v:`${result.Mu.toFixed(2)} kN·m/m`},
+                {l:"Required As (main)",v:`${result.As.toFixed(0)} mm²/m`,highlight:true},
+                {l:"Temp/shrinkage As",v:`${result.As_temp.toFixed(0)} mm²/m`},
+                {l:"Design ratio ρ",v:`${(result.rho_use*100).toFixed(3)}%`},
+              ].map(r=>(
+                <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
+                  <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {[
+                {l:"Span ratio S/L",v:`${result.ratio.toFixed(2)}`},
+                {l:"Factored load wu",v:`${result.wu.toFixed(2)} kPa`},
+                {l:"Moment Ma (short dir)",v:`${result.Ma.toFixed(2)} kN·m/m`},
+                {l:"Moment Mb (long dir)",v:`${result.Mb.toFixed(2)} kN·m/m`},
+                {l:"As short direction",v:`${result.AsA.toFixed(0)} mm²/m`,highlight:true},
+                {l:"As long direction",v:`${result.AsB.toFixed(0)} mm²/m`,highlight:true},
+                {l:"Temp/shrinkage As",v:`${result.As_temp.toFixed(0)} mm²/m`},
+              ].map(r=>(
+                <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
+                  <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+                </div>
+              ))}
+            </>
+          )}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 · USD Method · φ=0.90 · 25mm clear cover</div>
+        </div>
+      ) : (
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+          <div style={{fontSize:48}}>🔩</div>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter slab parameters<br/>and click Design</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: LOAD COMBINATIONS ──────────────────────────────────────────
+function LoadCombinations() {
+  const [D,setD]   = useState(100);  // kN Dead
+  const [L,setL]   = useState(80);   // kN Live
+  const [W,setW]   = useState(40);   // kN Wind
+  const [E,setE]   = useState(60);   // kN Seismic
+  const [S,setS]   = useState(0);    // kN Snow
+  const [result,setResult] = useState(null);
+
+  const calc = () => {
+    const combos = [
+      {name:"1.4D",            val:1.4*D},
+      {name:"1.2D + 1.6L",     val:1.2*D+1.6*L},
+      {name:"1.2D + 1.6L + 0.5W", val:1.2*D+1.6*L+0.5*W},
+      {name:"1.2D + 1.0W + 1.0L", val:1.2*D+1.0*W+1.0*L},
+      {name:"1.2D + 1.0E + 1.0L", val:1.2*D+1.0*E+1.0*L},
+      {name:"0.9D + 1.0W",     val:0.9*D+1.0*W},
+      {name:"0.9D + 1.0E",     val:0.9*D+1.0*E},
+      {name:"1.2D + 1.6S + 1.0L", val:1.2*D+1.6*S+1.0*L},
+    ];
+    const max = Math.max(...combos.map(c=>c.val));
+    setResult(combos.map(c=>({...c,isMax:c.val===max})));
+  };
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>NSCP 2015 Section 203 — Load Combinations (USD)</Label>
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:12,marginBottom:20}}>
+          {[{l:"Dead Load D (kN)",v:D,s:setD},{l:"Live Load L (kN)",v:L,s:setL},{l:"Wind Load W (kN)",v:W,s:setW},{l:"Seismic Load E (kN)",v:E,s:setE},{l:"Snow Load S (kN)",v:S,s:setS}].map(f=>(
+            <div key={f.l}><Label>{f.l}</Label><Input type="number" value={f.v} onChange={e=>f.s(+e.target.value)}/></div>
+          ))}
+        </div>
+        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>📊 Calculate Load Combinations</button>
+      </Card>
+
+      {result ? (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{fontSize:13,color:T.muted,marginBottom:4}}>All factored load combinations — NSCP 2015 Sec. 203.3</div>
+          {result.map(r=>(
+            <div key={r.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:r.isMax?"rgba(239,68,68,0.08)":T.dim,borderRadius:10,border:r.isMax?"1.5px solid rgba(239,68,68,0.3)":"1px solid transparent",transition:"all 0.15s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                {r.isMax&&<span style={{background:"#dc2626",color:"#fff",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>MAX</span>}
+                <span style={{fontSize:13,color:T.muted,fontFamily:"monospace"}}>{r.name}</span>
+              </div>
+              <span style={{fontSize:16,fontWeight:800,color:r.isMax?T.danger:T.text,fontFamily:"monospace"}}>{r.val.toFixed(1)} kN</span>
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>Governing combination: <strong style={{color:T.danger}}>{result.find(r=>r.isMax)?.name}</strong> = {result.find(r=>r.isMax)?.val.toFixed(1)} kN</div>
+        </div>
+      ) : (
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+          <div style={{fontSize:48}}>📊</div>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate</div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
+function StructiCode({ apiKey }) {
+  const [tool,setTool] = useState("checker");
+  const TOOLS = [
+    {key:"checker", icon:"🤖", label:"AI Plan Checker"},
+    {key:"seismic", icon:"🌍", label:"Seismic Load"},
+    {key:"beam",    icon:"📐", label:"Beam Design"},
+    {key:"column",  icon:"🏛️", label:"Column Design"},
+    {key:"footing", icon:"🪨", label:"Footing Design"},
+    {key:"slab",    icon:"🔩", label:"Slab Design"},
+    {key:"loads",   icon:"📊", label:"Load Combinations"},
+  ];
+  return (
+    <div>
+      {/* Sub-nav */}
+      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
+        {TOOLS.map(t=>(
+          <button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?"#3b82f6":T.border}`,background:tool===t.key?"rgba(59,130,246,0.12)":"transparent",color:tool===t.key?"#3b82f6":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+            <span>{t.icon}</span><span>{t.label}</span>
+          </button>
+        ))}
+      </div>
+      {tool==="checker" && <StructuralChecker apiKey={apiKey}/>}
+      {tool==="seismic" && <SeismicCalc/>}
+      {tool==="beam"    && <BeamDesign/>}
+      {tool==="column"  && <ColumnDesign/>}
+      {tool==="footing" && <FootingDesign/>}
+      {tool==="slab"    && <SlabDesign/>}
+      {tool==="loads"   && <LoadCombinations/>}
+    </div>
+  );
+}
+
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 const TABS = [
-  { key:"checker",  icon:"🔍", label:"Plan Checker"      },
-  { key:"vdrop",    icon:"📉", label:"Voltage Drop"      },
-  { key:"fault",    icon:"⚡", label:"Short Circuit"     },
-  { key:"load",     icon:"📊", label:"Load Calculator"   },
+  { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#f59e0b" },
+  { key:"structural", icon:"🏗️", label:"StructiCode", color:"#3b82f6" },
 ];
 
 export default function App() {
-  const [tab, setTab]         = useState("checker");
+  const [module, setModule]   = useState("electrical");
+  const [etab, setEtab]       = useState("checker");
   const [apiKey, setApiKey]   = useState("");
   const [showKey, setShowKey] = useState(false);
   const [splash, setSplash]   = useState(true);
+
+  const ETABS = [
+    {key:"checker", icon:"🔍", label:"Plan Checker"},
+    {key:"vdrop",   icon:"📉", label:"Voltage Drop"},
+    {key:"fault",   icon:"⚡", label:"Short Circuit"},
+    {key:"load",    icon:"📊", label:"Load Calc"},
+  ];
 
   return (
     <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif" }}>
@@ -1370,10 +2230,10 @@ export default function App() {
             {/* App name */}
             <div style={{ fontSize:11, color:T.muted, letterSpacing:"2px", textTransform:"uppercase", marginBottom:8 }}>Welcome to</div>
             <h1 style={{ fontSize:28, fontWeight:800, color:T.text, letterSpacing:"-0.8px", marginBottom:6, lineHeight:1.1 }}>
-              PEC Compliance Suite
+              PH Engineering Suite
             </h1>
             <div style={{ fontSize:13, color:T.muted, marginBottom:28, lineHeight:1.6 }}>
-              PEC 2017 · FSIC RA 9514 · Philippine Green Building Code
+              PEC 2017 · NSCP 2015 · NBC Philippines · NPC
             </div>
 
             {/* Divider */}
@@ -1395,10 +2255,10 @@ export default function App() {
             {/* Feature list */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:28, textAlign:"left" }}>
               {[
-                { icon:"🔍", label:"AI Plan Checker" },
-                { icon:"📉", label:"Voltage Drop Calc" },
-                { icon:"⚡", label:"Short Circuit Calc" },
-                { icon:"📊", label:"Load Calculator" },
+                { icon:"⚡", label:"ElectriCode — PEC 2017" },
+                { icon:"🏗️", label:"StructiCode — NSCP 2015" },
+                { icon:"🏢", label:"ArchiCode — NBC PH" },
+                { icon:"🚿", label:"SaniCode — NPC" },
               ].map(f => (
                 <div key={f.label} style={{ display:"flex", alignItems:"center", gap:8, background:T.dim, borderRadius:8, padding:"8px 12px" }}>
                   <span style={{ fontSize:16 }}>{f.icon}</span>
@@ -1436,18 +2296,18 @@ export default function App() {
           <div style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }} onClick={()=>setSplash(true)}>
             <div style={{ width:34, height:34, borderRadius:9, background:`linear-gradient(135deg,${T.accent},#f97316)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, boxShadow:`0 4px 14px rgba(245,158,11,0.35)` }}>⚡</div>
             <div>
-              <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PEC Compliance Suite</div>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:"0.6px" }}>by Jon Ureta · PEC 2017 · FSIC RA 9514</div>
+              <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PH Engineering Suite</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:"0.6px" }}>by Jon Ureta · Philippines</div>
             </div>
           </div>
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
             {TABS.map(t=>(
-              <button key={t.key} onClick={()=>setTab(t.key)} style={{
+              <button key={t.key} onClick={()=>setModule(t.key)} style={{
                 display:"flex", alignItems:"center", gap:6,
                 padding:"6px 13px", borderRadius:8,
-                border:`1px solid ${tab===t.key?"rgba(245,158,11,0.4)":T.border}`,
-                background:tab===t.key?T.accentDim:"transparent",
-                color:tab===t.key?T.accent:T.muted,
+                border:`1px solid ${module===t.key?t.color+"66":T.border}`,
+                background:module===t.key?t.color+"18":"transparent",
+                color:module===t.key?t.color:T.muted,
                 cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s"
               }}>
                 <span>{t.icon}</span>
@@ -1472,33 +2332,53 @@ export default function App() {
 
       {/* Page content */}
       <div style={{ maxWidth:1100, margin:"0 auto", padding:"28px 24px" }}>
-        <div style={{ marginBottom:24 }}>
-          <h1 style={{ fontSize:"clamp(22px,3.5vw,32px)", fontWeight:800, letterSpacing:"-0.8px", color:T.text, marginBottom:4 }}>
-            { tab==="checker" && "⚡ AI Electrical Plan Reviewer" }
-            { tab==="vdrop"   && "📉 Voltage Drop Calculator" }
-            { tab==="fault"   && "⚡ Short Circuit Analysis" }
-            { tab==="load"    && "📊 Load Schedule Calculator" }
-          </h1>
-          <div style={{ fontSize:13, color:T.muted }}>
-            { tab==="checker" && "Upload plans for PEC 2017 · FSIC (RA 9514) · Philippine Green Building Code compliance check" }
-            { tab==="vdrop"   && "Check conductor voltage drop compliance — PEC 2017 Art. 2.30 · 3% branch / 5% feeder+branch limits" }
-            { tab==="fault"   && "Estimate available fault current for breaker interrupting capacity sizing — PEC 2017 Art. 2.40" }
-            { tab==="load"    && "PEC 2017 Art. 2.20 demand factor method · Residential & commercial load calculations" }
-          </div>
-        </div>
+        {module==="electrical" && (
+          <>
+            <div style={{ marginBottom:20 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:`linear-gradient(135deg,${T.accent},#f97316)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>ElectriCode</div>
+                  <div style={{ fontSize:11, color:T.muted }}>PEC 2017 · FSIC RA 9514 · Philippine Green Building Code</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {ETABS.map(t=>(
+                  <button key={t.key} onClick={()=>setEtab(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${etab===t.key?T.accent:T.border}`,background:etab===t.key?T.accentDim:"transparent",color:etab===t.key?T.accent:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                    <span>{t.icon}</span><span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Card>
+              {etab==="checker" && <PlanChecker apiKey={apiKey}/>}
+              {etab==="vdrop"   && <VoltageDropCalc/>}
+              {etab==="fault"   && <ShortCircuitCalc/>}
+              {etab==="load"    && <LoadCalc/>}
+            </Card>
+          </>
+        )}
 
-        <Card>
-          { tab==="checker" && <PlanChecker apiKey={apiKey}/> }
-          { tab==="vdrop"   && <VoltageDropCalc/> }
-          { tab==="fault"   && <ShortCircuitCalc/> }
-          { tab==="load"    && <LoadCalc/> }
-        </Card>
+        {module==="structural" && (
+          <>
+            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#3b82f6,#6366f1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🏗️</div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>StructiCode</div>
+                <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
+              </div>
+            </div>
+            <Card>
+              <StructiCode apiKey={apiKey}/>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Footer */}
       <div style={{ borderTop:`1px solid ${T.border}`, marginTop:40, padding:"20px 24px", textAlign:"center" }}>
         <div style={{ fontSize:12, color:"rgba(100,116,139,0.5)" }}>
-          PEC Compliance Suite · Developed by <strong style={{ color:T.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
+          PH Engineering Suite · Developed by <strong style={{ color:T.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
         </div>
       </div>
     </div>
