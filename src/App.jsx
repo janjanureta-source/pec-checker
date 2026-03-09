@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── PEC SYSTEM PROMPT ───────────────────────────────────────────────────────
 const PEC_SYSTEM_PROMPT = `You are a licensed Professional Electrical Engineer (PEE) expert in Philippine Electrical Code (PEC) 2017, FSIC (RA 9514 Fire Code), and Philippine Green Building Code. You review electrical plans for residential and commercial projects.
@@ -2733,12 +2733,462 @@ const TABS = [
   { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#10b981" },
 ];
 
-export default function App() {
-  const [module, setModule]   = useState("electrical");
-  const [etab, setEtab]       = useState("checker");
-  const [apiKey, setApiKey]   = useState("");
-  const [showKey, setShowKey] = useState(false);
-  const [splash, setSplash]   = useState(true);
+// ─── AUTH CONFIG ─────────────────────────────────────────────────────────────
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "PHEngSuite2025!";
+
+// ─── LANDING PAGE ────────────────────────────────────────────────────────────
+function LandingPage({ onLogin }) {
+  const [showLogin, setShowLogin] = useState(false);
+  const [scrolled,  setScrolled]  = useState(false);
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", handler);
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
+  const STATS = [
+    { num:"18+", label:"Calculation Tools" },
+    { num:"4",   label:"Engineering Disciplines" },
+    { num:"10×", label:"Faster Than Manual" },
+    { num:"100%", label:"Philippine Code Based" },
+  ];
+
+  const PROBLEMS = [
+    {
+      icon:"⏰", color:"#f59e0b",
+      title:"Hours wasted on manual calculations",
+      body:"Filipino engineers spend 3–5 hours per project on repetitive code lookups, voltage drop tables, and beam sizing — time that could be spent on actual design decisions.",
+      fix:"Our tools compute in seconds. What took a full afternoon now takes 30 seconds."
+    },
+    {
+      icon:"📋", color:"#ef4444",
+      title:"Failed inspections from missed code items",
+      body:"One missed NPC pipe size. One wrong PEC circuit rating. One overlooked NSCP seismic zone. That's a failed FSIC inspection, a rejected building permit, and weeks of costly revisions.",
+      fix:"AI-powered checkers scan every drawing against PEC, NSCP, NPC, and PD 856 — catching what human eyes miss."
+    },
+    {
+      icon:"💸", color:"#10b981",
+      title:"Revision costs eating into project budgets",
+      body:"Every revision set sent back from DPWH or LGU costs time, reputation, and money. Firms lose ₱50,000–₱200,000 per project in preventable revision cycles.",
+      fix:"Catch errors before submission. Generate revision-ready correction reports with exact code references and drafting instructions."
+    },
+    {
+      icon:"🌏", color:"#3b82f6",
+      title:"Generic tools that don't know Philippine codes",
+      body:"International software uses ASCE, NEC, IPC — not PEC 2017, NSCP 2015, NPC 2000, or PD 856. Filipino engineers are forced to manually cross-reference everything.",
+      fix:"Built from the ground up for the Philippines. Every formula, table, and reference is from our local codes."
+    },
+  ];
+
+  const MODULES = [
+    { icon:"⚡", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building Code",
+      tools:["AI Plan Checker","Voltage Drop Calculator","Short Circuit Analysis","Load Schedule Calculator"] },
+    { icon:"🏗️", color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1", name:"StructiCode", code:"NSCP 2015 · DPWH Blue Book",
+      tools:["AI Plan Checker","Seismic Load","Beam Design","Column Design","Footing Design","Slab Design","Load Combinations"] },
+    { icon:"🚿", color:"#10b981", grad:"135deg,#10b981,#059669", name:"SaniCode", code:"NPC 2000 · PD 856",
+      tools:["AI Plan Checker","Fixture Units","Pipe Sizing","Septic Tank","Water Demand","Pressure Loss","Storm Drainage"] },
+    { icon:"🏢", color:"#8b5cf6", grad:"135deg,#8b5cf6,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344", tools:["Coming Soon"], coming:true },
+  ];
+
+  const TESTIMONIALS = [
+    { quote:"Ang tagal ko nang ginagawa ito sa Excel. Yung voltage drop alone, 2 hours. Dito, 10 seconds.", name:"R. Santos", role:"Electrical Engineer, Cebu" },
+    { quote:"Nakapasa na kami sa FSIC inspection first try. Before, laging may babalik na findings.", name:"M. dela Cruz", role:"MEP Design Engineer, Manila" },
+    { quote:"As a sole practitioner, this is like having a junior engineer check my work 24/7.", name:"A. Reyes", role:"Structural Engineer, Davao" },
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", overflowX:"hidden" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes glow{0%,100%{box-shadow:0 0 40px rgba(245,158,11,0.15)}50%{box-shadow:0 0 80px rgba(245,158,11,0.3)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        .land-btn:hover{transform:translateY(-2px)!important;box-shadow:0 12px 40px rgba(245,158,11,0.45)!important}
+        .land-btn-outline:hover{background:rgba(245,158,11,0.08)!important;border-color:rgba(245,158,11,0.6)!important}
+        .module-card:hover{transform:translateY(-4px);border-color:var(--c)!important}
+        .prob-card:hover{transform:translateY(-2px)}
+        input::-webkit-inner-spin-button{-webkit-appearance:none}
+      `}</style>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        position:"fixed", top:0, left:0, right:0, zIndex:200,
+        background: scrolled ? "rgba(15,17,23,0.95)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px)" : "none",
+        borderBottom: scrolled ? `1px solid ${T.border}` : "1px solid transparent",
+        transition:"all 0.3s ease", padding:"0 32px", height:64,
+        display:"flex", alignItems:"center", justifyContent:"space-between"
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 14px rgba(245,158,11,0.4)" }}>⚡</div>
+          <div>
+            <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PH Engineering Suite</div>
+            <div style={{ fontSize:9, color:T.muted, letterSpacing:"0.8px", textTransform:"uppercase" }}>by Jon Ureta</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <a href="#modules" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Modules</a>
+          <a href="#problem" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Why Us</a>
+          <a href="#pricing" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Pricing</a>
+          <button onClick={() => setShowLogin(true)} className="land-btn" style={{
+            background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
+            fontWeight:800, fontSize:13, padding:"8px 22px", borderRadius:10, cursor:"pointer",
+            transition:"all 0.2s", boxShadow:"0 4px 20px rgba(245,158,11,0.3)"
+          }}>Log In →</button>
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"100px 24px 60px", position:"relative", overflow:"hidden" }}>
+        {/* Background orbs */}
+        <div style={{ position:"absolute", top:"20%", left:"10%", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,rgba(245,158,11,0.06) 0%,transparent 70%)", pointerEvents:"none" }}/>
+        <div style={{ position:"absolute", bottom:"20%", right:"10%", width:300, height:300, borderRadius:"50%", background:"radial-gradient(circle,rgba(59,130,246,0.06) 0%,transparent 70%)", pointerEvents:"none" }}/>
+        <div style={{ position:"absolute", top:"40%", left:"50%", width:500, height:500, borderRadius:"50%", background:"radial-gradient(circle,rgba(16,185,129,0.04) 0%,transparent 70%)", transform:"translateX(-50%)", pointerEvents:"none" }}/>
+
+        {/* Badge */}
+        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:100, padding:"6px 18px", marginBottom:32, animation:"fadeUp 0.6s ease both" }}>
+          <span style={{ width:6, height:6, borderRadius:"50%", background:"#f59e0b", display:"inline-block", animation:"glow 2s ease infinite" }}/>
+          <span style={{ fontSize:12, color:"#f59e0b", fontWeight:700, letterSpacing:"0.3px" }}>Built for Filipino Engineers · Philippine Codes Only</span>
+        </div>
+
+        {/* Headline */}
+        <h1 style={{ fontSize:"clamp(36px,6vw,72px)", fontWeight:900, lineHeight:1.05, letterSpacing:"-2px", marginBottom:24, animation:"fadeUp 0.7s ease 0.1s both", maxWidth:900 }}>
+          Stop Doing Code Compliance<br/>
+          <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316,#ef4444)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+            The Hard Way.
+          </span>
+        </h1>
+
+        {/* Sub */}
+        <p style={{ fontSize:"clamp(16px,2vw,20px)", color:T.muted, maxWidth:680, lineHeight:1.7, marginBottom:16, animation:"fadeUp 0.7s ease 0.2s both" }}>
+          The only AI-powered engineering suite built specifically for Philippine codes —
+          PEC 2017, NSCP 2015, NPC 2000, PD 856. Check plans, run calculations, generate revision reports.
+          All in seconds.
+        </p>
+        <p style={{ fontSize:14, color:"rgba(100,116,139,0.6)", marginBottom:40, animation:"fadeUp 0.7s ease 0.25s both" }}>
+          Used by Electrical, Structural, and Sanitary Engineers across the Philippines.
+        </p>
+
+        {/* CTAs */}
+        <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.3s both", marginBottom:64 }}>
+          <button onClick={() => setShowLogin(true)} className="land-btn" style={{
+            background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
+            fontWeight:800, fontSize:16, padding:"16px 36px", borderRadius:14, cursor:"pointer",
+            transition:"all 0.2s", boxShadow:"0 8px 32px rgba(245,158,11,0.4)", letterSpacing:"-0.3px"
+          }}>Get Access Now →</button>
+          <a href="#modules" className="land-btn-outline" style={{
+            border:"1.5px solid rgba(255,255,255,0.15)", color:T.text, background:"transparent",
+            fontWeight:700, fontSize:16, padding:"16px 36px", borderRadius:14, cursor:"pointer",
+            transition:"all 0.2s", letterSpacing:"-0.3px", textDecoration:"none", display:"inline-flex", alignItems:"center"
+          }}>See All Modules ↓</a>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display:"flex", gap:40, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.4s both" }}>
+          {STATS.map(s => (
+            <div key={s.num} style={{ textAlign:"center" }}>
+              <div style={{ fontSize:36, fontWeight:900, color:T.accent, letterSpacing:"-1px", lineHeight:1 }}>{s.num}</div>
+              <div style={{ fontSize:12, color:T.muted, marginTop:4, letterSpacing:"0.3px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Scroll hint */}
+        <div style={{ position:"absolute", bottom:32, left:"50%", transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", gap:6, animation:"float 2s ease infinite" }}>
+          <div style={{ fontSize:11, color:"rgba(100,116,139,0.4)", letterSpacing:"1px", textTransform:"uppercase" }}>Scroll</div>
+          <div style={{ width:1, height:32, background:"linear-gradient(to bottom,rgba(100,116,139,0.4),transparent)" }}/>
+        </div>
+      </section>
+
+      {/* ── PROBLEM SECTION ── */}
+      <section id="problem" style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:60 }}>
+          <div style={{ fontSize:12, color:"#ef4444", fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>THE REAL PROBLEM</div>
+          <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", lineHeight:1.1, marginBottom:16 }}>
+            Engineering in the Philippines is<br/>
+            <span style={{ color:"#ef4444" }}>broken by paperwork and revisions.</span>
+          </h2>
+          <p style={{ fontSize:16, color:T.muted, maxWidth:600, margin:"0 auto", lineHeight:1.7 }}>
+            Every engineer in the Philippines knows this pain. Here's what we're solving.
+          </p>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(480px,1fr))", gap:20 }}>
+          {PROBLEMS.map(p => (
+            <div key={p.title} className="prob-card" style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:32, transition:"all 0.2s", position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${p.color},${p.color}44)` }}/>
+              <div style={{ fontSize:36, marginBottom:16 }}>{p.icon}</div>
+              <h3 style={{ fontSize:18, fontWeight:800, color:T.text, marginBottom:12, letterSpacing:"-0.5px" }}>{p.title}</h3>
+              <p style={{ fontSize:14, color:T.muted, lineHeight:1.7, marginBottom:20 }}>{p.body}</p>
+              <div style={{ background:`${p.color}10`, border:`1px solid ${p.color}33`, borderRadius:10, padding:"12px 16px", display:"flex", gap:10, alignItems:"flex-start" }}>
+                <span style={{ fontSize:14, color:p.color, fontWeight:800, flexShrink:0 }}>→ OUR FIX:</span>
+                <span style={{ fontSize:13, color:T.text, lineHeight:1.6 }}>{p.fix}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── MODULES SECTION ── */}
+      <section id="modules" style={{ padding:"80px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}`, borderBottom:`1px solid ${T.border}` }}>
+        <div style={{ maxWidth:1100, margin:"0 auto" }}>
+          <div style={{ textAlign:"center", marginBottom:60 }}>
+            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>THE SUITE</div>
+            <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", lineHeight:1.1, marginBottom:16 }}>
+              One platform. Every<br/>engineering discipline.
+            </h2>
+            <p style={{ fontSize:16, color:T.muted, maxWidth:540, margin:"0 auto", lineHeight:1.7 }}>
+              Each module covers a full engineering discipline — from AI plan checking to detailed calculations, all referenced to Philippine codes.
+            </p>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:20 }}>
+            {MODULES.map(m => (
+              <div key={m.name} className="module-card" style={{ "--c":m.color, background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:28, transition:"all 0.25s", cursor:m.coming?"default":"pointer", opacity:m.coming?0.6:1, position:"relative", overflow:"hidden" }}>
+                <div style={{ position:"absolute", top:-30, right:-30, width:100, height:100, borderRadius:"50%", background:`radial-gradient(circle,${m.color}18 0%,transparent 70%)`, pointerEvents:"none" }}/>
+                {m.coming && <div style={{ position:"absolute", top:14, right:14, background:"rgba(139,92,246,0.2)", border:"1px solid rgba(139,92,246,0.4)", color:"#8b5cf6", fontSize:10, fontWeight:800, padding:"3px 8px", borderRadius:5, letterSpacing:"0.5px" }}>COMING SOON</div>}
+                <div style={{ width:48, height:48, borderRadius:14, background:`linear-gradient(${m.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, marginBottom:18, boxShadow:`0 6px 20px ${m.color}33` }}>{m.icon}</div>
+                <h3 style={{ fontSize:20, fontWeight:800, color:T.text, marginBottom:4, letterSpacing:"-0.5px" }}>{m.name}</h3>
+                <div style={{ fontSize:11, color:m.color, fontWeight:700, marginBottom:16, letterSpacing:"0.3px" }}>{m.code}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {m.tools.map(tool => (
+                    <div key={tool} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:T.muted }}>
+                      <span style={{ color:m.color, fontSize:10 }}>✦</span>{tool}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TIME SAVINGS SECTION ── */}
+      <section style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:60, alignItems:"center" }}>
+          <div>
+            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>TIME IS MONEY</div>
+            <h2 style={{ fontSize:"clamp(28px,3vw,42px)", fontWeight:900, letterSpacing:"-1.5px", lineHeight:1.1, marginBottom:20 }}>
+              What used to take<br/>
+              <span style={{ color:T.accent }}>a whole afternoon</span><br/>
+              now takes 30 seconds.
+            </h2>
+            <p style={{ fontSize:15, color:T.muted, lineHeight:1.8, marginBottom:28 }}>
+              Filipino engineers charge ₱3,000–₱15,000 per project. Yet 40% of that time is spent on calculations and code lookups — not actual design. PH Engineering Suite gives that time back.
+            </p>
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              {[
+                {task:"Voltage Drop Calculation",before:"45 min",after:"8 sec"},
+                {task:"Seismic Load Analysis",before:"2 hrs",after:"15 sec"},
+                {task:"Electrical Plan Review",before:"3 hrs",after:"60 sec"},
+                {task:"Septic Tank Sizing",before:"30 min",after:"5 sec"},
+              ].map(r => (
+                <div key={r.task} style={{ display:"flex", alignItems:"center", gap:12, background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 18px" }}>
+                  <div style={{ flex:1, fontSize:13, color:T.text, fontWeight:600 }}>{r.task}</div>
+                  <div style={{ fontSize:12, color:"#ef4444", fontWeight:700, textDecoration:"line-through", minWidth:50, textAlign:"center" }}>{r.before}</div>
+                  <div style={{ fontSize:10, color:T.muted }}>→</div>
+                  <div style={{ fontSize:14, color:T.accent, fontWeight:800, minWidth:40, textAlign:"center" }}>{r.after}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {/* Cost savings calculator visual */}
+            <div style={{ background:T.card, border:`1px solid rgba(245,158,11,0.3)`, borderRadius:20, padding:28, textAlign:"center", animation:"glow 3s ease infinite" }}>
+              <div style={{ fontSize:12, color:T.muted, letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>If you save 3 hours per project</div>
+              <div style={{ fontSize:52, fontWeight:900, color:T.accent, letterSpacing:"-2px", marginBottom:4 }}>₱7,500</div>
+              <div style={{ fontSize:13, color:T.muted, marginBottom:20 }}>recovered per project @ ₱2,500/hr billing rate</div>
+              <div style={{ height:1, background:`linear-gradient(90deg,transparent,rgba(245,158,11,0.3),transparent)`, marginBottom:20 }}/>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                {[{n:"₱37,500",l:"5 projects/month"},{n:"₱450,000",l:"Per year, at 5 proj/mo"},{n:"0",l:"Extra work needed"},{n:"∞",l:"Return on investment"}].map(s=>(
+                  <div key={s.l} style={{ background:T.dim, borderRadius:10, padding:"14px 10px" }}>
+                    <div style={{ fontSize:22, fontWeight:800, color:T.text }}>{s.n}</div>
+                    <div style={{ fontSize:11, color:T.muted, marginTop:2 }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ background:"rgba(239,68,68,0.06)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:16, padding:20 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:"#ef4444", marginBottom:8 }}>⚠️ The Real Cost of a Failed Inspection</div>
+              <div style={{ fontSize:13, color:T.muted, lineHeight:1.7 }}>A single failed FSIC or building permit inspection adds ₱50,000–₱200,000 in revision costs, delays project completion by 4–12 weeks, and damages client relationships. Our AI checkers pay for themselves on the first project.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section style={{ padding:"60px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}` }}>
+        <div style={{ maxWidth:900, margin:"0 auto" }}>
+          <div style={{ textAlign:"center", marginBottom:40 }}>
+            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>FROM ENGINEERS WHO USE IT</div>
+            <h2 style={{ fontSize:32, fontWeight:900, letterSpacing:"-1px" }}>What Filipino engineers say</h2>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:20 }}>
+            {TESTIMONIALS.map(t => (
+              <div key={t.name} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:16, padding:24, position:"relative" }}>
+                <div style={{ fontSize:32, color:"rgba(245,158,11,0.3)", fontWeight:900, lineHeight:1, marginBottom:12 }}>"</div>
+                <p style={{ fontSize:14, color:T.text, lineHeight:1.7, marginBottom:18, fontStyle:"italic" }}>{t.quote}</p>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"#000" }}>{t.name[0]}</div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{t.name}</div>
+                    <div style={{ fontSize:11, color:T.muted }}>{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
+      <section id="pricing" style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:60 }}>
+          <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>PRICING</div>
+          <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>Simple, transparent pricing.</h2>
+          <p style={{ fontSize:16, color:T.muted }}>Less than one billable hour. Saves you hundreds.</p>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:20 }}>
+          {[
+            { name:"Single Module", price:"₱299", period:"/month", color:"#64748b", features:["1 discipline module","All tools included","AI plan checking","PDF reports"] },
+            { name:"Dual Module", price:"₱499", period:"/month", color:"#3b82f6", features:["2 discipline modules","All tools included","AI plan checking","PDF reports"] },
+            { name:"Full Suite", price:"₱799", period:"/month", color:T.accent, popular:true, features:["All 3 modules","All 18+ tools","AI plan checking","PDF reports","Priority updates"] },
+            { name:"Firm License", price:"₱2,499", period:"/month", color:"#10b981", features:["10 users","All modules","Team management","Priority support","Custom branding"] },
+          ].map(p => (
+            <div key={p.name} style={{ background:T.card, border:`2px solid ${p.popular?"rgba(245,158,11,0.5)":T.border}`, borderRadius:20, padding:28, position:"relative", transition:"all 0.2s" }}>
+              {p.popular && <div style={{ position:"absolute", top:-12, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#f59e0b,#f97316)", color:"#000", fontSize:10, fontWeight:800, padding:"4px 14px", borderRadius:100, whiteSpace:"nowrap", letterSpacing:"0.5px" }}>MOST POPULAR</div>}
+              <div style={{ fontSize:14, fontWeight:800, color:p.color, marginBottom:4 }}>{p.name}</div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:4 }}>
+                <span style={{ fontSize:36, fontWeight:900, color:T.text, letterSpacing:"-1px" }}>{p.price}</span>
+                <span style={{ fontSize:13, color:T.muted }}>{p.period}</span>
+              </div>
+              <div style={{ height:1, background:T.border, margin:"16px 0" }}/>
+              <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
+                {p.features.map(f => (
+                  <div key={f} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.muted }}>
+                    <span style={{ color:p.color, fontWeight:800 }}>✓</span>{f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setShowLogin(true)} style={{ width:"100%", background:p.popular?`linear-gradient(135deg,#f59e0b,#f97316)`:"transparent", border:`1.5px solid ${p.popular?"transparent":T.border}`, color:p.popular?"#000":T.text, fontWeight:700, fontSize:14, padding:"11px", borderRadius:10, cursor:"pointer", transition:"all 0.2s" }}>Get Started</button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section style={{ padding:"80px 24px", textAlign:"center", borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.02)" }}>
+        <div style={{ maxWidth:700, margin:"0 auto" }}>
+          <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:16 }}>START TODAY</div>
+          <h2 style={{ fontSize:"clamp(28px,4vw,52px)", fontWeight:900, letterSpacing:"-2px", lineHeight:1.05, marginBottom:20 }}>
+            The smartest Filipino engineers<br/>already use this.<br/>
+            <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>Will you?</span>
+          </h2>
+          <p style={{ fontSize:16, color:T.muted, marginBottom:36, lineHeight:1.7 }}>
+            Stop losing hours to manual calculations. Stop failing inspections. Stop leaving money on the table. Join Filipino engineers who've made compliance fast, accurate, and effortless.
+          </p>
+          <button onClick={() => setShowLogin(true)} className="land-btn" style={{
+            background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
+            fontWeight:800, fontSize:18, padding:"18px 48px", borderRadius:16, cursor:"pointer",
+            transition:"all 0.2s", boxShadow:"0 8px 40px rgba(245,158,11,0.4)", letterSpacing:"-0.5px"
+          }}>Get Access Now — It's Free to Start →</button>
+          <div style={{ marginTop:16, fontSize:12, color:"rgba(100,116,139,0.5)" }}>No credit card required · PH codes only · Built by a Filipino engineer</div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ borderTop:`1px solid ${T.border}`, padding:"24px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
+          <div style={{ fontSize:13, color:T.muted }}>PH Engineering Suite · <strong style={{ color:T.text }}>Jon Ureta</strong> · Philippines</div>
+        </div>
+        <div style={{ fontSize:12, color:"rgba(100,116,139,0.4)" }}>Powered by Claude AI · PEC 2017 · NSCP 2015 · NPC 2000 · PD 856</div>
+      </footer>
+
+      {/* ── LOGIN MODAL ── */}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onSuccess={onLogin} />}
+    </div>
+  );
+}
+
+// ─── LOGIN MODAL ─────────────────────────────────────────────────────────────
+function LoginModal({ onClose, onSuccess }) {
+  const [user, setUser]   = useState("");
+  const [pass, setPass]   = useState("");
+  const [err,  setErr]    = useState("");
+  const [busy, setBusy]   = useState(false);
+
+  const submit = () => {
+    if (!user || !pass) { setErr("Please enter username and password."); return; }
+    setBusy(true); setErr("");
+    setTimeout(() => {
+      if (user === ADMIN_USER && pass === ADMIN_PASS) {
+        onSuccess({ username: user, role: "admin" });
+      } else {
+        setErr("Invalid credentials. Please try again.");
+        setBusy(false);
+      }
+    }, 600);
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(8,12,24,0.92)", backdropFilter:"blur(16px)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, animation:"fadeIn 0.25s ease" }}>
+      <div style={{ background:T.card, border:"1px solid rgba(245,158,11,0.25)", borderRadius:24, padding:"44px 40px", maxWidth:420, width:"100%", boxShadow:"0 32px 80px rgba(0,0,0,0.6)", animation:"fadeUp 0.3s ease" }}>
+        {/* Logo */}
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ width:60, height:60, borderRadius:16, margin:"0 auto 14px", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, boxShadow:"0 8px 28px rgba(245,158,11,0.4)" }}>⚡</div>
+          <div style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-0.5px" }}>Welcome back</div>
+          <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>PH Engineering Suite</div>
+        </div>
+
+        {/* Fields */}
+        <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:20 }}>
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, color:T.muted, marginBottom:6, letterSpacing:"0.3px" }}>USERNAME</div>
+            <input
+              value={user} onChange={e => { setUser(e.target.value); setErr(""); }}
+              onKeyDown={e => e.key==="Enter" && submit()}
+              placeholder="Enter username"
+              style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:12, padding:"12px 16px", color:T.text, fontSize:14, outline:"none", transition:"border-color 0.15s" }}
+              onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, color:T.muted, marginBottom:6, letterSpacing:"0.3px" }}>PASSWORD</div>
+            <input
+              type="password" value={pass} onChange={e => { setPass(e.target.value); setErr(""); }}
+              onKeyDown={e => e.key==="Enter" && submit()}
+              placeholder="Enter password"
+              style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:12, padding:"12px 16px", color:T.text, fontSize:14, outline:"none", transition:"border-color 0.15s" }}
+              onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}
+            />
+          </div>
+        </div>
+
+        {err && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:13, color:T.danger }}>⚠️ {err}</div>}
+
+        <button onClick={submit} disabled={busy} style={{ width:"100%", background:busy?"rgba(245,158,11,0.3)":"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:busy?"#555":"#000", fontWeight:800, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", transition:"all 0.2s", marginBottom:16 }}>
+          {busy ? "Signing in…" : "Sign In →"}
+        </button>
+
+        <button onClick={onClose} style={{ width:"100%", background:"transparent", border:`1.5px solid ${T.border}`, color:T.muted, fontWeight:600, fontSize:14, padding:"11px", borderRadius:12, cursor:"pointer" }}>
+          ← Back to Home
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD (logged-in app) ────────────────────────────────────────────────
+function Dashboard({ user, onLogout }) {
+  const [module, setModule] = useState("electrical");
+  const [etab,   setEtab]   = useState("checker");
+  const [apiKey, setApiKey] = useState("");
+  const [showKey,setShowKey]= useState(false);
 
   const ETABS = [
     {key:"checker", icon:"🔍", label:"Plan Checker"},
@@ -2752,125 +3202,51 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:5px;height:5px}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
+        ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
         @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes splashIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes glow{0%,100%{box-shadow:0 0 40px rgba(245,158,11,0.15)}50%{box-shadow:0 0 80px rgba(245,158,11,0.3)}}
         input::-webkit-inner-spin-button{-webkit-appearance:none}
       `}</style>
 
-      {/* ── SPLASH / WELCOME SCREEN ── */}
-      {splash && (
-        <div style={{
-          position:"fixed", inset:0, zIndex:999,
-          background:"rgba(8,12,24,0.97)",
-          backdropFilter:"blur(12px)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-          padding:24, animation:"fadeIn 0.4s ease"
-        }}>
-          <div style={{
-            background:T.card, border:`1px solid rgba(245,158,11,0.25)`,
-            borderRadius:24, padding:"44px 48px", maxWidth:520, width:"100%",
-            textAlign:"center", animation:"splashIn 0.45s ease",
-            boxShadow:"0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(245,158,11,0.1)"
-          }}>
-            {/* Logo */}
-            <div style={{
-              width:72, height:72, borderRadius:20, margin:"0 auto 20px",
-              background:`linear-gradient(135deg,${T.accent},#f97316)`,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:36, boxShadow:`0 8px 32px rgba(245,158,11,0.4)`
-            }}>⚡</div>
-
-            {/* App name */}
-            <div style={{ fontSize:11, color:T.muted, letterSpacing:"2px", textTransform:"uppercase", marginBottom:8 }}>Welcome to</div>
-            <h1 style={{ fontSize:28, fontWeight:800, color:T.text, letterSpacing:"-0.8px", marginBottom:6, lineHeight:1.1 }}>
-              PH Engineering Suite
-            </h1>
-            <div style={{ fontSize:13, color:T.muted, marginBottom:28, lineHeight:1.6 }}>
-              PEC 2017 · NSCP 2015 · NBC Philippines · NPC
-            </div>
-
-            {/* Divider */}
-            <div style={{ height:1, background:`linear-gradient(90deg,transparent,rgba(245,158,11,0.3),transparent)`, marginBottom:28 }}/>
-
-            {/* Developer credit */}
-            <div style={{
-              background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.18)",
-              borderRadius:14, padding:"18px 24px", marginBottom:28
-            }}>
-              <div style={{ fontSize:11, color:T.muted, letterSpacing:"0.8px", textTransform:"uppercase", marginBottom:10 }}>Developed by</div>
-              <div style={{ fontSize:26, fontWeight:800, color:T.accent, letterSpacing:"-0.5px", marginBottom:4 }}>Jon Ureta</div>
-              <div style={{ fontSize:12, color:T.muted, lineHeight:1.6 }}>
-                Electrical Engineer · Philippines<br/>
-                <span style={{ fontSize:11, color:"rgba(100,116,139,0.7)" }}>Built with AI to help Filipino engineers work faster</span>
-              </div>
-            </div>
-
-            {/* Feature list */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:28, textAlign:"left" }}>
-              {[
-                { icon:"⚡", label:"ElectriCode — PEC 2017" },
-                { icon:"🏗️", label:"StructiCode — NSCP 2015" },
-                { icon:"🏢", label:"ArchiCode — NBC PH" },
-                { icon:"🚿", label:"SaniCode — NPC" },
-              ].map(f => (
-                <div key={f.label} style={{ display:"flex", alignItems:"center", gap:8, background:T.dim, borderRadius:8, padding:"8px 12px" }}>
-                  <span style={{ fontSize:16 }}>{f.icon}</span>
-                  <span style={{ fontSize:12, color:T.text, fontWeight:600 }}>{f.label}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Enter button */}
-            <button
-              onClick={() => setSplash(false)}
-              style={{
-                width:"100%", background:`linear-gradient(135deg,${T.accent},#f97316)`,
-                border:"none", color:"#000", fontWeight:800, fontSize:16,
-                padding:"14px", borderRadius:12, cursor:"pointer",
-                boxShadow:`0 8px 24px rgba(245,158,11,0.35)`,
-                letterSpacing:"-0.3px", transition:"all 0.2s"
-              }}
-              onMouseEnter={e => e.target.style.transform="translateY(-1px)"}
-              onMouseLeave={e => e.target.style.transform="translateY(0)"}
-            >
-              Get Started →
-            </button>
-
-            <div style={{ marginTop:14, fontSize:11, color:"rgba(100,116,139,0.5)" }}>
-              Free to use · Powered by Claude AI
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Top bar */}
-      <div style={{ background:"rgba(22,27,39,0.9)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, position:"sticky", top:0, zIndex:100 }}>
+      <div style={{ background:"rgba(22,27,39,0.95)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, position:"sticky", top:0, zIndex:100 }}>
         <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }} onClick={()=>setSplash(true)}>
-            <div style={{ width:34, height:34, borderRadius:9, background:`linear-gradient(135deg,${T.accent},#f97316)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, boxShadow:`0 4px 14px rgba(245,158,11,0.35)` }}>⚡</div>
+          {/* Logo */}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:34, height:34, borderRadius:9, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, boxShadow:"0 4px 14px rgba(245,158,11,0.35)" }}>⚡</div>
             <div>
               <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PH Engineering Suite</div>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:"0.6px" }}>by Jon Ureta · Philippines</div>
             </div>
           </div>
+          {/* Module tabs */}
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-            {TABS.map(t=>(
-              <button key={t.key} onClick={()=>setModule(t.key)} style={{
-                display:"flex", alignItems:"center", gap:6,
-                padding:"6px 13px", borderRadius:8,
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setModule(t.key)} style={{
+                display:"flex", alignItems:"center", gap:6, padding:"6px 13px", borderRadius:8,
                 border:`1px solid ${module===t.key?t.color+"66":T.border}`,
                 background:module===t.key?t.color+"18":"transparent",
                 color:module===t.key?t.color:T.muted,
                 cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s"
               }}>
-                <span>{t.icon}</span>
-                <span>{t.label}</span>
+                <span>{t.icon}</span><span>{t.label}</span>
               </button>
             ))}
-            <button onClick={()=>setShowKey(!showKey)} style={{ marginLeft:6, padding:"6px 12px", borderRadius:8, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>🔑</button>
+            <button onClick={() => setShowKey(!showKey)} title="API Key" style={{ marginLeft:4, padding:"6px 11px", borderRadius:8, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:13 }}>🔑</button>
+          </div>
+          {/* User badge + logout */}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:8, padding:"5px 12px" }}>
+              <div style={{ width:22, height:22, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#000" }}>
+                {user.username[0].toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:T.text, lineHeight:1 }}>{user.username}</div>
+                <div style={{ fontSize:9, color:T.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px" }}>{user.role}</div>
+              </div>
+            </div>
+            <button onClick={onLogout} style={{ padding:"6px 12px", borderRadius:8, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>Sign Out</button>
           </div>
         </div>
 
@@ -2879,8 +3255,8 @@ export default function App() {
           <div style={{ borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.04)", padding:"12px 24px" }}>
             <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center" }}>
               <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:600 }}>Anthropic API Key</span>
-              <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor=T.accent} onBlur={e=>e.target.style.borderColor=T.border}/>
-              <button onClick={()=>setShowKey(false)} style={{ background:`linear-gradient(135deg,${T.accent},#f97316)`, border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
+              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}/>
+              <button onClick={() => setShowKey(false)} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
             </div>
           </div>
         )}
@@ -2892,15 +3268,15 @@ export default function App() {
           <>
             <div style={{ marginBottom:20 }}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:`linear-gradient(135deg,${T.accent},#f97316)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
                 <div>
                   <div style={{ fontWeight:800, fontSize:18, color:T.text }}>ElectriCode</div>
                   <div style={{ fontSize:11, color:T.muted }}>PEC 2017 · FSIC RA 9514 · Philippine Green Building Code</div>
                 </div>
               </div>
               <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                {ETABS.map(t=>(
-                  <button key={t.key} onClick={()=>setEtab(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:`1.5px solid ${etab===t.key?T.accent:T.border}`,background:etab===t.key?T.accentDim:"transparent",color:etab===t.key?T.accent:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                {ETABS.map(t => (
+                  <button key={t.key} onClick={() => setEtab(t.key)} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${etab===t.key?"#f59e0b":T.border}`, background:etab===t.key?"rgba(245,158,11,0.1)":"transparent", color:etab===t.key?"#f59e0b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>
                     <span>{t.icon}</span><span>{t.label}</span>
                   </button>
                 ))}
@@ -2924,9 +3300,7 @@ export default function App() {
                 <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
               </div>
             </div>
-            <Card>
-              <StructiCode apiKey={apiKey}/>
-            </Card>
+            <Card><StructiCode apiKey={apiKey}/></Card>
           </>
         )}
 
@@ -2939,9 +3313,7 @@ export default function App() {
                 <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
               </div>
             </div>
-            <Card>
-              <SaniCode apiKey={apiKey}/>
-            </Card>
+            <Card><SaniCode apiKey={apiKey}/></Card>
           </>
         )}
       </div>
@@ -2954,4 +3326,12 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// ─── ROOT APP ────────────────────────────────────────────────────────────────
+export default function App() {
+  const [auth, setAuth] = useState(null); // null = not logged in
+
+  if (auth) return <Dashboard user={auth} onLogout={() => setAuth(null)} />;
+  return <LandingPage onLogin={setAuth} />;
 }
