@@ -80,56 +80,44 @@ const compressImage = (file, maxPx = 1600, quality = 0.75) => new Promise((resol
 });
 
 // ─── UNIFIED AI CALLER — always via proxy, images compressed first ────────────
-// ─── UNIFIED AI CALLER ───────────────────────────────────────────────────────
-// • File uploads  → direct browser → api.anthropic.com  (bypasses Vercel 4.5MB limit)
-// • Text-only     → /api/anthropic proxy                (uses server ANTHROPIC_API_KEY)
-//
-// Key resolution order: prop → window.__PHEN_KEY__ → localStorage
-const getKey = () => window.__PHEN_KEY__ || localStorage.getItem("phen_key") || "";
+const getKey = () => {
+  // Always read fresh from localStorage so it works even before React state syncs
+  const stored = localStorage.getItem("phen_key") || "";
+  if (stored.startsWith("sk-")) {
+    window.__PHEN_KEY__ = stored; // keep window in sync
+    return stored;
+  }
+  if (window.__PHEN_KEY__ && window.__PHEN_KEY__.startsWith("sk-")) return window.__PHEN_KEY__;
+  return "";
+};
 
 const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
+  // Try: explicit prop → localStorage → window global
+  const key = (typeof apiKey === "string" && apiKey.startsWith("sk-"))
+    ? apiKey
+    : getKey();
+
+  if (!key) throw new Error(
+    `API key required. Click the 🔑 button in the top bar, paste your Anthropic API key (starts with sk-ant-...), then click Save. [debug: localStorage="${(localStorage.getItem("phen_key")||"").slice(0,12)||"empty"}", window="${(window.__PHEN_KEY__||"").slice(0,12)||"empty"}"]`
+  );
+
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, messages };
   if (system) payload.system = system;
 
-  const hasFiles = messages.some(m =>
-    Array.isArray(m.content) &&
-    m.content.some(b => b.type === "image" || b.type === "document")
-  );
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify(payload),
+  });
 
-  const key = apiKey || getKey();
-
-  if (hasFiles) {
-    // ── Direct browser → Anthropic (no Vercel body limit) ──
-    if (!key) throw new Error(
-      "API key required for file uploads. Click the 🔑 button in the top bar and enter your Anthropic API key (sk-ant-...)."
-    );
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message || "Anthropic API error");
-    return data;
-  } else {
-    // ── Proxy → uses server-side ANTHROPIC_API_KEY env var ──
-    const hdrs = { "Content-Type": "application/json" };
-    if (key) hdrs["x-api-key"] = key;
-    const res = await fetch("/api/anthropic", {
-      method: "POST", headers: hdrs, body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); }
-    catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`); }
-    if (data.error) throw new Error(data.error.message || "API error");
-    return data;
-  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Anthropic API error");
+  return data;
 };
 
 const repairJSON = str => {
@@ -1083,6 +1071,23 @@ const CL_LABELS = {
   fsic:{l:"Fire Code",a:"RA 9514"},greenBuilding:{l:"Green Building",a:"PGBC"},shortCircuit:{l:"Short Circuit",a:"Art. 2.40"},
 };
 
+// Shown at top of any AI checker when no API key is set
+function NoKeyBanner() {
+  const hasKey = getKey().startsWith("sk-");
+  if (hasKey) return null;
+  return (
+    <div style={{background:"rgba(245,158,11,0.08)",border:"1.5px solid rgba(245,158,11,0.35)",borderRadius:12,padding:"12px 18px",marginBottom:18,display:"flex",alignItems:"center",gap:12}}>
+      <span style={{fontSize:22}}>🔑</span>
+      <div>
+        <div style={{fontWeight:700,fontSize:13,color:"#f59e0b",marginBottom:2}}>API Key Required</div>
+        <div style={{fontSize:12,color:"#a3a3a3",lineHeight:1.5}}>
+          Click the <strong style={{color:"#f59e0b"}}>🔑 button</strong> in the top-right of the navigation bar, paste your Anthropic API key (starts with <code style={{background:"rgba(255,255,255,0.08)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>), and click <strong>Save ✓</strong>.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlanChecker({ apiKey }) {
   const [files, setFiles]   = useState([]);
   const [busy, setBusy]     = useState(false);
@@ -1165,6 +1170,7 @@ Be very specific with corrected values and drafting instructions. Reference typi
 
   return (
     <div>
+      <NoKeyBanner/>
       {/* Drop zone */}
       <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
         onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}}
@@ -1510,6 +1516,7 @@ Respond ONLY as valid JSON array:
 
   return (
     <div>
+      <NoKeyBanner/>
       <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
         onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}}
         onClick={()=>ref.current?.click()}
@@ -2315,31 +2322,15 @@ function BOMReview({ apiKey }) {
     return v;
   };
 
-  // Parse spreadsheet (xlsx/csv) into readable text using SheetJS
-  const parseSpreadsheet = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, { type: "array" });
-        let out = "";
-        wb.SheetNames.forEach(name => {
-          const ws = wb.Sheets[name];
-          const csv = XLSX.utils.sheet_to_csv(ws, { skipHidden: true });
-          // filter out totally empty rows
-          const rows = csv.split("\n").filter(r => r.replace(/,/g,"").trim().length > 0);
-          out += `[SHEET: ${name}]\n${rows.join("\n")}\n\n`;
-        });
-        resolve(out.trim());
-      } catch(err) { reject(err); }
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
-
   const run = async () => {
     if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
+
+    // Reject any non-PDF/image BOM files with a clear message
+    const badBom = bomFiles.find(f => !f.type.startsWith("image/") && f.type !== "application/pdf" && !f.name.match(/\.pdf$/i));
+    if (badBom) {
+      setError(`BOM file "${badBom.name}" must be a PDF. Please open your Excel file, go to File → Save As → PDF, then re-upload.`);
+      return;
+    }
 
     const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
     setBusy(true); setError(null); setResult(null);
@@ -2351,40 +2342,21 @@ function BOMReview({ apiKey }) {
         setBusyMsg(`📂 Reading file ${i + 1} of ${allFiles.length}: ${fo.name}…`);
         await tick();
 
-        // ── Spreadsheet → parse to text with SheetJS ──
-        if (fo.name.match(/\.(xlsx?|csv)$/i) || fo.type.includes("sheet") || fo.type.includes("excel")) {
-          setBusyMsg(`📊 Parsing spreadsheet: ${fo.name}…`);
-          await tick();
-          try {
-            const csvText = await parseSpreadsheet(fo.file);
-            blocks.push({ type:"text", text:`[BOM SPREADSHEET: ${fo.name}]\nThe following is the full Bill of Materials extracted from the uploaded Excel file. Use this data for all quantity, unit cost, and total validation:\n\n${csvText}` });
-          } catch {
-            // fallback: read as plain text
-            const text = await fo.file.text().catch(() => `[Could not read ${fo.name}]`);
-            blocks.push({ type:"text", text:`[BOM SPREADSHEET: ${fo.name}]\n${text}` });
-          }
-          continue;
-        }
-
-        // ── Image → compress ──
         let b64;
         if (fo.type.startsWith("image/")) {
-          setBusyMsg(`🗜️ Compressing image ${i + 1} of ${allFiles.length}: ${fo.name}…`);
+          setBusyMsg(`🗜️ Compressing image: ${fo.name}…`);
           await tick();
           b64 = await compressImage(fo.file);
           blocks.push({type:"image", source:{type:"base64",media_type:"image/jpeg",data:b64}});
           blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
-        } else if (fo.type==="application/pdf") {
+        } else {
           b64 = await toBase64(fo.file);
           blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}});
-          blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
-        } else {
           blocks.push({type:"text", text:`[${fo.role}: ${fo.name}]`});
         }
       }
 
       blocks.push({ type:"text", text:`Validate the BOM data above against the plan. Apply Philippine market unit costs (2025 NCR rates as baseline). Return ONLY the JSON specified in your instructions.` });
-
       setBusyMsg("🤖 AI is reviewing quantities, costs, and compliance…");
       await tick();
 
@@ -2397,7 +2369,7 @@ function BOMReview({ apiKey }) {
     finally { setBusy(false); setBusyMsg(""); }
   };
 
-  const fmt  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    const fmt  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const fmtN = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 
   const STATUS_COL = { "NEEDS REVISION":"#ef4444", "ACCEPTABLE WITH NOTES":"#f59e0b", "VALIDATED":"#10b981" };
@@ -2480,7 +2452,7 @@ function BOMReview({ apiKey }) {
         onDrop={e=>{e.preventDefault();setDrag(false);onAdd(e.dataTransfer.files)}}
         onClick={()=>inputRef.current?.click()}
         style={{border:`2px dashed ${dragState?STR:T.border}`,borderRadius:14,padding:"28px 20px",textAlign:"center",cursor:"pointer",background:dragState?"rgba(59,130,246,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:10}}>
-        <input ref={inputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" onChange={e=>onAdd(e.target.files)} style={{display:"none"}}/>
+        <input ref={inputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>onAdd(e.target.files)} style={{display:"none"}}/>
         <div style={{fontSize:28,marginBottom:8}}>{icon}</div>
         <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{label}</div>
         <div style={{color:T.muted,fontSize:11,marginBottom:12}}>{sublabel}</div>
@@ -2502,7 +2474,7 @@ function BOMReview({ apiKey }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
-
+      <NoKeyBanner/>
       {/* ── Upload panel ── */}
       <Card>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
@@ -2513,8 +2485,11 @@ function BOMReview({ apiKey }) {
               dragState={dragPlan} setDrag={setDragPlan} inputRef={planRef} icon="📐"/>
           </div>
           <div>
-            <Label style={{marginBottom:8,display:"block",color:"#f59e0b"}}>📋 Draft BOM <span style={{color:T.muted,fontWeight:400}}>(optional)</span></Label>
-            <DropZone label="Upload BOM" sublabel="Excel · CSV · PDF · Image" files={bomFiles}
+            <Label style={{marginBottom:4,display:"block",color:"#f59e0b"}}>📋 Draft BOM <span style={{color:T.muted,fontWeight:400}}>(optional)</span></Label>
+            <div style={{fontSize:11,color:T.muted,marginBottom:8,lineHeight:1.5}}>
+              💡 PDF only — In Excel: <strong style={{color:T.text}}>File → Save As → PDF</strong>
+            </div>
+            <DropZone label="Upload BOM (PDF only)" sublabel="Convert Excel to PDF first · or image" files={bomFiles}
               onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))}
               dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋"/>
           </div>
@@ -3021,6 +2996,7 @@ function PlumbingChecker({ apiKey }) {
   const STATUS_COL={"NON-COMPLIANT":"#dc2626","COMPLIANT WITH WARNINGS":"#d97706","COMPLIANT":"#16a34a"};
   return (
     <div>
+      <NoKeyBanner/>
       <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>ref.current?.click()} style={{border:`2px dashed ${drag?SC:T.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(16,185,129,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
         <input ref={ref} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
         <div style={{fontSize:40,marginBottom:12}}>🚿</div>
@@ -4006,12 +3982,38 @@ function Dashboard({ user, onLogout }) {
 
         {/* API key bar */}
         {showKey && (
-          <div style={{ borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.04)", padding:"12px 24px" }}>
-            <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center" }}>
-              <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:600 }}>Anthropic API Key</span>
-              <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); window.__PHEN_KEY__ = e.target.value; }} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}/>
-              <button onClick={() => { window.__PHEN_KEY__ = apiKey; localStorage.setItem("phen_key", apiKey); setShowKey(false); }} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
-              {apiKey && <button onClick={() => { setApiKey(""); window.__PHEN_KEY__ = ""; localStorage.removeItem("phen_key"); }} style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", fontWeight:700, padding:"8px 14px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Clear</button>}
+          <div style={{ borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.04)", padding:"14px 24px" }}>
+            <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+              <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:700 }}>🔑 Anthropic API Key</span>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => {
+                  const v = e.target.value;
+                  setApiKey(v);
+                  window.__PHEN_KEY__ = v;
+                  if (v.startsWith("sk-")) localStorage.setItem("phen_key", v);
+                }}
+                placeholder="sk-ant-api03-..."
+                style={{ flex:1, minWidth:240, background:"#0f1117", border:`1.5px solid ${apiKey.startsWith("sk-") ? "#10b981" : T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none", fontFamily:"monospace" }}
+                onFocus={e=>e.target.style.borderColor="#f59e0b"}
+                onBlur={e=>e.target.style.borderColor=apiKey.startsWith("sk-")?"#10b981":T.border}
+                onKeyDown={e=>{ if(e.key==="Enter" && apiKey.startsWith("sk-")){ window.__PHEN_KEY__=apiKey; localStorage.setItem("phen_key",apiKey); setShowKey(false); }}}
+              />
+              <button
+                onClick={() => {
+                  if (!apiKey.startsWith("sk-")) { alert("Key must start with sk-ant-...  Please paste your full Anthropic API key."); return; }
+                  window.__PHEN_KEY__ = apiKey;
+                  localStorage.setItem("phen_key", apiKey);
+                  setShowKey(false);
+                }}
+                style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 20px", borderRadius:9, cursor:"pointer", fontSize:13 }}>
+                Save ✓
+              </button>
+              {apiKey && <button onClick={() => { setApiKey(""); window.__PHEN_KEY__ = ""; localStorage.removeItem("phen_key"); }} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", fontWeight:600, padding:"8px 14px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Clear</button>}
+              <span style={{ fontSize:11, color:T.muted, flexBasis:"100%" }}>
+                {apiKey.startsWith("sk-") ? <span style={{color:"#10b981"}}>✅ Key looks valid — click Save to confirm.</span> : "Get your key at console.anthropic.com → API Keys. Required for AI plan checking and BOM review."}
+              </span>
             </div>
           </div>
         )}
