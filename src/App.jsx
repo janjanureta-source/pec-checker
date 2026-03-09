@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── SVG ICON SYSTEM — Professional (Phosphor/Linear-grade) ────────────────
 const Icon = ({ name, size=16, color="currentColor", strokeWidth=1.6 }) => {
@@ -232,7 +232,6 @@ function downloadHistoryReport(entry, meta) {
   URL.revokeObjectURL(url);
 }
 
-react";
 
 // ─── PEC SYSTEM PROMPT ───────────────────────────────────────────────────────
 const PEC_SYSTEM_PROMPT = `You are a licensed Professional Electrical Engineer (PEE) expert in Philippine Electrical Code (PEC) 2017, FSIC (RA 9514 Fire Code), and Philippine Green Building Code. You review electrical plans for residential and commercial projects.
