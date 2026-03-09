@@ -80,37 +80,56 @@ const compressImage = (file, maxPx = 1600, quality = 0.75) => new Promise((resol
 });
 
 // ─── UNIFIED AI CALLER — always via proxy, images compressed first ────────────
-const MAX_PAYLOAD_MB = 3.5;
+// ─── UNIFIED AI CALLER ───────────────────────────────────────────────────────
+// • File uploads  → direct browser → api.anthropic.com  (bypasses Vercel 4.5MB limit)
+// • Text-only     → /api/anthropic proxy                (uses server ANTHROPIC_API_KEY)
+//
+// Key resolution order: prop → window.__PHEN_KEY__ → localStorage
+const getKey = () => window.__PHEN_KEY__ || localStorage.getItem("phen_key") || "";
 
 const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, messages };
   if (system) payload.system = system;
 
-  // Warn if payload is too large
-  const payloadStr = JSON.stringify(payload);
-  const payloadMB = payloadStr.length / 1024 / 1024;
-  if (payloadMB > MAX_PAYLOAD_MB) {
-    throw new Error(
-      `File too large (${payloadMB.toFixed(1)}MB). Please use smaller files or fewer pages. ` +
-      `For PDFs, upload only the relevant pages (ideally under 2MB each).`
+  const hasFiles = messages.some(m =>
+    Array.isArray(m.content) &&
+    m.content.some(b => b.type === "image" || b.type === "document")
+  );
+
+  const key = apiKey || getKey();
+
+  if (hasFiles) {
+    // ── Direct browser → Anthropic (no Vercel body limit) ──
+    if (!key) throw new Error(
+      "API key required for file uploads. Click the 🔑 button in the top bar and enter your Anthropic API key (sk-ant-...)."
     );
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || "Anthropic API error");
+    return data;
+  } else {
+    // ── Proxy → uses server-side ANTHROPIC_API_KEY env var ──
+    const hdrs = { "Content-Type": "application/json" };
+    if (key) hdrs["x-api-key"] = key;
+    const res = await fetch("/api/anthropic", {
+      method: "POST", headers: hdrs, body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`); }
+    if (data.error) throw new Error(data.error.message || "API error");
+    return data;
   }
-
-  const key = apiKey || window.__PHEN_KEY__ || "";
-  const hdrs = { "Content-Type": "application/json" };
-  if (key) hdrs["x-api-key"] = key;
-
-  const res = await fetch("/api/anthropic", {
-    method: "POST",
-    headers: hdrs,
-    body: payloadStr,
-  });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); }
-  catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`); }
-  if (data.error) throw new Error(data.error.message || "API error");
-  return data;
 };
 
 const repairJSON = str => {
@@ -1087,8 +1106,6 @@ function PlanChecker({ apiKey }) {
 
   const run = async () => {
     if(!files.length) return;
-    const oversized = files.filter(f => f.size > 4 * 1024 * 1024);
-    if(oversized.length) { setError(`File too large: ${oversized.map(f=>f.name).join(", ")}. Max 4MB. For PDFs, export only the relevant sheets.`); return; }
     setBusy(true); setError(null); setResult(null);
     try {
       const blocks=[];
@@ -1442,8 +1459,6 @@ function StructuralChecker({ apiKey }) {
 
   const run = async () => {
     if(!files.length) return;
-    const oversized = files.filter(f => f.size > 4 * 1024 * 1024);
-    if(oversized.length) { setError(`File too large: ${oversized.map(f=>f.name).join(", ")}. Max 4MB. Export only the relevant sheets.`); return; }
     setBusy(true); setError(null); setResult(null);
     try {
       const blocks=[];
@@ -2300,19 +2315,11 @@ function BOMReview({ apiKey }) {
     return v;
   };
 
-  const MAX_FILE_MB = 4;
-
   const run = async () => {
     if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
 
     // ── Size gate — check BEFORE encoding anything ──
     const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
-    const oversized = allFiles.filter(f => f.size > MAX_FILE_MB * 1024 * 1024);
-    if (oversized.length) {
-      setError(`File too large: ${oversized.map(f=>`${f.name} (${(f.size/1024/1024).toFixed(1)}MB)`).join(", ")}. Max ${MAX_FILE_MB}MB per file. For PDFs, export only the relevant sheets/pages before uploading.`);
-      return;
-    }
-
     setBusy(true); setError(null); setResult(null);
     try {
       const blocks = [];
@@ -2943,8 +2950,6 @@ function PlumbingChecker({ apiKey }) {
   const tick=()=>new Promise(r=>setTimeout(r,0));
   const run=async()=>{
     if(!files.length)return;
-    const oversized=files.filter(f=>f.size>4*1024*1024);
-    if(oversized.length){setError(`File too large: ${oversized.map(f=>f.name).join(", ")}. Max 4MB.`);return;}
     setBusy(true);setError(null);setResult(null);
     try{
       const blocks=[];
@@ -3898,7 +3903,11 @@ function LoginModal({ onClose, onSuccess }) {
 function Dashboard({ user, onLogout }) {
   const [module, setModule] = useState("electrical");
   const [etab,   setEtab]   = useState("checker");
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState(() => {
+    const saved = localStorage.getItem("phen_key") || "";
+    if (saved) { window.__PHEN_KEY__ = saved; }
+    return saved;
+  });
   const [showKey,setShowKey]= useState(false);
 
   const ETABS = [
@@ -3944,7 +3953,7 @@ function Dashboard({ user, onLogout }) {
                 <span>{t.icon}</span><span>{t.label}</span>
               </button>
             ))}
-            <button onClick={() => setShowKey(!showKey)} title="API Key" style={{ marginLeft:4, padding:"6px 11px", borderRadius:8, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:13 }}>🔑</button>
+            <button onClick={() => setShowKey(!showKey)} title="API Key" style={{ marginLeft:4, padding:"6px 11px", borderRadius:8, border:`1px solid ${apiKey ? "#10b981" : T.border}`, background: apiKey ? "rgba(16,185,129,0.1)" : "transparent", color: apiKey ? "#10b981" : T.muted, cursor:"pointer", fontSize:13, position:"relative" }}>🔑{apiKey && <span style={{position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:"#10b981",display:"block"}}/>}</button>
           </div>
           {/* User badge + logout */}
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -3967,7 +3976,8 @@ function Dashboard({ user, onLogout }) {
             <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center" }}>
               <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:600 }}>Anthropic API Key</span>
               <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); window.__PHEN_KEY__ = e.target.value; }} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}/>
-              <button onClick={() => { window.__PHEN_KEY__ = apiKey; setShowKey(false); }} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
+              <button onClick={() => { window.__PHEN_KEY__ = apiKey; localStorage.setItem("phen_key", apiKey); setShowKey(false); }} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
+              {apiKey && <button onClick={() => { setApiKey(""); window.__PHEN_KEY__ = ""; localStorage.removeItem("phen_key"); }} style={{ background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", fontWeight:700, padding:"8px 14px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Clear</button>}
             </div>
           </div>
         )}
