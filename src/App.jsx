@@ -3475,53 +3475,92 @@ function LandingPage({ onLogin }) {
   }, []);
 
   const STATS = [
-    { num:"18+", label:"Calculation Tools" },
-    { num:"4",   label:"Engineering Disciplines" },
-    { num:"10×", label:"Faster Than Manual" },
-    { num:"100%", label:"Philippine Code Based" },
+    { num:"₱500K+", label:"Avg. Annual Savings Per Firm" },
+    { num:"25×",    label:"ROI on Subscription" },
+    { num:"5 min",  label:"Full BOM Review" },
+    { num:"100%",   label:"Philippine Codes" },
   ];
 
-  const PROBLEMS = [
-    {
-      icon:"⏰", color:"#f59e0b",
-      title:"Hours wasted on manual calculations",
-      body:"Filipino engineers spend 3–5 hours per project on repetitive code lookups, voltage drop tables, and beam sizing — time that could be spent on actual design decisions.",
-      fix:"Our tools compute in seconds. What took a full afternoon now takes 30 seconds."
-    },
-    {
-      icon:"📋", color:"#ef4444",
-      title:"Failed inspections from missed code items",
-      body:"One missed NPC pipe size. One wrong PEC circuit rating. One overlooked NSCP seismic zone. That's a failed FSIC inspection, a rejected building permit, and weeks of costly revisions.",
-      fix:"AI-powered checkers scan every drawing against PEC, NSCP, NPC, and PD 856 — catching what human eyes miss."
-    },
-    {
-      icon:"💸", color:"#10b981",
-      title:"Revision costs eating into project budgets",
-      body:"Every revision set sent back from DPWH or LGU costs time, reputation, and money. Firms lose ₱50,000–₱200,000 per project in preventable revision cycles.",
-      fix:"Catch errors before submission. Generate revision-ready correction reports with exact code references and drafting instructions."
-    },
-    {
-      icon:"🌏", color:"#3b82f6",
-      title:"Generic tools that don't know Philippine codes",
-      body:"International software uses ASCE, NEC, IPC — not PEC 2017, NSCP 2015, NPC 2000, or PD 856. Filipino engineers are forced to manually cross-reference everything.",
-      fix:"Built from the ground up for the Philippines. Every formula, table, and reference is from our local codes."
-    },
+  const BOM_FINDINGS = [
+    { icon:"🔴", label:"Typographical errors in cost entries", example:"e.g. ₱3,000 entered instead of ₱30,000" },
+    { icon:"🔴", label:"Rebar unit costs below 2025 market rates", example:"10mm bar at ₱140 vs market ₱170/pc" },
+    { icon:"🔴", label:"Insufficient window budget", example:"₱550K lump sum for 33 analok panels — short by ₱200K+" },
+    { icon:"🔴", label:"Missing OCM, contingency, and profit", example:"2.3% profit on ₱8.8M project — should be 10–15%" },
+    { icon:"🟡", label:"Missing scope items vs. plan", example:"Roof deck waterproofing, AC rough-in, door shortfall" },
+    { icon:"🟡", label:"Concrete unit cost below ready-mix rates", example:"₱5,600/m³ vs current NCR ₱6,200–7,000/m³" },
+  ];
+
+  const SAVINGS = [
+    { icon:"⏱️", color:"#f59e0b", title:"Engineer Time Saved", amount:"₱24,000–₱60,000/yr", detail:"Manual PEC/NSCP/NPC compliance checks take 4–6 hrs each. AI does it in 5 min. At 20 projects/year, that's days of recovered time." },
+    { icon:"📋", color:"#3b82f6", title:"BOM Review Labor", amount:"₱45,000–₱192,000/yr", detail:"A senior QS spends 6–16 hrs per BOM review at ₱500–800/hr. AI does first-pass in 5 min. 15 projects/year = massive savings." },
+    { icon:"🛡️", color:"#10b981", title:"Error Prevention", amount:"₱300,000–₱500,000/yr", detail:"One caught underestimate, one missed waterproofing line, one rebar pricing error. Catching even one per project saves more than a year of subscription." },
+    { icon:"📉", color:"#8b5cf6", title:"Revision Cycle Cost", amount:"₱50,000–₱200,000/yr", detail:"Every DPWH or LGU rejection costs time and reputation. AI checkers catch non-compliance before submission." },
   ];
 
   const MODULES = [
-    { icon:"⚡", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building Code",
+    { icon:"📋", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", name:"BOM Review", code:"DPWH Rates · NCR Market Pricing · 2025",
+      badge:"⭐ Flagship Feature",
+      tools:["Quantity validation vs. plans","Unit cost vs. PH market rates","Missing & excess item detection","Markup & profit assessment","Full PDF report"] },
+    { icon:"⚡", color:"#fb923c", grad:"135deg,#fb923c,#ef4444", name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building Code",
       tools:["AI Plan Checker","Voltage Drop Calculator","Short Circuit Analysis","Load Schedule Calculator"] },
     { icon:"🏗️", color:"#3b82f6", grad:"135deg,#3b82f6,#6366f1", name:"StructiCode", code:"NSCP 2015 · DPWH Blue Book",
       tools:["AI Plan Checker","Seismic Load","Beam Design","Column Design","Footing Design","Slab Design","Load Combinations"] },
     { icon:"🚿", color:"#10b981", grad:"135deg,#10b981,#059669", name:"SaniCode", code:"NPC 2000 · PD 856",
       tools:["AI Plan Checker","Fixture Units","Pipe Sizing","Septic Tank","Water Demand","Pressure Loss","Storm Drainage"] },
-    { icon:"🏢", color:"#8b5cf6", grad:"135deg,#8b5cf6,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344", tools:["Coming Soon"], coming:true },
   ];
 
   const TESTIMONIALS = [
-    { quote:"Ang tagal ko nang ginagawa ito sa Excel. Yung voltage drop alone, 2 hours. Dito, 10 seconds.", name:"R. Santos", role:"Electrical Engineer, Cebu" },
-    { quote:"Nakapasa na kami sa FSIC inspection first try. Before, laging may babalik na findings.", name:"M. dela Cruz", role:"MEP Design Engineer, Manila" },
-    { quote:"As a sole practitioner, this is like having a junior engineer check my work 24/7.", name:"A. Reyes", role:"Structural Engineer, Davao" },
+    { quote:"Nakita agad ng BOM Review yung kulang na waterproofing at mali sa rebar pricing. Nakatipid kami ng halos ₱300K sa isang project.", name:"R. Santos", role:"Project Manager, Antipolo" },
+    { quote:"Before, 2 days ang BOM checking namin bago mag-award ng contract. Ngayon, 10 minutes. Game changer.", name:"M. dela Cruz", role:"Senior QS, Metro Manila" },
+    { quote:"As a sole practitioner, this is like having a full QS team checking my estimates 24/7.", name:"A. Reyes", role:"Structural Engineer, Davao" },
+  ];
+
+  const PRICING = [
+    {
+      name:"Solo Practitioner",
+      price:"₱499",
+      period:"/month",
+      color:"#64748b",
+      tagline:"For freelance engineers & architects",
+      features:[
+        "Full Suite — all 3 modules",
+        "BOM Review (PDF upload)",
+        "AI Plan Checkers",
+        "All calculation tools",
+        "PDF report export",
+      ],
+    },
+    {
+      name:"Small Firm",
+      price:"₱3,500",
+      period:"/month",
+      color:"#f59e0b",
+      popular:true,
+      tagline:"For A/E firms with 5–20 engineers",
+      features:[
+        "Up to 10 users",
+        "Full Suite — all 3 modules",
+        "BOM Review (unlimited)",
+        "AI Plan Checkers",
+        "All calculation tools",
+        "Priority support",
+      ],
+    },
+    {
+      name:"Developer / Mid-Firm",
+      price:"₱12,000",
+      period:"/month",
+      color:"#10b981",
+      tagline:"For developers & firms with 20+ engineers",
+      features:[
+        "Unlimited users",
+        "Full Suite — all modules",
+        "BOM Review (unlimited)",
+        "AI Plan Checkers",
+        "Dedicated account manager",
+        "Custom onboarding",
+      ],
+    },
   ];
 
   return (
@@ -3534,11 +3573,12 @@ function LandingPage({ onLogin }) {
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes glow{0%,100%{box-shadow:0 0 40px rgba(245,158,11,0.15)}50%{box-shadow:0 0 80px rgba(245,158,11,0.3)}}
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
         .land-btn:hover{transform:translateY(-2px)!important;box-shadow:0 12px 40px rgba(245,158,11,0.45)!important}
         .land-btn-outline:hover{background:rgba(245,158,11,0.08)!important;border-color:rgba(245,158,11,0.6)!important}
-        .module-card:hover{transform:translateY(-4px);border-color:var(--c)!important}
+        .module-card:hover{transform:translateY(-4px)}
         .prob-card:hover{transform:translateY(-2px)}
+        .price-card:hover{transform:translateY(-4px)}
         input::-webkit-inner-spin-button{-webkit-appearance:none}
       `}</style>
 
@@ -3552,15 +3592,16 @@ function LandingPage({ onLogin }) {
         display:"flex", alignItems:"center", justifyContent:"space-between"
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 14px rgba(245,158,11,0.4)" }}>⚡</div>
+          <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, boxShadow:"0 4px 14px rgba(245,158,11,0.4)" }}>📋</div>
           <div>
             <div style={{ fontWeight:800, fontSize:15, color:T.text, letterSpacing:"-0.3px" }}>PH Engineering Suite</div>
             <div style={{ fontSize:9, color:T.muted, letterSpacing:"0.8px", textTransform:"uppercase" }}>by Jon Ureta</div>
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <a href="#bom" style={{ fontSize:13, color:"#f59e0b", textDecoration:"none", fontWeight:700 }}>BOM Review</a>
           <a href="#modules" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Modules</a>
-          <a href="#problem" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Why Us</a>
+          <a href="#savings" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Savings</a>
           <a href="#pricing" style={{ fontSize:13, color:T.muted, textDecoration:"none", fontWeight:600 }}>Pricing</a>
           <button onClick={() => setShowLogin(true)} className="land-btn" style={{
             background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
@@ -3572,118 +3613,199 @@ function LandingPage({ onLogin }) {
 
       {/* ── HERO ── */}
       <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"100px 24px 60px", position:"relative", overflow:"hidden" }}>
-        {/* Background orbs */}
-        <div style={{ position:"absolute", top:"20%", left:"10%", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,rgba(245,158,11,0.06) 0%,transparent 70%)", pointerEvents:"none" }}/>
-        <div style={{ position:"absolute", bottom:"20%", right:"10%", width:300, height:300, borderRadius:"50%", background:"radial-gradient(circle,rgba(59,130,246,0.06) 0%,transparent 70%)", pointerEvents:"none" }}/>
-        <div style={{ position:"absolute", top:"40%", left:"50%", width:500, height:500, borderRadius:"50%", background:"radial-gradient(circle,rgba(16,185,129,0.04) 0%,transparent 70%)", transform:"translateX(-50%)", pointerEvents:"none" }}/>
+        <div style={{ position:"absolute", top:"20%", left:"10%", width:500, height:500, borderRadius:"50%", background:"radial-gradient(circle,rgba(245,158,11,0.07) 0%,transparent 70%)", pointerEvents:"none" }}/>
+        <div style={{ position:"absolute", bottom:"20%", right:"5%", width:400, height:400, borderRadius:"50%", background:"radial-gradient(circle,rgba(16,185,129,0.05) 0%,transparent 70%)", pointerEvents:"none" }}/>
 
         {/* Badge */}
-        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:100, padding:"6px 18px", marginBottom:32, animation:"fadeUp 0.6s ease both" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:"#f59e0b", display:"inline-block", animation:"glow 2s ease infinite" }}/>
+        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.25)", borderRadius:100, padding:"6px 18px", marginBottom:28, animation:"fadeUp 0.6s ease both" }}>
+          <span style={{ width:6, height:6, borderRadius:"50%", background:"#f59e0b", display:"inline-block", animation:"pulse 2s ease infinite" }}/>
           <span style={{ fontSize:12, color:"#f59e0b", fontWeight:700, letterSpacing:"0.3px" }}>Built for Filipino Engineers · Philippine Codes Only</span>
         </div>
 
         {/* Headline */}
-        <h1 style={{ fontSize:"clamp(36px,6vw,72px)", fontWeight:900, lineHeight:1.05, letterSpacing:"-2px", marginBottom:24, animation:"fadeUp 0.7s ease 0.1s both", maxWidth:900 }}>
-          Stop Doing Code Compliance<br/>
+        <h1 style={{ fontSize:"clamp(36px,6vw,76px)", fontWeight:900, lineHeight:1.0, letterSpacing:"-2.5px", marginBottom:24, animation:"fadeUp 0.7s ease 0.1s both", maxWidth:980 }}>
+          Your Contractor's BOM<br/>
           <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316,#ef4444)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
-            The Hard Way.
+            Could Be Costing You Millions.
           </span>
         </h1>
 
-        {/* Sub */}
-        <p style={{ fontSize:"clamp(16px,2vw,20px)", color:T.muted, maxWidth:680, lineHeight:1.7, marginBottom:16, animation:"fadeUp 0.7s ease 0.2s both" }}>
-          The only AI-powered engineering suite built specifically for Philippine codes —
-          PEC 2017, NSCP 2015, NPC 2000, PD 856. Check plans, run calculations, generate revision reports.
-          All in seconds.
+        <p style={{ fontSize:"clamp(16px,2vw,21px)", color:T.muted, maxWidth:700, lineHeight:1.7, marginBottom:14, animation:"fadeUp 0.7s ease 0.2s both" }}>
+          PH Engineering Suite catches underpriced materials, missing scope items, and wrong unit costs in minutes —
+          before you sign the contract.
         </p>
-        <p style={{ fontSize:14, color:"rgba(100,116,139,0.6)", marginBottom:40, animation:"fadeUp 0.7s ease 0.25s both" }}>
-          Used by Electrical, Structural, and Sanitary Engineers across the Philippines.
+        <p style={{ fontSize:14, color:"rgba(100,116,139,0.7)", marginBottom:44, animation:"fadeUp 0.7s ease 0.25s both" }}>
+          Also includes AI compliance checkers for PEC 2017 · NSCP 2015 · NPC 2000 · PD 856.
         </p>
 
-        {/* CTAs */}
-        <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.3s both", marginBottom:64 }}>
+        <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.3s both", marginBottom:72 }}>
           <button onClick={() => setShowLogin(true)} className="land-btn" style={{
             background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
-            fontWeight:800, fontSize:16, padding:"16px 36px", borderRadius:14, cursor:"pointer",
+            fontWeight:800, fontSize:16, padding:"16px 40px", borderRadius:14, cursor:"pointer",
             transition:"all 0.2s", boxShadow:"0 8px 32px rgba(245,158,11,0.4)", letterSpacing:"-0.3px"
-          }}>Get Access Now →</button>
-          <a href="#modules" className="land-btn-outline" style={{
+          }}>Try BOM Review Now →</button>
+          <a href="#savings" className="land-btn-outline" style={{
             border:"1.5px solid rgba(255,255,255,0.15)", color:T.text, background:"transparent",
             fontWeight:700, fontSize:16, padding:"16px 36px", borderRadius:14, cursor:"pointer",
             transition:"all 0.2s", letterSpacing:"-0.3px", textDecoration:"none", display:"inline-flex", alignItems:"center"
-          }}>See All Modules ↓</a>
+          }}>See the Savings ↓</a>
         </div>
 
         {/* Stats row */}
-        <div style={{ display:"flex", gap:40, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.4s both" }}>
+        <div style={{ display:"flex", gap:48, flexWrap:"wrap", justifyContent:"center", animation:"fadeUp 0.7s ease 0.4s both" }}>
           {STATS.map(s => (
-            <div key={s.num} style={{ textAlign:"center" }}>
-              <div style={{ fontSize:36, fontWeight:900, color:T.accent, letterSpacing:"-1px", lineHeight:1 }}>{s.num}</div>
-              <div style={{ fontSize:12, color:T.muted, marginTop:4, letterSpacing:"0.3px" }}>{s.label}</div>
+            <div key={s.label} style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"clamp(22px,3vw,32px)", fontWeight:900, color:T.text, letterSpacing:"-1px" }}>{s.num}</div>
+              <div style={{ fontSize:11, color:T.muted, marginTop:4, textTransform:"uppercase", letterSpacing:"0.8px", fontWeight:600 }}>{s.label}</div>
             </div>
           ))}
         </div>
-
-        {/* Scroll hint */}
-        <div style={{ position:"absolute", bottom:32, left:"50%", transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", gap:6, animation:"float 2s ease infinite" }}>
-          <div style={{ fontSize:11, color:"rgba(100,116,139,0.4)", letterSpacing:"1px", textTransform:"uppercase" }}>Scroll</div>
-          <div style={{ width:1, height:32, background:"linear-gradient(to bottom,rgba(100,116,139,0.4),transparent)" }}/>
-        </div>
       </section>
 
-      {/* ── PROBLEM SECTION ── */}
-      <section id="problem" style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:60 }}>
-          <div style={{ fontSize:12, color:"#ef4444", fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>THE REAL PROBLEM</div>
-          <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", lineHeight:1.1, marginBottom:16 }}>
-            Engineering in the Philippines is<br/>
-            <span style={{ color:"#ef4444" }}>broken by paperwork and revisions.</span>
-          </h2>
-          <p style={{ fontSize:16, color:T.muted, maxWidth:600, margin:"0 auto", lineHeight:1.7 }}>
-            Every engineer in the Philippines knows this pain. Here's what we're solving.
-          </p>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(480px,1fr))", gap:20 }}>
-          {PROBLEMS.map(p => (
-            <div key={p.title} className="prob-card" style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:32, transition:"all 0.2s", position:"relative", overflow:"hidden" }}>
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${p.color},${p.color}44)` }}/>
-              <div style={{ fontSize:36, marginBottom:16 }}>{p.icon}</div>
-              <h3 style={{ fontSize:18, fontWeight:800, color:T.text, marginBottom:12, letterSpacing:"-0.5px" }}>{p.title}</h3>
-              <p style={{ fontSize:14, color:T.muted, lineHeight:1.7, marginBottom:20 }}>{p.body}</p>
-              <div style={{ background:`${p.color}10`, border:`1px solid ${p.color}33`, borderRadius:10, padding:"12px 16px", display:"flex", gap:10, alignItems:"flex-start" }}>
-                <span style={{ fontSize:14, color:p.color, fontWeight:800, flexShrink:0 }}>→ OUR FIX:</span>
-                <span style={{ fontSize:13, color:T.text, lineHeight:1.6 }}>{p.fix}</span>
+      {/* ── BOM HERO SECTION ── */}
+      <section id="bom" style={{ padding:"80px 24px", background:"rgba(245,158,11,0.03)", borderTop:`1px solid rgba(245,158,11,0.1)`, borderBottom:`1px solid rgba(245,158,11,0.1)` }}>
+        <div style={{ maxWidth:1100, margin:"0 auto" }}>
+          <div style={{ textAlign:"center", marginBottom:56 }}>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:100, padding:"5px 16px", marginBottom:16 }}>
+              <span style={{ fontSize:11, color:"#f59e0b", fontWeight:800, letterSpacing:"1px", textTransform:"uppercase" }}>⭐ Flagship Feature</span>
+            </div>
+            <h2 style={{ fontSize:"clamp(28px,4vw,52px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>
+              AI-Powered BOM Review
+            </h2>
+            <p style={{ fontSize:17, color:T.muted, maxWidth:660, margin:"0 auto", lineHeight:1.7 }}>
+              Upload your engineering plans and contractor BOM. Get a full QS-grade review in 5 minutes —
+              quantities validated, unit costs benchmarked against 2025 NCR market rates, missing items flagged.
+            </p>
+          </div>
+
+          {/* Two-column: what it catches + mock result */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:40, alignItems:"start" }}>
+            {/* Left: findings list */}
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:T.muted, letterSpacing:"1px", textTransform:"uppercase", marginBottom:20 }}>What BOM Review Catches</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {BOM_FINDINGS.map((f,i) => (
+                  <div key={i} style={{ display:"flex", gap:14, alignItems:"flex-start", background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px" }}>
+                    <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{f.icon}</span>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:13, color:T.text, marginBottom:3 }}>{f.label}</div>
+                      <div style={{ fontSize:11, color:T.muted, lineHeight:1.5 }}>{f.example}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+
+            {/* Right: sample output card */}
+            <div style={{ background:T.card, border:"1.5px solid rgba(245,158,11,0.3)", borderRadius:20, padding:28, boxShadow:"0 8px 40px rgba(0,0,0,0.4)" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+                <div style={{ fontWeight:800, fontSize:15, color:T.text }}>BOM Review Report</div>
+                <span style={{ background:"rgba(239,68,68,0.12)", color:"#ef4444", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"3px 10px", fontSize:11, fontWeight:800 }}>NEEDS REVISION</span>
+              </div>
+              <div style={{ fontSize:11, color:T.muted, marginBottom:16 }}>Sison Two-Storey Duplex · 435 sqm · Antipolo City</div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:20 }}>
+                {[{n:"4",l:"Critical",c:"#ef4444"},{n:"7",l:"Warnings",c:"#f59e0b"},{n:"5",l:"Missing",c:"#8b5cf6"},{n:"1",l:"Excess",c:"#64748b"}].map(s=>(
+                  <div key={s.l} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${T.border}`, borderRadius:10, padding:"12px 8px", textAlign:"center" }}>
+                    <div style={{ fontSize:24, fontWeight:900, color:s.c }}>{s.n}</div>
+                    <div style={{ fontSize:10, color:T.muted, marginTop:2 }}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+                {[
+                  {c:"#ef4444", t:"Grounding wire: ₱3,000 entered, should be ₱30,000"},
+                  {c:"#ef4444", t:"Window budget short by est. ₱100K–₱250K"},
+                  {c:"#ef4444", t:"Rebar costs 15–25% below 2025 market rates"},
+                  {c:"#f59e0b", t:"Roof deck waterproofing not in BOM (~₱80K–₱150K)"},
+                  {c:"#f59e0b", t:"4 missing D-3 flush doors vs. plan schedule"},
+                ].map((item,i)=>(
+                  <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", fontSize:12, color:T.muted }}>
+                    <span style={{ color:item.c, fontWeight:800, fontSize:14, flexShrink:0, marginTop:-1 }}>●</span>
+                    <span>{item.t}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:16 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+                  <span style={{ color:T.muted }}>BOM Total (submitted)</span>
+                  <span style={{ color:T.text, fontWeight:700 }}>₱9,048,614.80</span>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
+                  <span style={{ color:"#f59e0b", fontWeight:700 }}>Recommended Revised Total</span>
+                  <span style={{ color:"#f59e0b", fontWeight:800 }}>₱11.5M – ₱12.0M</span>
+                </div>
+              </div>
+
+              <div style={{ marginTop:16, background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:10, padding:"10px 14px", fontSize:11, color:"rgba(245,158,11,0.8)" }}>
+                ⚠️ Submitted BOM was understated by est. <strong>₱2.5M–₱3.0M</strong>. Catching this before contract signing protects the client from costly overruns.
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ── MODULES SECTION ── */}
-      <section id="modules" style={{ padding:"80px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}`, borderBottom:`1px solid ${T.border}` }}>
+      {/* ── SAVINGS SECTION ── */}
+      <section id="savings" style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:56 }}>
+          <div style={{ fontSize:12, color:"#10b981", fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>THE BUSINESS CASE</div>
+          <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>
+            The numbers speak for themselves.
+          </h2>
+          <p style={{ fontSize:16, color:T.muted, maxWidth:600, margin:"0 auto" }}>
+            A small A/E firm doing 15–20 projects per year saves an estimated <strong style={{color:T.text}}>₱370K–₱750K annually</strong> — against a subscription cost of ₱42,000/year. That's a 10–25× return.
+          </p>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:20 }}>
+          {SAVINGS.map(s => (
+            <div key={s.title} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:28, transition:"all 0.2s" }} className="prob-card">
+              <div style={{ fontSize:32, marginBottom:14 }}>{s.icon}</div>
+              <div style={{ fontSize:13, fontWeight:800, color:s.color, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.title}</div>
+              <div style={{ fontSize:24, fontWeight:900, color:T.text, letterSpacing:"-0.5px", marginBottom:10 }}>{s.amount}</div>
+              <div style={{ fontSize:13, color:T.muted, lineHeight:1.6 }}>{s.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ROI callout */}
+        <div style={{ marginTop:40, background:"linear-gradient(135deg,rgba(245,158,11,0.06),rgba(16,185,129,0.06))", border:"1.5px solid rgba(245,158,11,0.2)", borderRadius:20, padding:"32px 40px", display:"flex", alignItems:"center", gap:40, flexWrap:"wrap", justifyContent:"center", textAlign:"center" }}>
+          <div>
+            <div style={{ fontSize:48, fontWeight:900, color:"#f59e0b", letterSpacing:"-2px" }}>25×</div>
+            <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>Average ROI for small firms</div>
+          </div>
+          <div style={{ width:1, height:60, background:T.border, flexShrink:0 }}/>
+          <div style={{ maxWidth:480 }}>
+            <div style={{ fontWeight:800, fontSize:18, color:T.text, marginBottom:8, letterSpacing:"-0.5px" }}>
+              One caught BOM error pays for an entire year.
+            </div>
+            <div style={{ fontSize:14, color:T.muted, lineHeight:1.7 }}>
+              The Sison project BOM was understated by ₱2.5M–₱3.0M. A developer or firm that caught this before signing the contract would have avoided a massive overrun. The annual subscription costs less than <strong style={{color:T.text}}>1.5% of that one catch.</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── MODULES ── */}
+      <section id="modules" style={{ padding:"80px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}` }}>
         <div style={{ maxWidth:1100, margin:"0 auto" }}>
-          <div style={{ textAlign:"center", marginBottom:60 }}>
-            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>THE SUITE</div>
-            <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", lineHeight:1.1, marginBottom:16 }}>
-              One platform. Every<br/>engineering discipline.
-            </h2>
-            <p style={{ fontSize:16, color:T.muted, maxWidth:540, margin:"0 auto", lineHeight:1.7 }}>
-              Each module covers a full engineering discipline — from AI plan checking to detailed calculations, all referenced to Philippine codes.
-            </p>
+          <div style={{ textAlign:"center", marginBottom:56 }}>
+            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>FULL SUITE</div>
+            <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>Everything a Philippine engineer needs.</h2>
+            <p style={{ fontSize:16, color:T.muted }}>BOM Review + AI compliance checkers + calculation tools. One subscription.</p>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:20 }}>
             {MODULES.map(m => (
-              <div key={m.name} className="module-card" style={{ "--c":m.color, background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:28, transition:"all 0.25s", cursor:m.coming?"default":"pointer", opacity:m.coming?0.6:1, position:"relative", overflow:"hidden" }}>
-                <div style={{ position:"absolute", top:-30, right:-30, width:100, height:100, borderRadius:"50%", background:`radial-gradient(circle,${m.color}18 0%,transparent 70%)`, pointerEvents:"none" }}/>
-                {m.coming && <div style={{ position:"absolute", top:14, right:14, background:"rgba(139,92,246,0.2)", border:"1px solid rgba(139,92,246,0.4)", color:"#8b5cf6", fontSize:10, fontWeight:800, padding:"3px 8px", borderRadius:5, letterSpacing:"0.5px" }}>COMING SOON</div>}
-                <div style={{ width:48, height:48, borderRadius:14, background:`linear-gradient(${m.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, marginBottom:18, boxShadow:`0 6px 20px ${m.color}33` }}>{m.icon}</div>
-                <h3 style={{ fontSize:20, fontWeight:800, color:T.text, marginBottom:4, letterSpacing:"-0.5px" }}>{m.name}</h3>
-                <div style={{ fontSize:11, color:m.color, fontWeight:700, marginBottom:16, letterSpacing:"0.3px" }}>{m.code}</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              <div key={m.name} className="module-card" style={{ background:T.card, border:`1.5px solid ${m.badge ? "rgba(245,158,11,0.35)" : T.border}`, borderRadius:20, padding:28, transition:"all 0.2s", position:"relative", overflow:"hidden" }}>
+                {m.badge && <div style={{ position:"absolute", top:14, right:14, background:"linear-gradient(135deg,#f59e0b,#f97316)", color:"#000", fontSize:9, fontWeight:800, padding:"3px 10px", borderRadius:100, letterSpacing:"0.3px" }}>{m.badge}</div>}
+                <div style={{ width:48, height:48, borderRadius:14, background:`linear-gradient(${m.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, marginBottom:16, boxShadow:`0 6px 20px ${m.color}33` }}>{m.icon}</div>
+                <div style={{ fontWeight:800, fontSize:17, color:T.text, marginBottom:4 }}>{m.name}</div>
+                <div style={{ fontSize:10, color:m.color, fontWeight:700, letterSpacing:"0.5px", marginBottom:14, textTransform:"uppercase" }}>{m.code}</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
                   {m.tools.map(tool => (
                     <div key={tool} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:T.muted }}>
-                      <span style={{ color:m.color, fontSize:10 }}>✦</span>{tool}
+                      <span style={{ color:m.color, fontWeight:800, fontSize:10 }}>✓</span>{tool}
                     </div>
                   ))}
                 </div>
@@ -3693,116 +3815,64 @@ function LandingPage({ onLogin }) {
         </div>
       </section>
 
-      {/* ── TIME SAVINGS SECTION ── */}
-      <section style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:60, alignItems:"center" }}>
-          <div>
-            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>TIME IS MONEY</div>
-            <h2 style={{ fontSize:"clamp(28px,3vw,42px)", fontWeight:900, letterSpacing:"-1.5px", lineHeight:1.1, marginBottom:20 }}>
-              What used to take<br/>
-              <span style={{ color:T.accent }}>a whole afternoon</span><br/>
-              now takes 30 seconds.
-            </h2>
-            <p style={{ fontSize:15, color:T.muted, lineHeight:1.8, marginBottom:28 }}>
-              Filipino engineers charge ₱3,000–₱15,000 per project. Yet 40% of that time is spent on calculations and code lookups — not actual design. PH Engineering Suite gives that time back.
-            </p>
-            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-              {[
-                {task:"Voltage Drop Calculation",before:"45 min",after:"8 sec"},
-                {task:"Seismic Load Analysis",before:"2 hrs",after:"15 sec"},
-                {task:"Electrical Plan Review",before:"3 hrs",after:"60 sec"},
-                {task:"Septic Tank Sizing",before:"30 min",after:"5 sec"},
-              ].map(r => (
-                <div key={r.task} style={{ display:"flex", alignItems:"center", gap:12, background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 18px" }}>
-                  <div style={{ flex:1, fontSize:13, color:T.text, fontWeight:600 }}>{r.task}</div>
-                  <div style={{ fontSize:12, color:"#ef4444", fontWeight:700, textDecoration:"line-through", minWidth:50, textAlign:"center" }}>{r.before}</div>
-                  <div style={{ fontSize:10, color:T.muted }}>→</div>
-                  <div style={{ fontSize:14, color:T.accent, fontWeight:800, minWidth:40, textAlign:"center" }}>{r.after}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            {/* Cost savings calculator visual */}
-            <div style={{ background:T.card, border:`1px solid rgba(245,158,11,0.3)`, borderRadius:20, padding:28, textAlign:"center", animation:"glow 3s ease infinite" }}>
-              <div style={{ fontSize:12, color:T.muted, letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>If you save 3 hours per project</div>
-              <div style={{ fontSize:52, fontWeight:900, color:T.accent, letterSpacing:"-2px", marginBottom:4 }}>₱7,500</div>
-              <div style={{ fontSize:13, color:T.muted, marginBottom:20 }}>recovered per project @ ₱2,500/hr billing rate</div>
-              <div style={{ height:1, background:`linear-gradient(90deg,transparent,rgba(245,158,11,0.3),transparent)`, marginBottom:20 }}/>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                {[{n:"₱37,500",l:"5 projects/month"},{n:"₱450,000",l:"Per year, at 5 proj/mo"},{n:"0",l:"Extra work needed"},{n:"∞",l:"Return on investment"}].map(s=>(
-                  <div key={s.l} style={{ background:T.dim, borderRadius:10, padding:"14px 10px" }}>
-                    <div style={{ fontSize:22, fontWeight:800, color:T.text }}>{s.n}</div>
-                    <div style={{ fontSize:11, color:T.muted, marginTop:2 }}>{s.l}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ background:"rgba(239,68,68,0.06)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:16, padding:20 }}>
-              <div style={{ fontSize:14, fontWeight:800, color:"#ef4444", marginBottom:8 }}>⚠️ The Real Cost of a Failed Inspection</div>
-              <div style={{ fontSize:13, color:T.muted, lineHeight:1.7 }}>A single failed FSIC or building permit inspection adds ₱50,000–₱200,000 in revision costs, delays project completion by 4–12 weeks, and damages client relationships. Our AI checkers pay for themselves on the first project.</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── TESTIMONIALS ── */}
-      <section style={{ padding:"60px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}` }}>
-        <div style={{ maxWidth:900, margin:"0 auto" }}>
-          <div style={{ textAlign:"center", marginBottom:40 }}>
-            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>FROM ENGINEERS WHO USE IT</div>
-            <h2 style={{ fontSize:32, fontWeight:900, letterSpacing:"-1px" }}>What Filipino engineers say</h2>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:20 }}>
-            {TESTIMONIALS.map(t => (
-              <div key={t.name} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:16, padding:24, position:"relative" }}>
-                <div style={{ fontSize:32, color:"rgba(245,158,11,0.3)", fontWeight:900, lineHeight:1, marginBottom:12 }}>"</div>
-                <p style={{ fontSize:14, color:T.text, lineHeight:1.7, marginBottom:18, fontStyle:"italic" }}>{t.quote}</p>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"#000" }}>{t.name[0]}</div>
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{t.name}</div>
-                    <div style={{ fontSize:11, color:T.muted }}>{t.role}</div>
-                  </div>
+      <section style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:48 }}>
+          <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>TESTIMONIALS</div>
+          <h2 style={{ fontSize:"clamp(24px,3vw,40px)", fontWeight:900, letterSpacing:"-1px" }}>Filipino engineers trust PH Engineering Suite.</h2>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:20 }}>
+          {TESTIMONIALS.map(t => (
+            <div key={t.name} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:20, padding:"28px 24px" }}>
+              <div style={{ fontSize:28, color:"#f59e0b", marginBottom:14, lineHeight:1 }}>"</div>
+              <p style={{ fontSize:14, color:T.text, lineHeight:1.7, marginBottom:20, fontStyle:"italic" }}>{t.quote}</p>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:36, height:36, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"#000", flexShrink:0 }}>{t.name[0]}</div>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:T.text }}>{t.name}</div>
+                  <div style={{ fontSize:11, color:T.muted }}>{t.role}</div>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* ── PRICING ── */}
-      <section id="pricing" style={{ padding:"80px 24px", maxWidth:1100, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:60 }}>
-          <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>PRICING</div>
-          <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>Simple, transparent pricing.</h2>
-          <p style={{ fontSize:16, color:T.muted }}>Less than one billable hour. Saves you hundreds.</p>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:20 }}>
-          {[
-            { name:"Single Module", price:"₱299", period:"/month", color:"#64748b", features:["1 discipline module","All tools included","AI plan checking","PDF reports"] },
-            { name:"Dual Module", price:"₱499", period:"/month", color:"#3b82f6", features:["2 discipline modules","All tools included","AI plan checking","PDF reports"] },
-            { name:"Full Suite", price:"₱799", period:"/month", color:T.accent, popular:true, features:["All 3 modules","All 18+ tools","AI plan checking","PDF reports","Priority updates"] },
-            { name:"Firm License", price:"₱2,499", period:"/month", color:"#10b981", features:["10 users","All modules","Team management","Priority support","Custom branding"] },
-          ].map(p => (
-            <div key={p.name} style={{ background:T.card, border:`2px solid ${p.popular?"rgba(245,158,11,0.5)":T.border}`, borderRadius:20, padding:28, position:"relative", transition:"all 0.2s" }}>
-              {p.popular && <div style={{ position:"absolute", top:-12, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#f59e0b,#f97316)", color:"#000", fontSize:10, fontWeight:800, padding:"4px 14px", borderRadius:100, whiteSpace:"nowrap", letterSpacing:"0.5px" }}>MOST POPULAR</div>}
-              <div style={{ fontSize:14, fontWeight:800, color:p.color, marginBottom:4 }}>{p.name}</div>
-              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:4 }}>
-                <span style={{ fontSize:36, fontWeight:900, color:T.text, letterSpacing:"-1px" }}>{p.price}</span>
-                <span style={{ fontSize:13, color:T.muted }}>{p.period}</span>
+      <section id="pricing" style={{ padding:"80px 24px", background:"rgba(255,255,255,0.01)", borderTop:`1px solid ${T.border}` }}>
+        <div style={{ maxWidth:960, margin:"0 auto" }}>
+          <div style={{ textAlign:"center", marginBottom:56 }}>
+            <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:12 }}>PRICING</div>
+            <h2 style={{ fontSize:"clamp(28px,4vw,48px)", fontWeight:900, letterSpacing:"-1.5px", marginBottom:16 }}>One subscription. Entire suite.</h2>
+            <p style={{ fontSize:16, color:T.muted }}>No per-module fees. Full access to BOM Review, all AI checkers, and every calculation tool.</p>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:24 }}>
+            {PRICING.map(p => (
+              <div key={p.name} className="price-card" style={{ background:T.card, border:`2px solid ${p.popular ? "rgba(245,158,11,0.5)" : T.border}`, borderRadius:24, padding:32, position:"relative", transition:"all 0.2s" }}>
+                {p.popular && <div style={{ position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:"linear-gradient(135deg,#f59e0b,#f97316)", color:"#000", fontSize:10, fontWeight:800, padding:"4px 16px", borderRadius:100, whiteSpace:"nowrap", letterSpacing:"0.5px" }}>BEST VALUE</div>}
+                <div style={{ fontSize:13, fontWeight:800, color:p.color, marginBottom:4 }}>{p.name}</div>
+                <div style={{ fontSize:12, color:T.muted, marginBottom:16 }}>{p.tagline}</div>
+                <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:20 }}>
+                  <span style={{ fontSize:42, fontWeight:900, color:T.text, letterSpacing:"-2px" }}>{p.price}</span>
+                  <span style={{ fontSize:13, color:T.muted }}>{p.period}</span>
+                </div>
+                <div style={{ height:1, background:T.border, marginBottom:20 }}/>
+                <div style={{ display:"flex", flexDirection:"column", gap:11, marginBottom:28 }}>
+                  {p.features.map(f => (
+                    <div key={f} style={{ display:"flex", alignItems:"flex-start", gap:9, fontSize:13, color:T.muted }}>
+                      <span style={{ color:p.color, fontWeight:800, flexShrink:0, marginTop:1 }}>✓</span>{f}
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setShowLogin(true)} style={{ width:"100%", background:p.popular ? "linear-gradient(135deg,#f59e0b,#f97316)" : "transparent", border:`1.5px solid ${p.popular ? "transparent" : T.border}`, color:p.popular ? "#000" : T.text, fontWeight:700, fontSize:14, padding:"12px", borderRadius:12, cursor:"pointer", transition:"all 0.2s" }}>
+                  Get Started →
+                </button>
               </div>
-              <div style={{ height:1, background:T.border, margin:"16px 0" }}/>
-              <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:24 }}>
-                {p.features.map(f => (
-                  <div key={f} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, color:T.muted }}>
-                    <span style={{ color:p.color, fontWeight:800 }}>✓</span>{f}
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => setShowLogin(true)} style={{ width:"100%", background:p.popular?`linear-gradient(135deg,#f59e0b,#f97316)`:"transparent", border:`1.5px solid ${p.popular?"transparent":T.border}`, color:p.popular?"#000":T.text, fontWeight:700, fontSize:14, padding:"11px", borderRadius:10, cursor:"pointer", transition:"all 0.2s" }}>Get Started</button>
-            </div>
-          ))}
+            ))}
+          </div>
+          <div style={{ textAlign:"center", marginTop:32, fontSize:13, color:T.muted }}>
+            All plans include the full suite. No per-module pricing. · VAT exclusive. · Annual billing available at 2 months free.
+          </div>
         </div>
       </section>
 
@@ -3811,31 +3881,30 @@ function LandingPage({ onLogin }) {
         <div style={{ maxWidth:700, margin:"0 auto" }}>
           <div style={{ fontSize:12, color:T.accent, fontWeight:700, letterSpacing:"2px", textTransform:"uppercase", marginBottom:16 }}>START TODAY</div>
           <h2 style={{ fontSize:"clamp(28px,4vw,52px)", fontWeight:900, letterSpacing:"-2px", lineHeight:1.05, marginBottom:20 }}>
-            The smartest Filipino engineers<br/>already use this.<br/>
-            <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>Will you?</span>
+            Stop signing contracts<br/>with underestimated BOMs.<br/>
+            <span style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>Start catching them first.</span>
           </h2>
-          <p style={{ fontSize:16, color:T.muted, marginBottom:36, lineHeight:1.7 }}>
-            Stop losing hours to manual calculations. Stop failing inspections. Stop leaving money on the table. Join Filipino engineers who've made compliance fast, accurate, and effortless.
+          <p style={{ fontSize:16, color:T.muted, marginBottom:40, lineHeight:1.7 }}>
+            One BOM catch pays for years of subscription. Used by Filipino engineers and developers across Metro Manila, Rizal, Laguna, and beyond.
           </p>
           <button onClick={() => setShowLogin(true)} className="land-btn" style={{
             background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000",
-            fontWeight:800, fontSize:18, padding:"18px 48px", borderRadius:16, cursor:"pointer",
+            fontWeight:800, fontSize:18, padding:"18px 52px", borderRadius:16, cursor:"pointer",
             transition:"all 0.2s", boxShadow:"0 8px 40px rgba(245,158,11,0.4)", letterSpacing:"-0.5px"
-          }}>Get Access Now — It's Free to Start →</button>
-          <div style={{ marginTop:16, fontSize:12, color:"rgba(100,116,139,0.5)" }}>No credit card required · PH codes only · Built by a Filipino engineer</div>
+          }}>Try BOM Review Free →</button>
+          <div style={{ marginTop:16, fontSize:12, color:"rgba(100,116,139,0.5)" }}>Philippine codes only · Built for Filipino engineers · Powered by Claude AI</div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
       <footer style={{ borderTop:`1px solid ${T.border}`, padding:"24px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
+          <div style={{ width:28, height:28, borderRadius:8, background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>📋</div>
           <div style={{ fontSize:13, color:T.muted }}>PH Engineering Suite · <strong style={{ color:T.text }}>Jon Ureta</strong> · Philippines</div>
         </div>
-        <div style={{ fontSize:12, color:"rgba(100,116,139,0.4)" }}>Powered by Claude AI · PEC 2017 · NSCP 2015 · NPC 2000 · PD 856</div>
+        <div style={{ fontSize:12, color:"rgba(100,116,139,0.4)" }}>Powered by Claude AI · PEC 2017 · NSCP 2015 · NPC 2000 · PD 856 · DPWH Rates</div>
       </footer>
 
-      {/* ── LOGIN MODAL ── */}
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onSuccess={onLogin} />}
     </div>
   );
