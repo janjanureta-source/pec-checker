@@ -98,7 +98,7 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
     : getKey();
 
   if (!key) throw new Error(
-    `API key required. Click the 🔑 button in the top bar, paste your Anthropic API key (starts with sk-ant-...), then click Save. [debug: localStorage="${(localStorage.getItem("phen_key")||"").slice(0,12)||"empty"}", window="${(window.__PHEN_KEY__||"").slice(0,12)||"empty"}"]`
+    "API key required. Paste your Anthropic API key (starts with sk-ant-...) into the field in the top navigation bar, then press Enter."
   );
 
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, messages };
@@ -1081,7 +1081,7 @@ function NoKeyBanner() {
       <div>
         <div style={{fontWeight:700,fontSize:13,color:"#f59e0b",marginBottom:2}}>API Key Required</div>
         <div style={{fontSize:12,color:"#a3a3a3",lineHeight:1.5}}>
-          Click the <strong style={{color:"#f59e0b"}}>🔑 button</strong> in the top-right of the navigation bar, paste your Anthropic API key (starts with <code style={{background:"rgba(255,255,255,0.08)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>), and click <strong>Save ✓</strong>.
+          Paste your Anthropic API key into the <strong style={{color:"#f59e0b"}}>🔑 field in the top navigation bar</strong> and press <strong>Enter</strong> or click <strong>Save</strong>. The key starts with <code style={{background:"rgba(255,255,255,0.08)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>.
         </div>
       </div>
     </div>
@@ -3918,7 +3918,7 @@ function Dashboard({ user, onLogout }) {
     if (saved) { window.__PHEN_KEY__ = saved; }
     return saved;
   });
-  const [showKey,setShowKey]= useState(false);
+  const [showKey,setShowKey]= useState(false); // kept for legacy, unused
 
   const ETABS = [
     {key:"checker", icon:"🔍", label:"Plan Checker"},
@@ -3963,10 +3963,30 @@ function Dashboard({ user, onLogout }) {
                 <span>{t.icon}</span><span>{t.label}</span>
               </button>
             ))}
-            <button onClick={() => setShowKey(!showKey)} title="API Key" style={{ marginLeft:4, padding:"6px 11px", borderRadius:8, border:`1px solid ${apiKey ? "#10b981" : T.border}`, background: apiKey ? "rgba(16,185,129,0.1)" : "transparent", color: apiKey ? "#10b981" : T.muted, cursor:"pointer", fontSize:13, position:"relative" }}>🔑{apiKey && <span style={{position:"absolute",top:3,right:3,width:7,height:7,borderRadius:"50%",background:"#10b981",display:"block"}}/>}</button>
           </div>
           {/* User badge + logout */}
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            {/* Compact always-visible key input */}
+            <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(0,0,0,0.3)",border:`1.5px solid ${apiKey.startsWith("sk-")?"#10b981":"rgba(245,158,11,0.5)"}`,borderRadius:9,padding:"4px 4px 4px 10px",minWidth:220}}>
+              <span style={{fontSize:11,whiteSpace:"nowrap",color:apiKey.startsWith("sk-")?"#10b981":"#f59e0b",fontWeight:700}}>🔑</span>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => {
+                  const v = e.target.value;
+                  setApiKey(v);
+                  window.__PHEN_KEY__ = v;
+                  if (v.startsWith("sk-")) localStorage.setItem("phen_key", v);
+                }}
+                onKeyDown={e => { if(e.key==="Enter" && apiKey.startsWith("sk-")){ window.__PHEN_KEY__=apiKey; localStorage.setItem("phen_key",apiKey); }}}
+                placeholder={apiKey.startsWith("sk-") ? "API key saved ✓" : "Paste sk-ant-... key here"}
+                style={{background:"transparent",border:"none",outline:"none",color:apiKey.startsWith("sk-")?"#10b981":T.text,fontSize:11,fontFamily:"monospace",width:160,padding:"2px 0"}}
+              />
+              {apiKey.startsWith("sk-")
+                ? <span style={{fontSize:10,background:"rgba(16,185,129,0.15)",color:"#10b981",padding:"3px 7px",borderRadius:6,whiteSpace:"nowrap",fontWeight:700}}>✓ Saved</span>
+                : <button onClick={()=>{if(apiKey.startsWith("sk-")){window.__PHEN_KEY__=apiKey;localStorage.setItem("phen_key",apiKey);}}} style={{background:"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",color:"#000",fontWeight:700,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontSize:11,whiteSpace:"nowrap"}}>Save</button>
+              }
+            </div>
             <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:8, padding:"5px 12px" }}>
               <div style={{ width:22, height:22, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#000" }}>
                 {user.username[0].toUpperCase()}
@@ -3980,40 +4000,11 @@ function Dashboard({ user, onLogout }) {
           </div>
         </div>
 
-        {/* API key bar */}
-        {showKey && (
-          <div style={{ borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.04)", padding:"14px 24px" }}>
-            <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
-              <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:700 }}>🔑 Anthropic API Key</span>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={e => {
-                  const v = e.target.value;
-                  setApiKey(v);
-                  window.__PHEN_KEY__ = v;
-                  if (v.startsWith("sk-")) localStorage.setItem("phen_key", v);
-                }}
-                placeholder="sk-ant-api03-..."
-                style={{ flex:1, minWidth:240, background:"#0f1117", border:`1.5px solid ${apiKey.startsWith("sk-") ? "#10b981" : T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none", fontFamily:"monospace" }}
-                onFocus={e=>e.target.style.borderColor="#f59e0b"}
-                onBlur={e=>e.target.style.borderColor=apiKey.startsWith("sk-")?"#10b981":T.border}
-                onKeyDown={e=>{ if(e.key==="Enter" && apiKey.startsWith("sk-")){ window.__PHEN_KEY__=apiKey; localStorage.setItem("phen_key",apiKey); setShowKey(false); }}}
-              />
-              <button
-                onClick={() => {
-                  if (!apiKey.startsWith("sk-")) { alert("Key must start with sk-ant-...  Please paste your full Anthropic API key."); return; }
-                  window.__PHEN_KEY__ = apiKey;
-                  localStorage.setItem("phen_key", apiKey);
-                  setShowKey(false);
-                }}
-                style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 20px", borderRadius:9, cursor:"pointer", fontSize:13 }}>
-                Save ✓
-              </button>
-              {apiKey && <button onClick={() => { setApiKey(""); window.__PHEN_KEY__ = ""; localStorage.removeItem("phen_key"); }} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#ef4444", fontWeight:600, padding:"8px 14px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Clear</button>}
-              <span style={{ fontSize:11, color:T.muted, flexBasis:"100%" }}>
-                {apiKey.startsWith("sk-") ? <span style={{color:"#10b981"}}>✅ Key looks valid — click Save to confirm.</span> : "Get your key at console.anthropic.com → API Keys. Required for AI plan checking and BOM review."}
-              </span>
+        {/* Key prompt banner — only shown when no key is set */}
+        {!apiKey.startsWith("sk-") && (
+          <div style={{ borderTop:`1px solid rgba(245,158,11,0.3)`, background:"rgba(245,158,11,0.07)", padding:"10px 24px" }}>
+            <div style={{ maxWidth:1100, margin:"0 auto", fontSize:12, color:"#f59e0b" }}>
+              ⚠️ <strong>API key required for all AI features.</strong> Paste your Anthropic key (starts with <code style={{background:"rgba(0,0,0,0.3)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>) into the field above, then press <strong>Enter</strong> or click <strong>Save</strong>. Get your key at <strong>console.anthropic.com → API Keys</strong>.
             </div>
           </div>
         )}
