@@ -2171,10 +2171,566 @@ function StructiCode({ apiKey }) {
   );
 }
 
+
+// ─── SANICODE DATA ────────────────────────────────────────────────────────────
+const SC = "#10b981";
+
+const NPC_SYSTEM_PROMPT = `You are a licensed Sanitary Engineer expert in the National Plumbing Code of the Philippines (NPC 2000), Sanitation Code of the Philippines (PD 856), and Philippine Green Building Code. You review plumbing and sanitary plans for compliance.
+
+Be CONCISE. Max 15 findings. Each description ≤60 words, recommendation ≤40 words, codeBasis ≤30 words.
+
+Check:
+1. Fixture Unit Loading (NPC Table 4-1)
+2. Pipe Sizing Supply and Drainage (NPC Sec. 4)
+3. Water Supply System (NPC Sec. 6)
+4. Drainage System (NPC Sec. 7)
+5. Venting System (NPC Sec. 9)
+6. Septic Tank Design (PD 856)
+7. Grease Trap Requirements (NPC Sec. 10)
+8. Backflow Prevention (NPC Sec. 6.9)
+9. Hot Water System (NPC Sec. 8)
+10. Storm Drainage (NPC Sec. 11)
+
+Respond ONLY as valid JSON (no markdown, no preamble):
+{"summary":{"projectName":"string","buildingType":"Residential|Commercial|Industrial|Institutional|Unknown","fileType":"string","overallStatus":"NON-COMPLIANT|COMPLIANT WITH WARNINGS|COMPLIANT","criticalCount":0,"warningCount":0,"infoCount":0,"analysisNotes":"under 60 words"},"findings":[{"id":1,"severity":"CRITICAL|WARNING|INFO","category":"Fixture Units|Pipe Sizing|Water Supply|Drainage|Venting|Septic Tank|Grease Trap|Backflow|Hot Water|Storm Drainage|Other","npcReference":"NPC 2000 Sec. X.X","title":"under 8 words","description":"under 60 words","recommendation":"under 40 words","codeBasis":"under 30 words"}],"checklist":{"fixtureUnits":true,"pipeSizing":true,"waterSupply":true,"drainageSystem":true,"ventingSystem":true,"septicTank":null,"greaseTrap":null,"backflowPrevention":true,"hotWater":null,"stormDrainage":true}}`;
+
+const FIXTURES = [
+  {name:"Water Closet (Tank)",        dfu:4, wsfu_priv:5, wsfu_pub:6},
+  {name:"Water Closet (Flush Valve)", dfu:6, wsfu_priv:7, wsfu_pub:8},
+  {name:"Lavatory / Washbasin",       dfu:1, wsfu_priv:1, wsfu_pub:2},
+  {name:"Bathtub (with shower)",      dfu:2, wsfu_priv:2, wsfu_pub:4},
+  {name:"Shower (individual)",        dfu:2, wsfu_priv:2, wsfu_pub:3},
+  {name:"Kitchen Sink",               dfu:2, wsfu_priv:2, wsfu_pub:4},
+  {name:"Laundry Sink",               dfu:2, wsfu_priv:2, wsfu_pub:4},
+  {name:"Floor Drain 2in",            dfu:1, wsfu_priv:1, wsfu_pub:1},
+  {name:"Floor Drain 3in",            dfu:3, wsfu_priv:2, wsfu_pub:3},
+  {name:"Floor Drain 4in",            dfu:6, wsfu_priv:3, wsfu_pub:4},
+  {name:"Urinal (flush valve)",       dfu:4, wsfu_priv:4, wsfu_pub:6},
+  {name:"Drinking Fountain",          dfu:1, wsfu_priv:1, wsfu_pub:1},
+  {name:"Dishwasher",                 dfu:2, wsfu_priv:1.5,wsfu_pub:2},
+  {name:"Washing Machine",            dfu:2, wsfu_priv:2, wsfu_pub:3},
+  {name:"Slop Sink",                  dfu:3, wsfu_priv:2, wsfu_pub:3},
+  {name:"Bidet",                      dfu:1, wsfu_priv:1.5,wsfu_pub:2},
+  {name:"Hose Bib",                   dfu:0, wsfu_priv:2.5,wsfu_pub:2.5},
+];
+
+const DFU_TO_PIPE = [
+  {maxDfu:1,dia:32},{maxDfu:3,dia:40},{maxDfu:6,dia:50},
+  {maxDfu:12,dia:65},{maxDfu:20,dia:75},{maxDfu:160,dia:100},
+  {maxDfu:360,dia:125},{maxDfu:620,dia:150},{maxDfu:1400,dia:200},
+];
+
+const WSFU_TO_GPM = wsfu => wsfu<=6?wsfu*1.5:wsfu<=10?wsfu*1.2:wsfu<=20?wsfu*1.0:wsfu*0.9;
+
+// ─── SANICODE: AI PLAN CHECKER ────────────────────────────────────────────────
+function PlumbingChecker({ apiKey }) {
+  const [files,setFiles]=useState([]);
+  const [result,setResult]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState(null);
+  const [drag,setDrag]=useState(false);
+  const [tab,setTab]=useState("all");
+  const [open,setOpen]=useState({});
+  const [checked,setChecked]=useState({});
+  const [corrections,setCorrections]=useState(null);
+  const [correcting,setCorrecting]=useState(false);
+  const [revNum,setRevNum]=useState(1);
+  const ref=useRef(null);
+  const addFiles=useCallback(fs=>{setFiles(p=>[...p,...Array.from(fs).map(f=>({file:f,id:Math.random().toString(36).slice(2),name:f.name,size:f.size,type:f.type||"application/octet-stream"}))]);setResult(null);setError(null);},[]);
+  const run=async()=>{
+    if(!files.length)return;setBusy(true);setError(null);setResult(null);
+    try{
+      const blocks=[];
+      for(const fo of files){const b64=await toBase64(fo.file);if(fo.type.startsWith("image/")){blocks.push({type:"image",source:{type:"base64",media_type:fo.type,data:b64}});blocks.push({type:"text",text:`[Image: ${fo.name}]`});}else if(fo.type==="application/pdf"){blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}});blocks.push({type:"text",text:`[PDF: ${fo.name}]`});}}
+      blocks.push({type:"text",text:"Analyze for NPC 2000 and PD 856 compliance. Return only JSON."});
+      const hdrs={"Content-Type":"application/json"};if(apiKey)hdrs["x-api-key"]=apiKey;
+      const res=await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:8000,system:NPC_SYSTEM_PROMPT,messages:[{role:"user",content:blocks}]})});
+      const data=await res.json();if(data.error)throw new Error(data.error.message||"API Error");
+      const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
+      let parsed;try{parsed=JSON.parse(raw);}catch{throw new Error("Could not parse AI response.");}
+      setResult(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
+    }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);}
+  };
+  const findings=result?.findings||[];
+  const filtered=tab==="all"?findings:findings.filter(f=>f.severity===tab);
+  const checkedCount=Object.values(checked).filter(Boolean).length;
+  const allChecked=findings.length>0&&findings.every(f=>checked[f.id]);
+  const toggleAll=()=>{if(allChecked)setChecked({});else{const a={};findings.forEach(f=>a[f.id]=true);setChecked(a);}};
+  const generateCorrections=async()=>{
+    const selected=findings.filter(f=>checked[f.id]);if(!selected.length)return;
+    setCorrecting(true);setCorrections(null);
+    try{
+      const hdrs={"Content-Type":"application/json"};if(apiKey)hdrs["x-api-key"]=apiKey;
+      const prompt=`You are a licensed Sanitary Engineer. For each finding, generate specific NPC 2000 correction instructions.\nFindings:\n${selected.map((f,i)=>`${i+1}. [${f.severity}] ${f.title} — ${f.description} (${f.npcReference})`).join("\n")}\nRespond ONLY as valid JSON array: [{"id":1,"title":"...","severity":"...","description":"...","npcReference":"...","recommendation":"...","correctedValues":"specific corrected value e.g. Increase drain from 50mm to 75mm","draftingInstruction":"exact drafting instruction with sheet reference"}]`;
+      const res=await fetch("/api/anthropic",{method:"POST",headers:hdrs,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:prompt}]})});
+      const data=await res.json();if(data.error)throw new Error(data.error.message);
+      const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
+      setCorrections(JSON.parse(raw));
+    }catch(e){alert("Could not generate corrections: "+e.message);}finally{setCorrecting(false);}
+  };
+  const STATUS_COL={"NON-COMPLIANT":"#dc2626","COMPLIANT WITH WARNINGS":"#d97706","COMPLIANT":"#16a34a"};
+  return (
+    <div>
+      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>ref.current?.click()} style={{border:`2px dashed ${drag?SC:T.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(16,185,129,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
+        <input ref={ref} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
+        <div style={{fontSize:40,marginBottom:12}}>🚿</div>
+        <div style={{fontWeight:700,fontSize:16,color:T.text,marginBottom:6}}>Drop plumbing/sanitary plans here</div>
+        <div style={{color:T.muted,fontSize:13,marginBottom:16}}>PDF drawings · JPG / PNG images</div>
+        <div style={{display:"inline-block",background:`linear-gradient(135deg,${SC},#059669)`,color:"#fff",fontWeight:700,padding:"9px 22px",borderRadius:10,fontSize:14}}>Choose Files</div>
+      </div>
+      {files.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=><div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:T.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>)}</div>}
+      {files.length>0&&<button onClick={run} disabled={busy} style={{width:"100%",background:busy?`rgba(16,185,129,0.2)`:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?"⚙️ Analyzing against NPC 2000 + PD 856…":`🚿 Run Plumbing Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>}
+      {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
+      {result&&(
+        <div style={{animation:"fadeIn 0.35s ease"}}>
+          <Card style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+              <div>
+                <div style={{fontSize:11,color:T.muted,marginBottom:4}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:18,color:T.text}}>{result.summary.projectName}</div>
+                <div style={{fontSize:13,color:T.muted,marginTop:2}}>{result.summary.buildingType}</div>
+                <div style={{marginTop:12,display:"flex",gap:24}}>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#dc2626"}}>{result.summary.criticalCount}</div><div style={{fontSize:11,color:T.muted}}>CRITICAL</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#d97706"}}>{result.summary.warningCount}</div><div style={{fontSize:11,color:T.muted}}>WARNINGS</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:SC}}>{result.summary.infoCount}</div><div style={{fontSize:11,color:T.muted}}>INFO</div></div>
+                </div>
+              </div>
+              <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`2px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:12,padding:"10px 18px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>OVERALL STATUS</div>
+                <div style={{fontSize:13,fontWeight:800,color:STATUS_COL[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
+              </div>
+            </div>
+            <div style={{marginTop:12,fontSize:13,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.analysisNotes}</div>
+          </Card>
+          {findings.length>0&&(
+            <div>
+              <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {["all","CRITICAL","WARNING","INFO"].map(t=>{const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;const active=tab===t;return <button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${active?SC:T.border}`,background:active?`rgba(16,185,129,0.12)`:"transparent",color:active?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="all"?"All":t} ({cnt})</button>;})}
+                </div>
+                <button onClick={toggleAll} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>{allChecked?"☑ Deselect All":"☐ Select All"}</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                {filtered.map(f=>{
+                  const col={CRITICAL:"#dc2626",WARNING:"#d97706",INFO:SC}[f.severity]||SC;
+                  const bg={CRITICAL:"rgba(220,38,38,0.06)",WARNING:"rgba(217,119,6,0.06)",INFO:"rgba(16,185,129,0.06)"}[f.severity]||"rgba(16,185,129,0.06)";
+                  const isOpen=open[f.id];const isChecked=!!checked[f.id];
+                  return (
+                    <div key={f.id} style={{background:isChecked?bg:"rgba(255,255,255,0.01)",border:`1.5px solid ${isChecked?col:T.border}`,borderRadius:12,overflow:"hidden",transition:"all 0.15s"}}>
+                      <div style={{padding:"13px 18px",display:"flex",alignItems:"flex-start",gap:12}}>
+                        <div onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))} style={{width:20,height:20,borderRadius:5,border:`2px solid ${isChecked?col:T.muted}`,background:isChecked?col:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>{isChecked&&<span style={{color:"#fff",fontSize:12,fontWeight:800,lineHeight:1}}>✓</span>}</div>
+                        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:4,alignItems:"center"}}>
+                            <span style={{background:col,color:"#fff",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{f.severity}</span>
+                            <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{f.npcReference}</span>
+                            <span style={{fontSize:11,color:T.muted,background:"rgba(255,255,255,0.04)",padding:"1px 8px",borderRadius:4}}>{f.category}</span>
+                          </div>
+                          <div style={{fontWeight:700,fontSize:14,color:T.text}}>{f.title}</div>
+                        </div>
+                        <span style={{color:T.muted,fontSize:12,marginTop:2,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
+                      </div>
+                      {isOpen&&<div style={{padding:"0 18px 16px 50px",borderTop:`1px solid ${col}33`}}><div style={{paddingTop:12,display:"flex",flexDirection:"column",gap:10}}><div><Label>Finding</Label><div style={{fontSize:13,color:T.muted,lineHeight:1.6}}>{f.description}</div></div><div><Label>Recommendation</Label><div style={{fontSize:13,color:T.success,lineHeight:1.6}}>✓ {f.recommendation}</div></div>{f.codeBasis&&<div style={{background:"rgba(0,0,0,0.2)",borderLeft:`3px solid ${col}`,padding:"10px 14px",borderRadius:"0 8px 8px 0",fontSize:12,color:T.muted,fontStyle:"italic",lineHeight:1.5}}>{f.codeBasis}</div>}</div></div>}
+                    </div>
+                  );
+                })}
+              </div>
+              {checkedCount>0&&(
+                <div style={{background:"rgba(16,185,129,0.08)",border:`1.5px solid rgba(16,185,129,0.25)`,borderRadius:12,padding:"16px 20px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                  <div><div style={{fontWeight:700,fontSize:14,color:SC}}>{checkedCount} item{checkedCount>1?"s":""} selected</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>AI generates drafting instructions per NPC 2000</div></div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><Label>Rev No.</Label><input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{width:60,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"6px 10px",color:T.text,fontSize:14,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
+                    <button onClick={generateCorrections} disabled={correcting} style={{background:correcting?`rgba(16,185,129,0.3)`:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:correcting?"#666":"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:correcting?"not-allowed":"pointer",fontSize:13}}>{correcting?"⚙️ Generating…":"🤖 Generate Corrections"}</button>
+                  </div>
+                </div>
+              )}
+              {corrections&&(
+                <div style={{background:"rgba(16,185,129,0.05)",border:`1.5px solid rgba(16,185,129,0.25)`,borderRadius:12,padding:20,marginBottom:16}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+                    <div><div style={{fontWeight:800,fontSize:15,color:T.success}}>✅ Corrections Ready — Rev {revNum}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{corrections.length} instruction{corrections.length>1?"s":""} ready</div></div>
+                    <button onClick={()=>{const w=window.open("","_blank");const date=new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});const rows=corrections.map((c,i)=>`<tr><td style="padding:8px;border:1px solid #e5e7eb;text-align:center;font-weight:700">REV-${String(i+1).padStart(2,"0")}</td><td style="padding:8px;border:1px solid #e5e7eb;color:${{CRITICAL:"#dc2626",WARNING:"#d97706",INFO:"#059669"}[c.severity]};font-weight:700">${c.severity}</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600">${c.title}</td><td style="padding:8px;border:1px solid #e5e7eb;font-size:12px">${c.description}</td><td style="padding:8px;border:1px solid #e5e7eb;background:#fefce8">${c.correctedValues||c.recommendation}</td><td style="padding:8px;border:1px solid #e5e7eb;background:#f0fdf4;color:#15803d">${c.draftingInstruction||""}</td><td style="padding:8px;border:1px solid #e5e7eb;font-size:11px">${c.npcReference}</td></tr>`).join("");w.document.write(`<!DOCTYPE html><html><head><title>Plumbing Revision Rev ${revNum}</title><style>body{font-family:Arial,sans-serif;margin:40px;color:#111;font-size:13px}table{border-collapse:collapse;width:100%}th{background:#065f46;color:#fff;padding:9px 8px;text-align:left;font-size:11px}h1{color:#065f46}@media print{button{display:none}}</style></head><body><h1>🚿 Plumbing Revision Report — Rev ${revNum}</h1><p style="color:#6b7280">NPC 2000 · PD 856 · ${date} · Jon Ureta</p><table><tr><th>Rev No.</th><th>Severity</th><th>Issue</th><th>Finding</th><th>Corrected Value</th><th>Drafting Instruction</th><th>NPC Ref.</th></tr>${rows}</table><p style="margin-top:24px;font-size:11px;color:#9ca3af">AI-generated. Verify with licensed Sanitary Engineer before implementation.</p></body></html>`);w.document.close();setTimeout(()=>w.print(),400);}} style={{background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:"pointer",fontSize:13}}>📄 Download Revision PDF</button>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {corrections.map((c,i)=>(
+                      <div key={c.id||i} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:16}}>
+                        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                          <span style={{background:"#064e3b",color:SC,fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:4}}>REV-{String(i+1).padStart(2,"0")}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:T.text}}>{c.title}</span>
+                          <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{c.npcReference}</span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                          <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📐 Corrected Value</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.correctedValues||c.recommendation}</div></div>
+                          <div style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.success,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>✏️ Drafting Instruction</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.draftingInstruction||"Apply correction as indicated"}</div></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>⚠️ AI-generated. Plans must be signed by a licensed Sanitary Engineer before LGU/DOH submission.</div>
+        </div>
+      )}
+      {!files.length&&!result&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginTop:4}}>
+          {[{i:"🏠",t:"Residential",d:"Water supply, drainage, septic"},{i:"🏢",t:"Commercial",d:"Fixture units, grease traps"},{i:"🏥",t:"Institutional",d:"Hospital, school plumbing"},{i:"🌊",t:"Storm Drainage",d:"NPC Sec. 11 compliance"}].map(x=>(
+            <Card key={x.t} style={{textAlign:"center",padding:18}}><div style={{fontSize:28,marginBottom:8}}>{x.i}</div><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{x.t}</div><div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{x.d}</div></Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: FIXTURE UNIT CALCULATOR ───────────────────────────────────────
+function FixtureUnitCalc() {
+  const [rows,setRows]=useState([{id:1,fixture:FIXTURES[0].name,qty:1}]);
+  const [bldgType,setBldgType]=useState("private");
+  const [result,setResult]=useState(null);
+  const addRow=()=>setRows(p=>[...p,{id:Date.now(),fixture:FIXTURES[0].name,qty:1}]);
+  const removeRow=id=>setRows(p=>p.filter(r=>r.id!==id));
+  const updateRow=(id,k,v)=>setRows(p=>p.map(r=>r.id===id?{...r,[k]:v}:r));
+  const calc=()=>{
+    let totalDFU=0,totalWSFU=0;
+    const detail=rows.map(r=>{const fx=FIXTURES.find(f=>f.name===r.fixture)||FIXTURES[0];const dfu=fx.dfu*r.qty;const wsfu=(bldgType==="private"?fx.wsfu_priv:fx.wsfu_pub)*r.qty;totalDFU+=dfu;totalWSFU+=wsfu;return {...r,dfu,wsfu,fx};});
+    const drainPipe=DFU_TO_PIPE.find(p=>totalDFU<=p.maxDfu)||DFU_TO_PIPE[DFU_TO_PIPE.length-1];
+    const gpm=WSFU_TO_GPM(totalWSFU);
+    const supplyDia=gpm<=4?19:gpm<=8?25:gpm<=15?32:gpm<=30?38:gpm<=50?50:75;
+    setResult({detail,totalDFU,totalWSFU,drainPipe,gpm,supplyDia});
+  };
+  return (
+    <div>
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+          <Label>Building Type</Label>
+          <div style={{display:"flex",gap:8}}>
+            {["private","public"].map(t=><button key={t} onClick={()=>setBldgType(t)} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${bldgType===t?SC:T.border}`,background:bldgType===t?`rgba(16,185,129,0.12)`:"transparent",color:bldgType===t?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="private"?"🏠 Private":"🏢 Public"}</button>)}
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8}}><div style={{fontSize:11,fontWeight:700,color:T.muted}}>FIXTURE</div><div style={{fontSize:11,fontWeight:700,color:T.muted,textAlign:"center",width:70}}>QTY</div><div style={{width:36}}/></div>
+          {rows.map(r=>(
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8,alignItems:"center"}}>
+              <Select value={r.fixture} onChange={e=>updateRow(r.id,"fixture",e.target.value)}>{FIXTURES.map(f=><option key={f.name} value={f.name}>{f.name}</option>)}</Select>
+              <input type="number" value={r.qty} min={1} onChange={e=>updateRow(r.id,"qty",+e.target.value)} style={{width:70,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 8px",color:T.text,fontSize:14,outline:"none",textAlign:"center"}}/>
+              <button onClick={()=>removeRow(r.id)} style={{width:36,height:36,borderRadius:8,background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,cursor:"pointer",fontSize:14}}>✕</button>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={addRow} style={{flex:1,background:T.dim,border:`1.5px dashed ${T.border}`,color:T.muted,fontWeight:700,padding:"10px",borderRadius:10,cursor:"pointer",fontSize:13}}>+ Add Fixture</button>
+          <button onClick={calc} style={{flex:2,background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:"pointer",fontSize:13}}>🚰 Calculate Fixture Units</button>
+        </div>
+      </Card>
+      {result&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>TOTAL DRAINAGE FIXTURE UNITS</div>
+            <div style={{fontSize:40,fontWeight:900,color:SC}}>{result.totalDFU} <span style={{fontSize:16,fontWeight:400}}>DFU</span></div>
+            <div style={{marginTop:8,fontSize:13,color:T.muted}}>Min drain pipe: <strong style={{color:T.text}}>{result.drainPipe.dia}mm</strong></div>
+          </Card>
+          <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>WATER SUPPLY FIXTURE UNITS</div>
+            <div style={{fontSize:40,fontWeight:900,color:SC}}>{result.totalWSFU.toFixed(1)} <span style={{fontSize:16,fontWeight:400}}>WSFU</span></div>
+            <div style={{marginTop:8,fontSize:13,color:T.muted}}>{result.gpm.toFixed(1)} GPM → <strong style={{color:T.text}}>{result.supplyDia}mm supply</strong></div>
+          </Card>
+          <Card style={{gridColumn:"1/-1"}}>
+            <Label>Fixture Breakdown (NPC 2000 Table 4-1)</Label>
+            <table style={{width:"100%",borderCollapse:"collapse",marginTop:8}}>
+              <thead><tr style={{background:T.dim}}>{["Fixture","Qty","DFU ea","Total DFU","WSFU ea","Total WSFU"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,color:T.muted,fontWeight:700}}>{h}</th>)}</tr></thead>
+              <tbody>{result.detail.map((r,i)=><tr key={r.id} style={{borderTop:`1px solid ${T.border}`,background:i%2===0?"transparent":T.dim}}><td style={{padding:"8px 10px",fontSize:13,color:T.text}}>{r.fixture}</td><td style={{padding:"8px 10px",fontSize:13,color:T.text,textAlign:"center"}}>{r.qty}</td><td style={{padding:"8px 10px",fontSize:13,color:T.muted,textAlign:"center"}}>{r.fx.dfu}</td><td style={{padding:"8px 10px",fontSize:13,fontWeight:700,color:SC,textAlign:"center"}}>{r.dfu}</td><td style={{padding:"8px 10px",fontSize:13,color:T.muted,textAlign:"center"}}>{bldgType==="private"?r.fx.wsfu_priv:r.fx.wsfu_pub}</td><td style={{padding:"8px 10px",fontSize:13,fontWeight:700,color:SC,textAlign:"center"}}>{r.wsfu.toFixed(1)}</td></tr>)}</tbody>
+            </table>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: PIPE SIZING ────────────────────────────────────────────────────
+function PipeSizing() {
+  const [pipeType,setPipeType]=useState("drain");
+  const [dfu,setDfu]=useState(20);
+  const [wsfu,setWsfu]=useState(15);
+  const [slope,setSlope]=useState(0.02);
+  const [result,setResult]=useState(null);
+  const calc=()=>{
+    if(pipeType==="drain"){
+      const rec=DFU_TO_PIPE.find(p=>dfu<=p.maxDfu)||DFU_TO_PIPE[DFU_TO_PIPE.length-1];
+      const d=rec.dia/1000,n=0.013,r=d/4;
+      const vel=(1/n)*Math.pow(r,2/3)*Math.pow(slope,0.5);
+      const status=vel>=0.6&&vel<=3.0?"PASS — Self-cleansing":"CHECK SLOPE";
+      setResult({type:"drain",rec,vel,status,dfu});
+    }else{
+      const gpm=WSFU_TO_GPM(wsfu);
+      const lps=gpm*0.06309;
+      const dia=gpm<=4?19:gpm<=8?25:gpm<=15?32:gpm<=30?38:gpm<=50?50:75;
+      setResult({type:"supply",gpm,lps,dia,wsfu});
+    }
+  };
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Pipe System Type</Label>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          {[{k:"drain",l:"🚽 Drainage / DWV"},{k:"supply",l:"💧 Water Supply"}].map(t=><button key={t.k} onClick={()=>setPipeType(t.k)} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${pipeType===t.k?SC:T.border}`,background:pipeType===t.k?`rgba(16,185,129,0.12)`:"transparent",color:pipeType===t.k?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t.l}</button>)}
+        </div>
+        {pipeType==="drain"?(
+          <><Label>Total DFU</Label><Input type="number" value={dfu} onChange={e=>setDfu(+e.target.value)} style={{marginBottom:16}}/><Label>Drain Slope</Label><Select value={slope} onChange={e=>setSlope(+e.target.value)} style={{marginBottom:16}}><option value={0.01}>1% (1:100)</option><option value={0.02}>2% (1:50) recommended</option><option value={0.04}>4% (1:25)</option><option value={0.0625}>6.25% (1:16)</option></Select></>
+        ):(
+          <><Label>Total WSFU</Label><Input type="number" value={wsfu} onChange={e=>setWsfu(+e.target.value)} style={{marginBottom:16}}/></>
+        )}
+        <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>📏 Size the Pipe</button>
+      </Card>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RECOMMENDED PIPE DIAMETER</div>
+            <div style={{fontSize:48,fontWeight:900,color:SC}}>{result.type==="drain"?result.rec.dia:result.dia} <span style={{fontSize:18,fontWeight:400}}>mm</span></div>
+            {result.type==="drain"&&<div style={{fontSize:13,color:T.muted,marginTop:4}}>Velocity: {result.vel.toFixed(2)} m/s — {result.status}</div>}
+            {result.type==="supply"&&<div style={{fontSize:13,color:T.muted,marginTop:4}}>{result.gpm.toFixed(1)} GPM · {result.lps.toFixed(2)} L/s</div>}
+          </Card>
+          {result.type==="drain"&&[{l:"DFU load",v:`${result.dfu}`},{l:"Min pipe dia",v:`${result.rec.dia}mm`,h:true},{l:"Flow velocity",v:`${result.vel.toFixed(2)} m/s`},{l:"Status",v:result.status,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          {result.type==="supply"&&[{l:"WSFU",v:`${result.wsfu}`},{l:"Flow",v:`${result.gpm.toFixed(1)} GPM`,h:true},{l:"Flow L/s",v:`${result.lps.toFixed(2)} L/s`},{l:"Supply pipe",v:`${result.dia}mm`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NPC 2000 Sec. 4 · Manning n=0.013 · Hunter method for supply</div>
+        </div>
+      ):(
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>📏</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter parameters and click<br/>Size the Pipe</div></Card>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: SEPTIC TANK ────────────────────────────────────────────────────
+function SepticTankSizing() {
+  const [persons,setPersons]=useState(10);
+  const [bldgUse,setBldgUse]=useState("residential");
+  const [retDays,setRetDays]=useState(1);
+  const [result,setResult]=useState(null);
+  const GPCD={residential:80,commercial:25,school:15,office:20};
+  const calc=()=>{
+    const gpcd=GPCD[bldgUse];
+    const flow_lpd=persons*gpcd*3.785;
+    const liq_vol=flow_lpd*retDays;
+    const total_vol=liq_vol*1.3;
+    const width=Math.max(1.2,Math.pow(total_vol/1000/(1.5*2),0.5));
+    const length=2*width;
+    const liquid_depth=liq_vol/1000/(width*length);
+    const total_depth=liquid_depth+0.3;
+    setResult({flow_lpd,liq_vol,total_vol,width,length,liquid_depth,total_depth,freeboard:0.3,gpcd,persons});
+  };
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Building Use</Label>
+        <Select value={bldgUse} onChange={e=>setBldgUse(e.target.value)} style={{marginBottom:16}}>
+          <option value="residential">Residential (80 GPCD)</option>
+          <option value="commercial">Commercial (25 GPCD)</option>
+          <option value="school">School (15 GPCD)</option>
+          <option value="office">Office (20 GPCD)</option>
+        </Select>
+        <Label>Number of Persons</Label>
+        <Input type="number" value={persons} onChange={e=>setPersons(+e.target.value)} style={{marginBottom:16}}/>
+        <Label>Retention Period (days)</Label>
+        <Select value={retDays} onChange={e=>setRetDays(+e.target.value)} style={{marginBottom:20}}>
+          <option value={1}>1 day — Residential</option>
+          <option value={2}>2 days — Commercial</option>
+          <option value={3}>3 days — Industrial</option>
+        </Select>
+        <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🪣 Size Septic Tank</button>
+        <div style={{marginTop:12,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>Per PD 856 Sanitation Code · NPC 2000 Sec. 13</div>
+      </Card>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>SEPTIC TANK SIZE</div>
+            <div style={{fontSize:26,fontWeight:900,color:SC}}>{result.length.toFixed(2)}m × {result.width.toFixed(2)}m × {result.total_depth.toFixed(2)}m</div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>L × W × D</div>
+          </Card>
+          {[{l:"Wastewater flow",v:`${result.flow_lpd.toFixed(0)} L/day`},{l:"Liquid capacity",v:`${result.liq_vol.toFixed(0)} L`,h:true},{l:"Total volume",v:`${result.total_vol.toFixed(0)} L`,h:true},{l:"Tank length",v:`${result.length.toFixed(2)} m`},{l:"Tank width",v:`${result.width.toFixed(2)} m`},{l:"Liquid depth",v:`${result.liquid_depth.toFixed(2)} m`},{l:"Freeboard",v:"0.30 m"},{l:"Total depth",v:`${result.total_depth.toFixed(2)} m`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+        </div>
+      ):(
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>🪣</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter parameters and click<br/>Size Septic Tank</div></Card>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: WATER DEMAND ───────────────────────────────────────────────────
+function WaterDemandCalc() {
+  const [bldgType,setBldgType]=useState("residential");
+  const [units,setUnits]=useState(10);
+  const [persons,setPersons]=useState(4);
+  const [floors,setFloors]=useState(3);
+  const [result,setResult]=useState(null);
+  const DEMANDS={residential:{label:"Residential (per person)",gpd:80,unit:"persons"},apartment:{label:"Apartment (per unit)",gpd:250,unit:"units"},office:{label:"Office (per person)",gpd:20,unit:"persons"},school:{label:"School (per student)",gpd:15,unit:"persons"},hospital:{label:"Hospital (per bed)",gpd:300,unit:"units"},hotel:{label:"Hotel (per room)",gpd:200,unit:"units"},restaurant:{label:"Restaurant (per seat)",gpd:50,unit:"units"},mall:{label:"Mall (per 100sqm)",gpd:400,unit:"units"}};
+  const calc=()=>{
+    const dem=DEMANDS[bldgType];
+    const count=dem.unit==="persons"?persons*units:units;
+    const avg_lpd=count*dem.gpd*3.785;
+    const avg_lps=avg_lpd/86400;
+    const peak_lps=avg_lps*3.5;
+    const storage_L=avg_lpd*0.5;
+    const roof_L=avg_lpd*0.25;
+    setResult({avg_lpd,avg_lps,peak_lps,storage_L,tank_m3:storage_L/1000,roof_L,count,dem});
+  };
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Building Type</Label>
+        <Select value={bldgType} onChange={e=>setBldgType(e.target.value)} style={{marginBottom:16}}>{Object.entries(DEMANDS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Select>
+        {DEMANDS[bldgType].unit==="persons"&&<><Label>Units / Floors</Label><Input type="number" value={units} onChange={e=>setUnits(+e.target.value)} style={{marginBottom:16}}/><Label>Persons per Unit</Label><Input type="number" value={persons} onChange={e=>setPersons(+e.target.value)} style={{marginBottom:16}}/></>}
+        {DEMANDS[bldgType].unit==="units"&&<><Label>Units / Beds / Seats / Rooms</Label><Input type="number" value={units} onChange={e=>setUnits(+e.target.value)} style={{marginBottom:16}}/></>}
+        <Label>Number of Floors</Label>
+        <Input type="number" value={floors} onChange={e=>setFloors(+e.target.value)} style={{marginBottom:20}}/>
+        <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>💧 Calculate Water Demand</button>
+      </Card>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>AVERAGE DAILY DEMAND</div>
+            <div style={{fontSize:36,fontWeight:900,color:SC}}>{result.avg_lpd.toFixed(0)} <span style={{fontSize:16,fontWeight:400}}>L/day</span></div>
+          </Card>
+          {[{l:"Total occupants",v:`${result.count}`},{l:"Average daily demand",v:`${result.avg_lpd.toFixed(0)} L/day`,h:true},{l:"Average flow",v:`${result.avg_lps.toFixed(3)} L/s`},{l:"Peak demand",v:`${result.peak_lps.toFixed(3)} L/s`,h:true},{l:"Ground storage (12hr)",v:`${result.storage_L.toFixed(0)} L`,h:true},{l:"Roof tank (6hr)",v:`${result.roof_L.toFixed(0)} L`},{l:"Pressure zones",v:`${Math.ceil(floors/5)}`}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NPC 2000 Sec. 6 · LWUA standards · 1 pressure zone per 5 floors</div>
+        </div>
+      ):(
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>💧</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter building data<br/>and click Calculate</div></Card>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: PRESSURE LOSS ──────────────────────────────────────────────────
+function PressureLoss() {
+  const [flow,setFlow]=useState(1.5);
+  const [dia,setDia]=useState(50);
+  const [len,setLen]=useState(20);
+  const [fitK,setFitK]=useState(5);
+  const [elev,setElev]=useState(5);
+  const [result,setResult]=useState(null);
+  const calc=()=>{
+    const d=dia/1000,A=Math.PI*d*d/4,V=flow/1000/A;
+    const Re=V*d/1e-6;
+    const f=Re<2300?64/Re:0.3164/Math.pow(Re,0.25);
+    const hf=f*(len/d)*(V*V/(2*9.81));
+    const hm=fitK*(V*V/(2*9.81));
+    const htotal=hf+hm+elev;
+    const status=V>=0.6&&V<=3.0?"GOOD VELOCITY":"CHECK VELOCITY";
+    setResult({V,Re,f,hf,hm,he:elev,htotal,status});
+  };
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Flow Rate (L/s)</Label><Input type="number" value={flow} onChange={e=>setFlow(+e.target.value)} step="0.1" style={{marginBottom:16}}/>
+        <Label>Pipe Diameter (mm)</Label>
+        <Select value={dia} onChange={e=>setDia(+e.target.value)} style={{marginBottom:16}}>{[13,19,25,32,38,50,63,75,100,150,200].map(d=><option key={d} value={d}>{d}mm</option>)}</Select>
+        <Label>Pipe Length (m)</Label><Input type="number" value={len} onChange={e=>setLen(+e.target.value)} style={{marginBottom:16}}/>
+        <Label>Sum of Minor Loss Coefficients K</Label><Input type="number" value={fitK} onChange={e=>setFitK(+e.target.value)} step="0.5" style={{marginBottom:8}}/>
+        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>Elbow=1.5 · Tee=2.0 · Gate valve=0.2 · Check valve=3.0</div>
+        <Label>Elevation Change (m, + upward)</Label><Input type="number" value={elev} onChange={e=>setElev(+e.target.value)} step="0.5" style={{marginBottom:20}}/>
+        <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>⬆️ Calculate Pressure Loss</button>
+      </Card>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:result.status==="GOOD VELOCITY"?"rgba(16,185,129,0.06)":"rgba(245,158,11,0.06)",border:`1.5px solid ${result.status==="GOOD VELOCITY"?"rgba(16,185,129,0.3)":"rgba(245,158,11,0.3)"}`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>TOTAL HEAD LOSS</div>
+            <div style={{fontSize:42,fontWeight:900,color:result.status==="GOOD VELOCITY"?SC:T.warn}}>{result.htotal.toFixed(2)} <span style={{fontSize:18,fontWeight:400}}>m</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>{result.V.toFixed(2)} m/s — {result.status}</div>
+          </Card>
+          {[{l:"Flow velocity",v:`${result.V.toFixed(3)} m/s`,h:true},{l:"Reynolds number",v:result.Re.toFixed(0)},{l:"Friction factor",v:result.f.toFixed(5)},{l:"Friction loss hf",v:`${result.hf.toFixed(3)} m`},{l:"Minor losses hm",v:`${result.hm.toFixed(3)} m`},{l:"Elevation he",v:`${result.he.toFixed(2)} m`},{l:"Total head loss",v:`${result.htotal.toFixed(3)} m`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>Darcy-Weisbach · Blasius friction factor · NPC 2000 Sec. 6</div>
+        </div>
+      ):(
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>⬆️</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter pipe parameters<br/>and click Calculate</div></Card>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: STORM DRAINAGE ─────────────────────────────────────────────────
+function StormDrainage() {
+  const [area,setArea]=useState(500);
+  const [runoff,setRunoff]=useState(0.85);
+  const [intensity,setIntensity]=useState(100);
+  const [slope,setSlope]=useState(0.005);
+  const [result,setResult]=useState(null);
+  const RUNOFF={"Roof / Concrete (0.90)":0.90,"Asphalt pavement (0.85)":0.85,"Gravel / compacted (0.60)":0.60,"Lawns / grass (0.35)":0.35,"Mixed residential (0.55)":0.55};
+  const calc=()=>{
+    const Q=runoff*intensity*area/3600000;
+    const Q_lps=Q*1000;
+    let dia_m=0.1;
+    for(let i=0;i<50;i++){const r=dia_m/4,A=Math.PI*dia_m*dia_m/4,Qfull=(1/0.013)*A*Math.pow(r,2/3)*Math.pow(slope,0.5);if(Qfull>=Q)break;dia_m+=0.025;}
+    const dia_mm=Math.ceil(dia_m*1000/25)*25;
+    const r=dia_mm/4000,A=Math.PI*(dia_mm/1000)*(dia_mm/1000)/4;
+    const V=(1/0.013)*Math.pow(r,2/3)*Math.pow(slope,0.5);
+    const Qcap=A*V*1000;
+    setResult({Q_lps,dia_mm,V,Qcap});
+  };
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <Card>
+        <Label>Drainage Area (m²)</Label><Input type="number" value={area} onChange={e=>setArea(+e.target.value)} style={{marginBottom:16}}/>
+        <Label>Surface / Runoff Coefficient C</Label>
+        <Select value={runoff} onChange={e=>setRunoff(+e.target.value)} style={{marginBottom:16}}>{Object.entries(RUNOFF).map(([k,v])=><option key={k} value={v}>{k}</option>)}</Select>
+        <Label>Rainfall Intensity (mm/hr)</Label><Input type="number" value={intensity} onChange={e=>setIntensity(+e.target.value)} style={{marginBottom:8}}/>
+        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>Metro Manila ≈ 100mm/hr · Visayas/Mindanao ≈ 80-120mm/hr</div>
+        <Label>Storm Drain Slope (m/m)</Label>
+        <Select value={slope} onChange={e=>setSlope(+e.target.value)} style={{marginBottom:20}}>
+          <option value={0.003}>0.3% minimum</option><option value={0.005}>0.5% recommended</option><option value={0.01}>1.0%</option><option value={0.02}>2.0%</option>
+        </Select>
+        <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🌊 Size Storm Drain</button>
+      </Card>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>STORM DRAIN SIZE</div>
+            <div style={{fontSize:48,fontWeight:900,color:SC}}>{result.dia_mm} <span style={{fontSize:18,fontWeight:400}}>mm dia.</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Capacity: {result.Qcap.toFixed(1)} L/s @ {result.V.toFixed(2)} m/s</div>
+          </Card>
+          {[{l:"Design flow Q",v:`${result.Q_lps.toFixed(2)} L/s`,h:true},{l:"Required pipe dia.",v:`${result.dia_mm}mm`,h:true},{l:"Pipe capacity",v:`${result.Qcap.toFixed(1)} L/s`},{l:"Flow velocity",v:`${result.V.toFixed(2)} m/s`}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>Rational Method Q=CiA · Manning n=0.013 · NPC 2000 Sec. 11</div>
+        </div>
+      ):(
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>🌊</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter catchment data<br/>and click Size Storm Drain</div></Card>
+      )}
+    </div>
+  );
+}
+
+// ─── SANICODE: MAIN WRAPPER ───────────────────────────────────────────────────
+function SaniCode({ apiKey }) {
+  const [tool,setTool]=useState("checker");
+  const TOOLS=[
+    {key:"checker",  icon:"🤖", label:"AI Plan Checker"},
+    {key:"fixture",  icon:"🚰", label:"Fixture Units"},
+    {key:"pipe",     icon:"📏", label:"Pipe Sizing"},
+    {key:"septic",   icon:"🪣", label:"Septic Tank"},
+    {key:"water",    icon:"💧", label:"Water Demand"},
+    {key:"pressure", icon:"⬆️", label:"Pressure Loss"},
+    {key:"storm",    icon:"🌊", label:"Storm Drainage"},
+  ];
+  return (
+    <div>
+      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
+        {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:T.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><span>{t.icon}</span><span>{t.label}</span></button>)}
+      </div>
+      {tool==="checker"  && <PlumbingChecker apiKey={apiKey}/>}
+      {tool==="fixture"  && <FixtureUnitCalc/>}
+      {tool==="pipe"     && <PipeSizing/>}
+      {tool==="septic"   && <SepticTankSizing/>}
+      {tool==="water"    && <WaterDemandCalc/>}
+      {tool==="pressure" && <PressureLoss/>}
+      {tool==="storm"    && <StormDrainage/>}
+    </div>
+  );
+}
+
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 const TABS = [
   { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#f59e0b" },
   { key:"structural", icon:"🏗️", label:"StructiCode", color:"#3b82f6" },
+  { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#10b981" },
 ];
 
 export default function App() {
@@ -2370,6 +2926,21 @@ export default function App() {
             </div>
             <Card>
               <StructiCode apiKey={apiKey}/>
+            </Card>
+          </>
+        )}
+
+        {module==="sanitary" && (
+          <>
+            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#10b981,#059669)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🚿</div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>SaniCode</div>
+                <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
+              </div>
+            </div>
+            <Card>
+              <SaniCode apiKey={apiKey}/>
             </Card>
           </>
         )}
