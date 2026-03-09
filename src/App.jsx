@@ -1,4 +1,223 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "
+
+// ─── SVG ICON SYSTEM ─────────────────────────────────────────────────────────
+// Professional SVG icons replacing emojis throughout the app
+const Icon = ({ name, size=16, color="currentColor", strokeWidth=1.75 }) => {
+  const s = { width:size, height:size, display:"inline-block", flexShrink:0, verticalAlign:"middle" };
+  const props = { xmlns:"http://www.w3.org/2000/svg", viewBox:"0 0 24 24", width:size, height:size, fill:"none", stroke:color, strokeWidth:strokeWidth, strokeLinecap:"round", strokeLinejoin:"round", style:s };
+  switch(name) {
+    // Navigation
+    case "home":       return <svg {...props}><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>;
+    case "structural": return <svg {...props}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg>;
+    case "electrical": return <svg {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+    case "sanitary":   return <svg {...props}><path d="M12 2C8 2 4 6 4 10c0 5 8 12 8 12s8-7 8-12c0-4-4-8-8-8z"/><circle cx="12" cy="10" r="2.5"/></svg>;
+    case "signout":    return <svg {...props}><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+    // Tools
+    case "bom":        return <svg {...props}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>;
+    case "estimate":   return <svg {...props}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>;
+    case "checker":    return <svg {...props}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>;
+    case "seismic":    return <svg {...props}><circle cx="12" cy="12" r="10"/><path d="M2 12h4l3-7 4 14 3-7h4"/></svg>;
+    case "beam":       return <svg {...props}><rect x="2" y="8" width="20" height="4" rx="1"/><line x1="6" y1="12" x2="4" y2="20"/><line x1="12" y1="12" x2="12" y2="20"/><line x1="18" y1="12" x2="20" y2="20"/></svg>;
+    case "column":     return <svg {...props}><rect x="9" y="2" width="6" height="3" rx="1"/><rect x="9" y="19" width="6" height="3" rx="1"/><rect x="10" y="5" width="4" height="14"/></svg>;
+    case "footing":    return <svg {...props}><rect x="6" y="16" width="12" height="4" rx="1"/><rect x="9" y="4" width="6" height="12"/><line x1="3" y1="20" x2="21" y2="20"/></svg>;
+    case "slab":       return <svg {...props}><rect x="2" y="10" width="20" height="4" rx="1"/><line x1="6" y1="6" x2="6" y2="10"/><line x1="12" y1="4" x2="12" y2="10"/><line x1="18" y1="6" x2="18" y2="10"/></svg>;
+    case "loads":      return <svg {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
+    case "vdrop":      return <svg {...props}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
+    case "fault":      return <svg {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+    case "load":       return <svg {...props}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>;
+    case "fixture":    return <svg {...props}><path d="M4 12h3a5 5 0 0010 0h3"/><path d="M12 7v5"/><circle cx="12" cy="5" r="2"/></svg>;
+    case "pipe":       return <svg {...props}><path d="M2 12h20"/><path d="M2 6h6a4 4 0 014 4v4a4 4 0 004 4h6"/></svg>;
+    case "septic":     return <svg {...props}><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a4 4 0 018 0v2"/><line x1="12" y1="12" x2="12" y2="16"/></svg>;
+    case "water":      return <svg {...props}><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>;
+    case "pressure":   return <svg {...props}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>;
+    case "storm":      return <svg {...props}><path d="M20 17.58A5 5 0 0018 8h-1.26A8 8 0 104 15.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="8" y1="20" x2="8.01" y2="20"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="12" y1="22" x2="12.01" y2="22"/><line x1="16" y1="16" x2="16.01" y2="16"/><line x1="16" y1="20" x2="16.01" y2="20"/></svg>;
+    // Actions
+    case "download":   return <svg {...props}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+    case "open":       return <svg {...props}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+    case "trash":      return <svg {...props}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>;
+    case "filter":     return <svg {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+    case "history":    return <svg {...props}><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><line x1="12" y1="7" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="15"/></svg>;
+    case "clear":      return <svg {...props}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>;
+    case "search":     return <svg {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+    case "key":        return <svg {...props}><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>;
+    case "check":      return <svg {...props}><polyline points="20 6 9 17 4 12"/></svg>;
+    case "x":          return <svg {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    case "chevron-left":  return <svg {...props}><polyline points="15 18 9 12 15 6"/></svg>;
+    case "chevron-right": return <svg {...props}><polyline points="9 18 15 12 9 6"/></svg>;
+    case "menu":       return <svg {...props}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+    case "upload":     return <svg {...props}><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>;
+    case "file":       return <svg {...props}><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>;
+    case "report":     return <svg {...props}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+    case "alert":      return <svg {...props}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+    case "info":       return <svg {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+    case "settings":   return <svg {...props}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
+    case "logo":       return <svg {...props} viewBox="0 0 24 24" fill={color} stroke="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>;
+    default:           return <svg {...props}><circle cx="12" cy="12" r="10"/></svg>;
+  }
+};
+
+// Icon-based logo mark for Buildify
+const BuildifyLogo = ({ size=28 }) => (
+  <svg width={size} height={size} viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="28" height="28" rx="7" fill="url(#bgrad)"/>
+    <defs><linearGradient id="bgrad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#0696d7"/><stop offset="1" stopColor="#0569a8"/>
+    </linearGradient></defs>
+    <path d="M7 20V8h4a3 3 0 010 6H7M15 8h2a4 4 0 010 8h-2V8z" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+  </svg>
+);
+
+// ─── HISTORY REPORT DOWNLOAD ──────────────────────────────────────────────────
+function downloadHistoryReport(entry, meta) {
+  const fmtR = n => (+n||0).toLocaleString("en-PH", { maximumFractionDigits:0 });
+  const fmtDate = iso => new Date(iso).toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  const MODULE_LABEL = { structural:"StructiCode", electrical:"ElectriCode", sanitary:"SaniCode" };
+  const TOOL_LABEL   = { bom:"BOM Review", estimate:"Cost Estimator", structural:"Structural Check", electrical:"Electrical Check", plumbing:"Plumbing Check", seismic:"Seismic Load", beam:"Beam Design", column:"Column Design", footing:"Footing Design", slab:"Slab Design", loads:"Load Combinations", vdrop:"Voltage Drop", fault:"Short Circuit", load:"Load Schedule", fixture:"Fixture Units", pipe:"Pipe Sizing", septic:"Septic Tank", water:"Water Demand", pressure:"Pressure Loss", storm:"Storm Drainage" };
+
+  const title     = `${TOOL_LABEL[entry.tool]||entry.tool} Report`;
+  const project   = entry.projectName || "Untitled Project";
+  const module    = MODULE_LABEL[entry.module] || entry.module;
+  const runDate   = fmtDate(entry.timestamp);
+  const hasCost   = !!entry.meta?.totalHigh;
+  const hasStatus = !!entry.meta?.status;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>${title} — ${project}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;color:#1e293b;background:#fff;padding:0}
+  .page{max-width:780px;margin:0 auto;padding:48px 56px}
+  .header{border-bottom:3px solid #0696d7;padding-bottom:24px;margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start}
+  .logo-area{display:flex;align-items:center;gap:10}
+  .logo-box{width:38px;height:38px;background:linear-gradient(135deg,#0696d7,#0569a8);border-radius:8px;display:flex;align-items:center;justify-content:center}
+  .logo-box svg{width:22px;height:22px}
+  .brand{font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.5px}
+  .brand-sub{font-size:9px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;margin-top:1px}
+  .report-meta{text-align:right}
+  .report-meta .doc-type{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+  .report-meta .doc-num{font-size:12px;color:#475569;font-family:monospace}
+  h1{font-size:22px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;margin-bottom:4px}
+  .project-name{font-size:16px;color:#0696d7;font-weight:700;margin-bottom:20px}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:28px}
+  .info-cell{padding:12px 16px;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}
+  .info-cell:nth-child(2n){border-right:none}
+  .info-cell:nth-last-child(-n+2){border-bottom:none}
+  .info-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;font-weight:600;margin-bottom:3px}
+  .info-value{font-size:13px;color:#1e293b;font-weight:600}
+  .section{margin-bottom:28px}
+  .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#0696d7;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0}
+  .summary-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:18px 20px}
+  .summary-box p{font-size:13px;color:#475569;line-height:1.7}
+  .cost-box{background:linear-gradient(135deg,rgba(6,150,215,0.06),rgba(6,150,215,0.02));border:1.5px solid rgba(6,150,215,0.25);border-radius:12px;padding:20px 24px;display:flex;align-items:center;gap:16}
+  .cost-amount{font-size:28px;font-weight:800;color:#0696d7;font-family:'Courier New',monospace;letter-spacing:-1px}
+  .cost-label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-top:3px}
+  .status-box{display:inline-flex;align-items:center;gap:8;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700}
+  .status-VALIDATED{background:#dcfce7;color:#166534;border:1px solid #86efac}
+  .status-ACCEPTABLE{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+  .status-NEEDS{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+  .findings-row{display:flex;align-items:center;gap:8;padding:10px 14px;border-radius:7px;border:1px solid #e2e8f0;margin-bottom:6px;background:#fff}
+  .findings-num{font-size:18px;font-weight:800;color:#0696d7;font-family:monospace;min-width:32px}
+  .findings-label{font-size:12px;color:#475569;font-weight:500}
+  .footer{margin-top:48px;padding-top:20px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+  .footer-left{font-size:10px;color:#94a3b8;line-height:1.5}
+  .disclaimer{margin-top:24px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;font-size:10px;color:#92400e;line-height:1.6}
+  .disclaimer strong{font-weight:700}
+  @media print{body{padding:0}.page{padding:32px 40px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 20V8h4a3 3 0 010 6H7M15 8h2a4 4 0 010 8h-2V8z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand">Buildify</div>
+        <div class="brand-sub">Engineering Suite · PH</div>
+      </div>
+    </div>
+    <div class="report-meta">
+      <div class="doc-type">Technical Report</div>
+      <div class="doc-num">REF: BLD-${Date.now().toString(36).toUpperCase()}</div>
+    </div>
+  </div>
+
+  <h1>${title}</h1>
+  <div class="project-name">${project}</div>
+
+  <div class="info-grid">
+    <div class="info-cell"><div class="info-label">Module</div><div class="info-value">${module}</div></div>
+    <div class="info-cell"><div class="info-label">Tool</div><div class="info-value">${TOOL_LABEL[entry.tool]||entry.tool}</div></div>
+    <div class="info-cell"><div class="info-label">Run Date</div><div class="info-value">${runDate}</div></div>
+    <div class="info-cell"><div class="info-label">Reference Codes</div><div class="info-value">NSCP 2015 · PEC 2017 · NPC 2000 · DPWH</div></div>
+  </div>
+
+  ${hasCost ? `
+  <div class="section">
+    <div class="section-title">Cost Summary</div>
+    <div class="cost-box">
+      <div>
+        <div class="cost-amount">₱${fmtR(entry.meta.totalHigh)}</div>
+        <div class="cost-label">Estimated High Value</div>
+      </div>
+    </div>
+  </div>` : ""}
+
+  ${hasStatus ? `
+  <div class="section">
+    <div class="section-title">Compliance Status</div>
+    <div>
+      <span class="status-box status-${(entry.meta.status||"").replace(/[^A-Z]/g,'')||'VALIDATED'}">${entry.meta.status}</span>
+    </div>
+  </div>` : ""}
+
+  ${entry.meta?.findings ? `
+  <div class="section">
+    <div class="section-title">Findings Summary</div>
+    <div class="findings-row">
+      <div class="findings-num">${entry.meta.findings}</div>
+      <div class="findings-label">Total findings reviewed</div>
+    </div>
+  </div>` : ""}
+
+  ${entry.meta?.summary ? `
+  <div class="section">
+    <div class="section-title">Analysis Notes</div>
+    <div class="summary-box"><p>${entry.meta.summary}</p></div>
+  </div>` : ""}
+
+  <div class="disclaimer">
+    <strong>Disclaimer:</strong> This report was generated by Buildify AI using publicly available Philippine engineering codes and 2025 market rate estimates. Results are intended as a reference and professional aid only. All figures must be verified by a licensed engineer or qualified estimator before use in contracts, permits, or official submissions. Buildify and its developers assume no liability for decisions made based solely on this output.
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">
+      Generated by Buildify · AI-Powered Engineering Suite · Philippines<br/>
+      Powered by Claude AI (Anthropic) · ${new Date().toLocaleDateString("en-PH", {year:"numeric",month:"long",day:"numeric"})}
+    </div>
+    <div style="font-size:10px;color:#cbd5e1;text-align:right">NSCP 2015 · PEC 2017<br/>NPC 2000 · DPWH Blue Book</div>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type:"text/html" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `Buildify_${(TOOL_LABEL[entry.tool]||entry.tool).replace(/ /g,"_")}_${(project).replace(/[^a-zA-Z0-9]/g,"_")}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+react";
 
 // ─── PEC SYSTEM PROMPT ───────────────────────────────────────────────────────
 const PEC_SYSTEM_PROMPT = `You are a licensed Professional Electrical Engineer (PEE) expert in Philippine Electrical Code (PEC) 2017, FSIC (RA 9514 Fire Code), and Philippine Green Building Code. You review electrical plans for residential and commercial projects.
@@ -3809,15 +4028,15 @@ function StructiCode({ apiKey, initialTool }) {
   const [tool,setTool] = useState(initialTool||"bom");
   useEffect(() => { if(initialTool) setTool(initialTool); }, [initialTool]);
   const TOOLS = [
-    {key:"bom",     icon:"📋", label:"BOM Review", badge:"⭐"},
-    {key:"checker", icon:"🤖", label:"AI Plan Checker"},
-    {key:"seismic", icon:"🌍", label:"Seismic Load"},
-    {key:"beam",    icon:"📐", label:"Beam Design"},
-    {key:"column",  icon:"🏛️", label:"Column Design"},
-    {key:"footing", icon:"🪨", label:"Footing Design"},
-    {key:"slab",    icon:"🔩", label:"Slab Design"},
-    {key:"loads",   icon:"📊", label:"Load Combinations"},
-    {key:"estimate", icon:"💰", label:"Cost Estimator", badge:"NEW"},
+    {key:"bom",     icon:"bom",       label:"BOM Review", badge:"⭐"},
+    {key:"checker", icon:"checker",   label:"AI Plan Checker"},
+    {key:"seismic", icon:"seismic",   label:"Seismic Load"},
+    {key:"beam",    icon:"beam",      label:"Beam Design"},
+    {key:"column",  icon:"column",    label:"Column Design"},
+    {key:"footing", icon:"footing",   label:"Footing Design"},
+    {key:"slab",    icon:"slab",      label:"Slab Design"},
+    {key:"loads",   icon:"loads",     label:"Load Combinations"},
+    {key:"estimate", icon:"estimate", label:"Cost Estimator", badge:"NEW"},
   ];
   return (
     <div>
@@ -3825,7 +4044,7 @@ function StructiCode({ apiKey, initialTool }) {
       <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
         {TOOLS.map(t=>(
           <button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?"#3b82f6":T.border}`,background:tool===t.key?"rgba(59,130,246,0.12)":"transparent",color:tool===t.key?"#3b82f6":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-            <span>{t.icon}</span><span>{t.label}</span>{t.badge&&<span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
+            <Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span>{t.badge&&<span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
           </button>
         ))}
       </div>
@@ -4386,14 +4605,14 @@ function SaniCode({ apiKey }) {
     {key:"fixture",  icon:"🚰", label:"Fixture Units"},
     {key:"pipe",     icon:"📏", label:"Pipe Sizing"},
     {key:"septic",   icon:"🪣", label:"Septic Tank"},
-    {key:"water",    icon:"💧", label:"Water Demand"},
+    {key:"water",    icon:"water", label:"Water Demand"},
     {key:"pressure", icon:"⬆️", label:"Pressure Loss"},
     {key:"storm",    icon:"🌊", label:"Storm Drainage"},
   ];
   return (
     <div>
       <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
-        {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:T.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><span>{t.icon}</span><span>{t.label}</span></button>)}
+        {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:T.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span></button>)}
       </div>
       {tool==="checker"  && <PlumbingChecker apiKey={apiKey}/>}
       {tool==="fixture"  && <FixtureUnitCalc/>}
@@ -4453,32 +4672,32 @@ function DashboardHome({ onNavigate }) {
 
   const MODULE_FILTERS = [
     { v:"all",        l:"All",        color:"#94a3b8" },
-    { v:"structural", l:"🏗️ StructiCode", color:"#0696d7" },
-    { v:"electrical", l:"⚡ ElectriCode", color:"#ff6b2b" },
-    { v:"sanitary",   l:"🚿 SaniCode",    color:"#06b6d4" },
+    { v:"structural", l:"StructiCode", color:"#0696d7" },
+    { v:"electrical", l:"ElectriCode", color:"#ff6b2b" },
+    { v:"sanitary",   l:"SaniCode",    color:"#06b6d4" },
   ];
 
   const TOOL_META = {
-    bom:        { icon:"📋", label:"BOM Review",       module:"structural", color:"#0696d7" },
-    estimate:   { icon:"💰", label:"Cost Estimator",   module:"structural", color:"#f59e0b" },
-    structural: { icon:"🤖", label:"Structural Check", module:"structural", color:"#0696d7" },
-    seismic:    { icon:"🌍", label:"Seismic Load",     module:"structural", color:"#0696d7" },
-    beam:       { icon:"📐", label:"Beam Design",      module:"structural", color:"#0696d7" },
-    column:     { icon:"🏛️", label:"Column Design",   module:"structural", color:"#0696d7" },
-    footing:    { icon:"🪨", label:"Footing Design",   module:"structural", color:"#0696d7" },
-    slab:       { icon:"🔩", label:"Slab Design",      module:"structural", color:"#0696d7" },
-    loads:      { icon:"📊", label:"Load Combos",      module:"structural", color:"#0696d7" },
-    electrical: { icon:"🔍", label:"Electrical Check", module:"electrical", color:"#ff6b2b" },
-    vdrop:      { icon:"📉", label:"Voltage Drop",     module:"electrical", color:"#ff6b2b" },
-    fault:      { icon:"⚡", label:"Short Circuit",    module:"electrical", color:"#ff6b2b" },
-    load:       { icon:"📊", label:"Load Calc",        module:"electrical", color:"#ff6b2b" },
-    plumbing:   { icon:"🔍", label:"Plumbing Check",   module:"sanitary",   color:"#06b6d4" },
-    fixture:    { icon:"🚿", label:"Fixture Units",    module:"sanitary",   color:"#06b6d4" },
-    pipe:       { icon:"📏", label:"Pipe Sizing",      module:"sanitary",   color:"#06b6d4" },
-    septic:     { icon:"🪣", label:"Septic Tank",      module:"sanitary",   color:"#06b6d4" },
-    water:      { icon:"💧", label:"Water Demand",     module:"sanitary",   color:"#06b6d4" },
-    pressure:   { icon:"🔢", label:"Pressure Loss",    module:"sanitary",   color:"#06b6d4" },
-    storm:      { icon:"🌧️", label:"Storm Drainage",  module:"sanitary",   color:"#06b6d4" },
+    bom:        { icon:"bom", label:"BOM Review",       module:"structural", color:"#0696d7" },
+    estimate:   { icon:"estimate", label:"Cost Estimator",   module:"structural", color:"#f59e0b" },
+    structural: { icon:"checker", label:"Structural Check", module:"structural", color:"#0696d7" },
+    seismic:    { icon:"seismic", label:"Seismic Load",     module:"structural", color:"#0696d7" },
+    beam:       { icon:"beam", label:"Beam Design",      module:"structural", color:"#0696d7" },
+    column:     { icon:"column", label:"Column Design",   module:"structural", color:"#0696d7" },
+    footing:    { icon:"footing", label:"Footing Design",   module:"structural", color:"#0696d7" },
+    slab:       { icon:"slab", label:"Slab Design",      module:"structural", color:"#0696d7" },
+    loads:      { icon:"loads", label:"Load Combos",      module:"structural", color:"#0696d7" },
+    electrical: { icon:"checker", label:"Electrical Check", module:"electrical", color:"#ff6b2b" },
+    vdrop:      { icon:"vdrop", label:"Voltage Drop",     module:"electrical", color:"#ff6b2b" },
+    fault:      { icon:"fault", label:"Short Circuit",    module:"electrical", color:"#ff6b2b" },
+    load:       { icon:"loads", label:"Load Calc",        module:"electrical", color:"#ff6b2b" },
+    plumbing:   { icon:"checker", label:"Plumbing Check",   module:"sanitary",   color:"#06b6d4" },
+    fixture:    { icon:"fixture", label:"Fixture Units",    module:"sanitary",   color:"#06b6d4" },
+    pipe:       { icon:"pipe", label:"Pipe Sizing",      module:"sanitary",   color:"#06b6d4" },
+    septic:     { icon:"septic", label:"Septic Tank",      module:"sanitary",   color:"#06b6d4" },
+    water:      { icon:"water", label:"Water Demand",     module:"sanitary",   color:"#06b6d4" },
+    pressure:   { icon:"pressure", label:"Pressure Loss",    module:"sanitary",   color:"#06b6d4" },
+    storm:      { icon:"storm", label:"Storm Drainage",  module:"sanitary",   color:"#06b6d4" },
   };
 
   const filtered = activeModule === "all" ? history : history.filter(e => e.module === activeModule);
@@ -4492,14 +4711,14 @@ function DashboardHome({ onNavigate }) {
   const totalEstimated = history.filter(e => e.tool === "estimate" && e.meta?.totalHigh).reduce((s,e) => s + (e.meta?.totalHigh||0), 0);
 
   const QUICK_LAUNCH = [
-    { icon:"📋", label:"BOM Review",       sub:"Upload plan + BOM",         module:"structural", tool:"bom",       color:"#0696d7", grad:"135deg,#0696d7,#0569a8", badge:"⭐ Flagship" },
-    { icon:"💰", label:"Cost Estimator",   sub:"Upload plan → estimate",    module:"structural", tool:"estimate",  color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"NEW" },
-    { icon:"🔍", label:"Electrical Check", sub:"PEC 2017 compliance",       module:"electrical", tool:"checker",   color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
-    { icon:"🤖", label:"Structural Check", sub:"NSCP 2015 compliance",      module:"structural", tool:"checker",   color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
-    { icon:"🚿", label:"Plumbing Check",   sub:"NPC 2000 compliance",       module:"sanitary",   tool:"checker",   color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
-    { icon:"📉", label:"Voltage Drop",     sub:"PEC wire sizing",           module:"electrical", tool:"vdrop",     color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
-    { icon:"🌍", label:"Seismic Load",     sub:"NSCP zone & base shear",    module:"structural", tool:"seismic",   color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
-    { icon:"💧", label:"Water Demand",     sub:"NPC fixture demand",        module:"sanitary",   tool:"water",     color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
+    { icon:"bom", label:"BOM Review",       sub:"Upload plan + BOM",         module:"structural", tool:"bom",       color:"#0696d7", grad:"135deg,#0696d7,#0569a8", badge:"⭐ Flagship" },
+    { icon:"estimate", label:"Cost Estimator",   sub:"Upload plan → estimate",    module:"structural", tool:"estimate",  color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"NEW" },
+    { icon:"checker", label:"Electrical Check", sub:"PEC 2017 compliance",       module:"electrical", tool:"checker",   color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
+    { icon:"checker", label:"Structural Check", sub:"NSCP 2015 compliance",      module:"structural", tool:"checker",   color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
+    { icon:"fixture", label:"Plumbing Check",   sub:"NPC 2000 compliance",       module:"sanitary",   tool:"checker",   color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
+    { icon:"vdrop", label:"Voltage Drop",     sub:"PEC wire sizing",           module:"electrical", tool:"vdrop",     color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
+    { icon:"seismic", label:"Seismic Load",     sub:"NSCP zone & base shear",    module:"structural", tool:"seismic",   color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
+    { icon:"water", label:"Water Demand",     sub:"NPC fixture demand",        module:"sanitary",   tool:"water",     color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
   ];
 
   const STATUS_COLOR = { "COMPLIANT":"#10b981","COMPLIANT WITH WARNINGS":"#f59e0b","NON-COMPLIANT":"#ef4444" };
@@ -4515,15 +4734,15 @@ function DashboardHome({ onNavigate }) {
       {/* Stats Row */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:24 }}>
         {[
-          { icon:"🔢", label:"Total Runs",        value:totalRuns,                        color:"#94a3b8" },
-          { icon:"📋", label:"BOM Reviews",       value:bomReviews,                       color:"#3b82f6" },
-          { icon:"💰", label:"Estimates Made",    value:estimates,                        color:"#f59e0b" },
-          { icon:"🔍", label:"Plan Checks",       value:planChecks,                       color:"#8b5cf6" },
-          { icon:"🛡️", label:"BOM Value Caught", value:`₱${fmtR(totalSavings)}`,        color:"#10b981" },
-          { icon:"📐", label:"Est. Project Value",value:`₱${fmtR(totalEstimated)}`,      color:"#f97316" },
+          { icon:"loads",    label:"Total Runs",        value:totalRuns,                        color:"#94a3b8" },
+          { icon:"bom",      label:"BOM Reviews",       value:bomReviews,                       color:"#0696d7" },
+          { icon:"estimate", label:"Estimates Made",    value:estimates,                        color:"#f59e0b" },
+          { icon:"checker",  label:"Plan Checks",       value:planChecks,                       color:"#8b5cf6" },
+          { icon:"water",    label:"BOM Value Caught",  value:`₱${fmtR(totalSavings)}`,        color:"#22c55e" },
+          { icon:"beam",     label:"Est. Project Value",value:`₱${fmtR(totalEstimated)}`,      color:"#f97316" },
         ].map(s => (
           <div key={s.label} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px" }}>
-            <div style={{ fontSize:9, color:T.muted, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6 }}>{s.icon} {s.label}</div>
+            <div style={{ fontSize:9, color:T.muted, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6, display:"flex", alignItems:"center", gap:5 }}><Icon name={s.icon} size={11} color={s.color}/> {s.label}</div>
             <div style={{ fontSize:20, fontWeight:900, color:s.color, fontFamily:"monospace", letterSpacing:"-0.5px" }}>{s.value || 0}</div>
           </div>
         ))}
@@ -4531,7 +4750,7 @@ function DashboardHome({ onNavigate }) {
 
       {/* Quick Launch */}
       <div style={{ marginBottom:24 }}>
-        <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>⚡ Quick Launch</div>
+        <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Quick Launch</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:10 }}>
           {QUICK_LAUNCH.map(q => (
             <button key={q.label} onClick={() => onNavigate(q.module, q.tool)}
@@ -4539,7 +4758,7 @@ function DashboardHome({ onNavigate }) {
               onMouseEnter={e=>{e.currentTarget.style.borderColor=q.color;e.currentTarget.style.background=`rgba(${q.color==="#3b82f6"?"59,130,246":q.color==="#f59e0b"?"245,158,11":"16,185,129"},0.08)`;}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.card;}}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:`linear-gradient(${q.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>{q.icon}</div>
+                <div style={{ width:28, height:28, borderRadius:7, background:`linear-gradient(${q.grad})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }} style={{display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name={q.icon||"report"} size={20} color="white"/></div>
                 <div style={{ fontWeight:800, fontSize:12, color:T.text }}>{q.label}</div>
                 {q.badge && <span style={{ fontSize:8, background:`rgba(245,158,11,0.15)`, color:GOLD, padding:"2px 5px", borderRadius:4, fontWeight:800 }}>{q.badge}</span>}
               </div>
@@ -4566,7 +4785,7 @@ function DashboardHome({ onNavigate }) {
                     <button onClick={() => { clearHistory(); setShowClearConfirm(false); }} style={{ padding:"4px 10px", borderRadius:7, border:"1px solid #ef4444", background:"rgba(239,68,68,0.1)", color:"#ef4444", cursor:"pointer", fontSize:10, fontWeight:700 }}>Confirm Clear</button>
                     <button onClick={() => setShowClearConfirm(false)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>Cancel</button>
                   </div>
-                : <button onClick={() => setShowClearConfirm(true)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>🗑️ Clear All</button>
+                : <button onClick={() => setShowClearConfirm(true)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>Clear All</button>
             )}
           </div>
         </div>
@@ -4601,8 +4820,18 @@ function DashboardHome({ onNavigate }) {
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                    <button onClick={() => onNavigate(entry.module, entry.tool)} style={{ padding:"5px 10px", borderRadius:7, border:`1px solid ${meta.color}40`, background:`${meta.color}10`, color:meta.color, cursor:"pointer", fontSize:10, fontWeight:700 }}>Open Tool →</button>
-                    <button onClick={() => deleteHistoryEntry(entry.id)} style={{ padding:"5px 8px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>✕</button>
+                    <button onClick={() => downloadHistoryReport(entry, meta)} title="Download Report"
+                      style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${T.border}`, background:"rgba(6,150,215,0.08)", color:"#0696d7", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", gap:4, fontWeight:700 }}>
+                      <Icon name="download" size={12} color="#0696d7"/> Report
+                    </button>
+                    <button onClick={() => onNavigate(entry.module, entry.tool)} title="Open Tool"
+                      style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${meta.color}40`, background:`${meta.color}10`, color:meta.color, cursor:"pointer", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
+                      <Icon name="open" size={12} color={meta.color}/> Open
+                    </button>
+                    <button onClick={() => deleteHistoryEntry(entry.id)} title="Delete"
+                      style={{ padding:"5px 8px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", display:"flex", alignItems:"center" }}>
+                      <Icon name="trash" size={12} color="#64748b"/>
+                    </button>
                   </div>
                 </div>
               );
@@ -4617,9 +4846,9 @@ function DashboardHome({ onNavigate }) {
 
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 const TABS = [
-  { key:"structural", icon:"🏗️", label:"StructiCode", color:"#0696d7" },
-  { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#ff6b2b" },
-  { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#06b6d4" },
+  { key:"structural", icon:"structural", label:"StructiCode", color:"#0696d7" },
+  { key:"electrical", icon:"electrical", label:"ElectriCode", color:"#ff6b2b" },
+  { key:"sanitary",   icon:"sanitary",   label:"SaniCode",    color:"#06b6d4" },
 ];
 
 // ─── AUTH CONFIG ─────────────────────────────────────────────────────────────
@@ -4679,35 +4908,35 @@ function LandingPage({ onLogin }) {
   ];
 
   const HOW_STEPS = [
-    { n:"01", icon:"📐", title:"Upload Your Plans",       desc:"Drop engineering plans in PDF, JPG, or PNG. Floor plans, elevations, site plan — any format." },
-    { n:"02", icon:"📋", title:"Add Your Draft BOM",      desc:"Upload your Bill of Materials PDF. Or run plans-only for a full scope and quantity estimate." },
-    { n:"03", icon:"🤖", title:"AI Validates Everything", desc:"Quantities vs. plan. Unit costs vs. 2025 market rates. Missing items. Markup completeness." },
-    { n:"04", icon:"📄", title:"Export Clean Report",     desc:"Download a professional estimate report. Ready to review, refine, and submit with confidence." },
+    { n:"01", icon:"upload",   title:"Upload Your Plans",       desc:"Drop engineering plans in PDF, JPG, or PNG. Floor plans, elevations, site plan — any format." },
+    { n:"02", icon:"bom",      title:"Add Your Draft BOM",      desc:"Upload your Bill of Materials PDF. Or run plans-only for a full scope and quantity estimate." },
+    { n:"03", icon:"checker",  title:"AI Validates Everything", desc:"Quantities vs. plan. Unit costs vs. 2025 market rates. Missing items. Markup completeness." },
+    { n:"04", icon:"report",   title:"Export Clean Report",     desc:"Download a professional estimate report. Ready to review, refine, and submit with confidence." },
   ];
 
   const MODULES = [
     {
-      icon:"🏗️", color:BLUE, grad:`135deg,${BLUE},#0569a8`, name:"StructiCode", code:"NSCP 2015 · DPWH Blue Book",
+      icon:"structural", color:BLUE, grad:`135deg,${BLUE},#0569a8`, name:"StructiCode", code:"NSCP 2015 · DPWH Blue Book",
       badge:"⭐ Flagship", live:true,
       tools:["📋 BOM Review — quantities, costs, missing items","💰 Cost Estimator — parametric from plan upload","🤖 AI Plan Checker (NSCP 2015)","🌍 Seismic Load · 📐 Beam · 🏛️ Column · 🪨 Footing · 🔩 Slab","📊 Load Combinations"]
     },
     {
-      icon:"⚡", color:ORANGE, grad:`135deg,${ORANGE},#e85520`, name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building",
+      icon:"electrical", color:ORANGE, grad:`135deg,${ORANGE},#e85520`, name:"ElectriCode", code:"PEC 2017 · RA 9514 · Green Building",
       live:true,
       tools:["🔍 AI Plan Checker (PEC 2017 / FSIC)","📉 Voltage Drop Calculator","⚡ Short Circuit Analysis","📊 Load Schedule Calculator"]
     },
     {
-      icon:"🚿", color:CYAN, grad:`135deg,${CYAN},#0891b2`, name:"SaniCode", code:"NPC 2000 · PD 856 Sanitation Code",
+      icon:"sanitary", color:CYAN, grad:`135deg,${CYAN},#0891b2`, name:"SaniCode", code:"NPC 2000 · PD 856 Sanitation Code",
       live:true,
       tools:["🔍 AI Plan Checker (NPC 2000)","🚿 Fixture Unit Calculator","📏 Pipe Sizing · 🪣 Septic Tank","💧 Water Demand · 🔢 Pressure Loss · 🌧️ Storm Drainage"]
     },
     {
-      icon:"🏛️", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344 · Green Building",
+      icon:"column", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344 · Green Building",
       live:false,
       tools:["AI Plan Checker (NBC Philippines)","BP 344 Accessibility Compliance","Green Building Code Checker","Fire Code (RA 9514) Review","Parking & Setback Calculator"]
     },
     {
-      icon:"⚙️", color:"#94a3b8", grad:"135deg,#94a3b8,#64748b", name:"MechaniCode", code:"PSME Code · ASHRAE · Mechanical PE",
+      icon:"settings", color:"#94a3b8", grad:"135deg,#94a3b8,#64748b", name:"MechaniCode", code:"PSME Code · ASHRAE · Mechanical PE",
       live:false,
       tools:["HVAC Load Calculator","Duct Sizing & Static Pressure","Chiller & AHU Selection","Mechanical Plan Checker","Ventilation Rate Calculator"]
     },
@@ -4715,25 +4944,25 @@ function LandingPage({ onLogin }) {
 
   const SAVINGS = [
     {
-      icon:"⏱️", color:BLUE,
+      icon:"pressure", color:BLUE,
       title:"Estimating Time Saved",
       amount:"₱36,000–₱150,000/yr",
       calc:"15 estimates/yr × 8–20 hrs × ₱300–500/hr → AI does first-pass in 5 min",
     },
     {
-      icon:"🎯", color:ORANGE,
+      icon:"checker", color:ORANGE,
       title:"Bid Accuracy Protection",
       amount:"₱250,000–₱500,000/yr",
       calc:"Catch one 5% underbid on a ₱5M project = ₱250K saved. One project/year pays the subscription 6×",
     },
     {
-      icon:"🧱", color:CYAN,
+      icon:"beam", color:CYAN,
       title:"Procurement Rework Avoided",
       amount:"₱80,000–₱200,000/yr",
       calc:"Wrong quantities caught before purchase orders = 10–15% material cost savings per project",
     },
     {
-      icon:"🏆", color:GREEN,
+      icon:"check", color:GREEN,
       title:"More Bids Won",
       amount:"₱300,000–₱1,000,000/yr",
       calc:"Faster estimates = more bids submitted. Even 1 additional project/year at 10% margin = significant upside",
@@ -4913,7 +5142,7 @@ function LandingPage({ onLogin }) {
               <div key={i} {...reveal(`how-${i}`, i*0.1)}
                 style={{ background:"#0f1624",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,padding:"28px 24px",position:"relative" }}>
                 <div style={{ position:"absolute",top:14,right:16,fontSize:28,fontWeight:900,color:"rgba(6,150,215,0.08)",fontFamily:"monospace" }}>{s.n}</div>
-                <div style={{ width:48,height:48,borderRadius:12,background:"rgba(6,150,215,0.1)",border:"1px solid rgba(6,150,215,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:16 }}>{s.icon}</div>
+                <div style={{ width:48,height:48,borderRadius:12,background:"rgba(6,150,215,0.1)",border:"1px solid rgba(6,150,215,0.2)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16 }}><Icon name={s.icon} size={22} color="#0696d7" strokeWidth={1.5}/></div>
                 <div style={{ fontWeight:800,fontSize:15,color:"#e8edf5",marginBottom:8 }}>{s.title}</div>
                 <div style={{ fontSize:12,color:"#64748b",lineHeight:1.65 }}>{s.desc}</div>
               </div>
@@ -4941,7 +5170,7 @@ function LandingPage({ onLogin }) {
                   <div style={{ position:"absolute",top:14,right:14,fontSize:9,background:"rgba(148,163,184,0.1)",color:"#94a3b8",padding:"3px 8px",borderRadius:5,fontWeight:800,letterSpacing:"0.5px",border:"1px solid rgba(148,163,184,0.15)" }}>COMING SOON</div>
                 )}
                 <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:20 }}>
-                  <div style={{ width:44,height:44,borderRadius:11,background:`linear-gradient(${m.grad})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:`0 6px 20px ${m.color}30`,flexShrink:0 }}>{m.icon}</div>
+                  <div style={{ width:44,height:44,borderRadius:11,background:`linear-gradient(${m.grad})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 6px 20px ${m.color}30`,flexShrink:0 }}><Icon name={m.icon} size={22} color="white" strokeWidth={1.5}/></div>
                   <div>
                     <div style={{ fontWeight:900,fontSize:16,color:m.live?"#e8edf5":"#64748b" }}>{m.name}</div>
                     <div style={{ fontSize:10,color:"#475569",marginTop:2 }}>{m.code}</div>
@@ -4989,7 +5218,7 @@ function LandingPage({ onLogin }) {
               <div key={i} {...reveal(`roi-${i}`, i*0.1)}
                 style={{ background:"#0f1624",border:"1px solid rgba(255,255,255,0.07)",borderRadius:16,padding:"24px",position:"relative",overflow:"hidden" }}>
                 <div style={{ position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${s.color},transparent)` }}/>
-                <div style={{ fontSize:26,marginBottom:12 }}>{s.icon}</div>
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12 }}><Icon name={s.icon} size={26} color={s.color} strokeWidth={1.5}/></div>
                 <div style={{ fontSize:10,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6 }}>{s.title}</div>
                 <div style={{ fontSize:20,fontWeight:900,color:s.color,fontFamily:"monospace",letterSpacing:"-0.5px",marginBottom:10 }}>{s.amount}</div>
                 <div style={{ fontSize:11,color:"#64748b",lineHeight:1.65,background:"rgba(255,255,255,0.02)",borderRadius:8,padding:"8px 10px",border:"1px solid rgba(255,255,255,0.04)" }}>{s.calc}</div>
@@ -5091,7 +5320,7 @@ function LandingPage({ onLogin }) {
       {/* ── FOOTER ── */}
       <footer style={{ borderTop:"1px solid rgba(255,255,255,0.05)",padding:"28px 40px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12 }}>
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-          <div style={{ width:26,height:26,borderRadius:7,background:`linear-gradient(135deg,${BLUE},#0569a8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13 }}>🏗️</div>
+          <div style={{ width:26,height:26,borderRadius:7,background:`linear-gradient(135deg,${BLUE},#0569a8)`,display:"flex",alignItems:"center",justifyContent:"center" }}><BuildifyLogo size={22}/></div>
           <span style={{ fontWeight:800,fontSize:13,color:"#e8edf5" }}>Buildify</span>
           <span style={{ color:"#1e293b",fontSize:12 }}>·</span>
           <span style={{ fontSize:11,color:"#1e293b" }}>by Jon Ureta · Philippines · Powered by Claude AI</span>
@@ -5129,7 +5358,7 @@ function LoginModal({ onClose, onSuccess }) {
       <div style={{ background:T.card, border:"1px solid rgba(245,158,11,0.25)", borderRadius:24, padding:"44px 40px", maxWidth:420, width:"100%", boxShadow:"0 32px 80px rgba(0,0,0,0.6)", animation:"fadeUp 0.3s ease" }}>
         {/* Logo */}
         <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:60, height:60, borderRadius:16, margin:"0 auto 14px", background:"linear-gradient(135deg,#0284c7,#0ea5e9)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, boxShadow:"0 8px 28px rgba(2,132,199,0.4)" }}>🏗️</div>
+          <div style={{ width:60, height:60, borderRadius:16, margin:"0 auto 14px", background:"linear-gradient(135deg,#0284c7,#0ea5e9)", display:"flex", alignItems:"center", justifyContent:"center", display:"flex",alignItems:"center",justifyContent:"center", boxShadow:"0 8px 28px rgba(6,150,215,0.4)" }}><BuildifyLogo size={28}/></div>
           <div style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-0.5px" }}>Welcome back</div>
           <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>Buildify</div>
         </div>
@@ -5201,17 +5430,17 @@ function Dashboard({ user, onLogout }) {
 
   const ETABS = [
     {key:"checker", icon:"🔍", label:"Plan Checker"},
-    {key:"vdrop",   icon:"📉", label:"Voltage Drop"},
-    {key:"fault",   icon:"⚡", label:"Short Circuit"},
+    {key:"vdrop",   icon:"vdrop", label:"Voltage Drop"},
+    {key:"fault",   icon:"fault",   label:"Short Circuit"},
     {key:"load",    icon:"📊", label:"Load Calc"},
   ];
 
   const SB = sidebarOpen ? 220 : 58;
   const NAV_ITEMS = [
-    { key:"home",       icon:"🏠", label:"Home",        color:"#0696d7" },
-    { key:"structural", icon:"🏗️", label:"StructiCode", color:"#0696d7" },
-    { key:"electrical", icon:"⚡", label:"ElectriCode", color:"#ff6b2b" },
-    { key:"sanitary",   icon:"🚿", label:"SaniCode",    color:"#06b6d4" },
+    { key:"home",       icon:"home",       label:"Home",        color:"#0696d7" },
+    { key:"structural", icon:"structural", label:"StructiCode", color:"#0696d7" },
+    { key:"electrical", icon:"electrical", label:"ElectriCode", color:"#ff6b2b" },
+    { key:"sanitary",   icon:"sanitary",   label:"SaniCode",    color:"#06b6d4" },
   ];
 
   return (
@@ -5233,7 +5462,7 @@ function Dashboard({ user, onLogout }) {
 
         {/* Logo + toggle */}
         <div style={{ padding:"14px 12px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:10, minHeight:58 }}>
-          <div style={{ width:34, height:34, borderRadius:9, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0, boxShadow:"0 4px 14px rgba(6,150,215,0.35)", cursor:"pointer" }} onClick={toggleSidebar}>🏗️</div>
+          <div style={{ width:34, height:34, borderRadius:9, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0, boxShadow:"0 4px 14px rgba(6,150,215,0.35)", cursor:"pointer" }} onClick={toggleSidebar}><BuildifyLogo size={26}/></div>
           {sidebarOpen && (
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontWeight:800, fontSize:13, color:T.text, letterSpacing:"-0.3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>Buildify</div>
@@ -5254,7 +5483,7 @@ function Dashboard({ user, onLogout }) {
                 style={{ display:"flex", alignItems:"center", gap:10, padding:sidebarOpen?"10px 12px":"10px", borderRadius:10, border:`1.5px solid ${active?item.color+"55":"transparent"}`, background:active?`${item.color}14`:"transparent", color:active?item.color:T.muted, cursor:"pointer", fontSize:13, fontWeight:active?800:600, transition:"all 0.15s", width:"100%", textAlign:"left" }}
                 onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background="rgba(255,255,255,0.04)"; e.currentTarget.style.color=T.text; }}}
                 onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=T.muted; }}}>
-                <span style={{ fontSize:18, flexShrink:0, lineHeight:1 }}>{item.icon}</span>
+                <span style={{ flexShrink:0, display:"flex", alignItems:"center" }}><Icon name={item.icon} size={18} color={activeModule===item.key ? item.color : "#64748b"}/></span>
                 {sidebarOpen && <span className="nav-item-label" style={{ fontSize:13 }}>{item.label}</span>}
               </button>
             );
@@ -5277,10 +5506,10 @@ function Dashboard({ user, onLogout }) {
                 <div style={{ fontSize:11, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.username}</div>
                 <div style={{ fontSize:9, color:T.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px" }}>{user.role}</div>
               </div>
-              <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:"none", color:T.muted, cursor:"pointer", fontSize:14, padding:2 }}>⏻</button>
+              <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:"none", color:T.muted, cursor:"pointer", fontSize:14, padding:2 }}><Icon name="signout" size={16} color="#ef4444"/></button>
             </div>
           ) : (
-            <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:8, width:"100%", height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:14 }}>⏻</button>
+            <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:8, width:"100%", height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:14 }}><Icon name="signout" size={16} color="#ef4444"/></button>
           )}
         </div>
       </div>
@@ -5293,10 +5522,10 @@ function Dashboard({ user, onLogout }) {
           <div style={{ padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
             {/* Page title */}
             <div style={{ fontWeight:800, fontSize:15, color:T.text }}>
-              {module==="home" && "🏠 Dashboard"}
-              {module==="structural" && "🏗️ StructiCode"}
-              {module==="electrical" && "⚡ ElectriCode"}
-              {module==="sanitary" && "🚿 SaniCode"}
+              {module==="home" && "Dashboard"}
+              {module==="structural" && "StructiCode"}
+              {module==="electrical" && "ElectriCode"}
+              {module==="sanitary" && "SaniCode"}
             </div>
             {/* API key + user */}
             <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -5327,7 +5556,7 @@ function Dashboard({ user, onLogout }) {
             <>
               <div style={{ marginBottom:20 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-                  <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#ff6b2b,#e85520)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>⚡</div>
+                  <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#ff6b2b,#e85520)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="electrical" size={16} color="#ff6b2b"/></div>
                   <div>
                     <div style={{ fontWeight:800, fontSize:18, color:T.text }}>ElectriCode</div>
                     <div style={{ fontSize:11, color:T.muted }}>PEC 2017 · FSIC RA 9514 · Philippine Green Building Code</div>
@@ -5336,7 +5565,7 @@ function Dashboard({ user, onLogout }) {
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                   {ETABS.map(t => (
                     <button key={t.key} onClick={() => setEtab(t.key)} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${etab===t.key?"#ff6b2b":T.border}`, background:etab===t.key?"rgba(255,107,43,0.1)":"transparent", color:etab===t.key?"#ff6b2b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>
-                      <span>{t.icon}</span><span>{t.label}</span>
+                      <Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span>
                     </button>
                   ))}
                 </div>
@@ -5352,7 +5581,7 @@ function Dashboard({ user, onLogout }) {
           {module==="structural" && (
             <>
               <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🏗️</div>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="structural" size={16} color="#0696d7"/></div>
                 <div>
                   <div style={{ fontWeight:800, fontSize:18, color:T.text }}>StructiCode</div>
                   <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
@@ -5364,7 +5593,7 @@ function Dashboard({ user, onLogout }) {
           {module==="sanitary" && (
             <>
               <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🚿</div>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="sanitary" size={16} color="#06b6d4"/></div>
                 <div>
                   <div style={{ fontWeight:800, fontSize:18, color:T.text }}>SaniCode</div>
                   <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
