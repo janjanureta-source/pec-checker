@@ -2991,6 +2991,804 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
   );
 }
 
+
+// ─── STRUCTICODE: COST ESTIMATOR ──────────────────────────────────────────────
+const COST_ESTIMATOR_PROMPT = `You are a senior Cost Estimator and Project Manager in the Philippines with deep expertise in construction cost benchmarking, parametric estimating, and NCR/regional market rates (2025). You produce pre-design project cost estimates for Filipino engineers and architects.
+
+You will be given one or more plan images or PDFs, plus project context (type, finish level, location, scope mode, any special items). Read the plans carefully to identify scope, approximate floor areas, number of floors, structural system, and visible finishes.
+
+RATE REFERENCES (2025, inclusive of labor + materials unless noted):
+- Basic residential: ₱18,000–₱22,000/sqm
+- Standard residential: ₱23,000–₱30,000/sqm  
+- High-end residential: ₱32,000–₱55,000/sqm
+- Basic commercial: ₱22,000–₱28,000/sqm
+- Standard commercial: ₱30,000–₱45,000/sqm
+- High-end commercial: ₱48,000–₱70,000/sqm
+- Warehouse/industrial: ₱14,000–₱20,000/sqm
+- School/institutional: ₱20,000–₱30,000/sqm
+- Road (concrete, 150mm): ₱2,500–₱3,500/sqm
+- Renovation (light): 20–40% of new-build rate for affected area
+- Renovation (moderate): 40–65% of new-build rate for affected area
+- Renovation (heavy/gut): 65–85% of new-build rate for affected area
+
+Always break the estimate into these trade categories where applicable:
+1. Site Development & Earthworks
+2. Concrete & Structural Works
+3. Masonry & Blockworks
+4. Roofing & Waterproofing
+5. Doors, Windows & Glazing
+6. Architectural Finishes (floors, walls, ceilings)
+7. Plumbing & Sanitary Works
+8. Electrical Works
+9. HVAC & Mechanical (if applicable)
+10. Landscaping & Outdoor Works (if applicable)
+11. Contingency & Miscellaneous
+12. Owner-Supplied Items / Allowances (if mentioned)
+
+For RENOVATION or ADHOC projects: only include trades affected. Add a "Scope of Work" field describing what was identified as included vs. excluded.
+
+For each trade item provide a low and high estimate (range) reflecting market variability.
+
+Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
+{
+  "project": {
+    "name": "string — infer from plan title block if visible",
+    "type": "New Construction|Renovation|Addition|Fit-out|Infrastructure|Ad-hoc",
+    "subtype": "Residential|Commercial|Industrial|Institutional|Mixed",
+    "location": "string",
+    "finishLevel": "Basic|Standard|High-end",
+    "estimatedGFA": 0,
+    "gfaNote": "how GFA was determined (from plan / estimated from drawings / user-provided)",
+    "floors": 1,
+    "scopeSummary": "2–3 sentence description of visible scope",
+    "scopeIncluded": ["list of what is included"],
+    "scopeExcluded": ["list of what is explicitly excluded or not visible in plan"],
+    "assumptions": ["key assumptions made"],
+    "validityNote": "Rates valid as of Q1 2025. Escalate by 5–8% per year.",
+    "accuracyNote": "Parametric estimate ±20–35%. For contract purposes, commission a full QS."
+  },
+  "trades": [
+    {
+      "id": 1,
+      "trade": "trade name",
+      "description": "brief scope description",
+      "unit": "sqm|lot|lump sum|m|set",
+      "qty": 0,
+      "rateLow": 0,
+      "rateHigh": 0,
+      "totalLow": 0,
+      "totalHigh": 0,
+      "basis": "brief note on how this was estimated",
+      "included": true
+    }
+  ],
+  "summary": {
+    "constructionCostLow": 0,
+    "constructionCostHigh": 0,
+    "contingencyPct": 10,
+    "contingencyLow": 0,
+    "contingencyHigh": 0,
+    "totalLow": 0,
+    "totalHigh": 0,
+    "costPerSqmLow": 0,
+    "costPerSqmHigh": 0,
+    "midpoint": 0,
+    "professionalFeesPct": 0,
+    "professionalFeesNote": "string — based on PRC/PICE fee schedule for project type and size",
+    "professionalFeesLow": 0,
+    "professionalFeesHigh": 0,
+    "vatNote": "VAT (12%) not yet included unless stated",
+    "grandTotalLow": 0,
+    "grandTotalHigh": 0
+  },
+  "valueEngineering": [
+    { "item": "suggestion", "potentialSaving": "estimated saving" }
+  ],
+  "marketWarnings": []
+}`;
+
+function CostEstimator({ apiKey }) {
+  const [files,       setFiles]       = useState([]);
+  const [drag,        setDrag]        = useState(false);
+  const [result,      setResult]      = useState(null);
+  const [busy,        setBusy]        = useState(false);
+  const [busyMsg,     setBusyMsg]     = useState("");
+  const [error,       setError]       = useState(null);
+  const [activeTab,   setActiveTab]   = useState("summary");
+
+  // Project context
+  const [scopeMode,     setScopeMode]     = useState("new");        // new | renovation | adhoc
+  const [projectType,   setProjectType]   = useState("residential");
+  const [finishLevel,   setFinishLevel]   = useState("standard");
+  const [location,      setLocation]      = useState("ncr");
+  const [gfaOverride,   setGfaOverride]   = useState("");
+  const [clientName,    setClientName]    = useState("");
+  const [projectName,   setProjectName]   = useState("");
+  const [engineerName,  setEngineerName]  = useState("");
+  const [specialNotes,  setSpecialNotes]  = useState("");
+  const [inclProfFees,  setInclProfFees]  = useState(true);
+
+  // Renovation / adhoc extras
+  const [renovScope,    setRenovScope]    = useState("moderate");   // light | moderate | heavy
+  const [adhocItems,    setAdhocItems]    = useState("");           // free text
+
+  const fileRef = useRef(null);
+  const STR = "#3b82f6";
+  const GOLD = "#f59e0b";
+  const tick  = () => new Promise(r => setTimeout(r, 0));
+  const fmt   = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const fmtN  = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtR  = n => (+n||0).toLocaleString("en-PH",{maximumFractionDigits:0});
+
+  const addFiles = useCallback(fs => setFiles(p => [...p, ...Array.from(fs).map(f => ({
+    file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream"
+  }))]), []);
+
+  const SCOPE_MODES = [
+    { v:"new",        l:"🏗️ New Construction" },
+    { v:"renovation", l:"🔧 Renovation / Remodel" },
+    { v:"addition",   l:"➕ Addition / Extension" },
+    { v:"fitout",     l:"🪑 Fit-out / Interior" },
+    { v:"adhoc",      l:"📝 Ad-hoc / Custom Scope" },
+  ];
+  const PROJECT_TYPES = [
+    { v:"residential",    l:"Residential" },
+    { v:"duplex",         l:"Duplex / Townhouse" },
+    { v:"condo",          l:"Condominium" },
+    { v:"commercial",     l:"Commercial" },
+    { v:"office",         l:"Office" },
+    { v:"retail",         l:"Retail / Store" },
+    { v:"school",         l:"School / Institutional" },
+    { v:"warehouse",      l:"Warehouse / Industrial" },
+    { v:"mixed_use",      l:"Mixed-Use" },
+    { v:"infrastructure", l:"Infrastructure / Civil" },
+  ];
+  const FINISH_LEVELS = [
+    { v:"basic",    l:"Basic",     desc:"Standard CHB, plain tiles, basic fixtures" },
+    { v:"standard", l:"Standard",  desc:"Good quality tiles, mid-range fixtures, painted" },
+    { v:"highend",  l:"High-end",  desc:"Imported materials, designer fixtures, custom finishes" },
+  ];
+  const LOCATIONS = [
+    { v:"ncr",      l:"Metro Manila (NCR)" },
+    { v:"luzon",    l:"Luzon (outside NCR)" },
+    { v:"visayas",  l:"Visayas" },
+    { v:"mindanao", l:"Mindanao" },
+  ];
+  const RENOV_LEVELS = [
+    { v:"light",    l:"Light",    desc:"Paint, flooring, minor fixtures — no structural" },
+    { v:"moderate", l:"Moderate", desc:"Kitchen/bath remodel, partitions, MEP updates" },
+    { v:"heavy",    l:"Heavy / Gut", desc:"Full interior strip, structural modifications" },
+  ];
+
+  const buildContext = () => {
+    const scope   = SCOPE_MODES.find(s=>s.v===scopeMode)?.l || scopeMode;
+    const type    = PROJECT_TYPES.find(t=>t.v===projectType)?.l || projectType;
+    const finish  = FINISH_LEVELS.find(f=>f.v===finishLevel)?.l || finishLevel;
+    const loc     = LOCATIONS.find(l=>l.v===location)?.l || location;
+    const renov   = RENOV_LEVELS.find(r=>r.v===renovScope)?.l || renovScope;
+    const locMod  = location==="ncr"?1.0:location==="luzon"?0.9:location==="visayas"?0.85:0.80;
+
+    return `PROJECT CONTEXT FOR COST ESTIMATION:
+- Scope Mode: ${scope}
+- Project Type: ${type}
+- Finish Level: ${finish}
+- Location: ${loc} (apply ×${locMod} cost modifier vs NCR baseline)
+${gfaOverride ? `- Gross Floor Area (user-provided): ${gfaOverride} sqm — use this GFA, do not override` : "- Gross Floor Area: Estimate from plan drawings"}
+${scopeMode==="renovation"||scopeMode==="fitout" ? `- Renovation Level: ${renov}` : ""}
+${scopeMode==="adhoc" && adhocItems ? `- Custom Scope Items:\n${adhocItems}` : ""}
+${specialNotes ? `- Special Notes / Instructions: ${specialNotes}` : ""}
+${inclProfFees ? "- Include professional fees estimate based on PRC/PICE fee schedule" : "- Exclude professional fees from estimate"}
+
+INSTRUCTIONS:
+1. Read the uploaded plans carefully. Identify all visible scope.
+2. Generate a detailed parametric estimate broken down by trade.
+3. Apply the location cost modifier to all rates.
+4. For renovation/fitout: only estimate affected areas/trades, not the entire building.
+5. For ad-hoc scope: estimate only the custom items listed above.
+6. Provide a low and high range for each trade.
+7. Include 3–5 value engineering suggestions.
+8. Return ONLY the JSON structure. No markdown, no explanation.`;
+  };
+
+  const run = async () => {
+    if (!files.length) { setError("Please upload at least one plan file."); return; }
+    const bad = files.find(f => !f.type.startsWith("image/") && f.type !== "application/pdf" && !f.name.match(/\.pdf$/i));
+    if (bad) { setError(`"${bad.name}" must be a PDF or image file.`); return; }
+
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const blocks = [];
+      for (let i = 0; i < files.length; i++) {
+        const fo = files[i];
+        setBusyMsg(`Reading file ${i+1}/${files.length}: ${fo.name}…`); await tick();
+        let b64;
+        if (fo.type.startsWith("image/")) {
+          setBusyMsg(`Compressing: ${fo.name}…`); await tick();
+          b64 = await compressImage(fo.file);
+          blocks.push({ type:"image", source:{ type:"base64", media_type:"image/jpeg", data:b64 } });
+        } else {
+          b64 = await toBase64(fo.file);
+          blocks.push({ type:"document", source:{ type:"base64", media_type:"application/pdf", data:b64 } });
+        }
+        blocks.push({ type:"text", text:`[PLAN FILE: ${fo.name}]` });
+      }
+      blocks.push({ type:"text", text: buildContext() });
+
+      setBusyMsg("AI is reading plans and generating cost estimate…"); await tick();
+      const data = await callAI({ apiKey, system:COST_ESTIMATOR_PROMPT, messages:[{ role:"user", content:blocks }], max_tokens:8000 });
+      const raw  = data.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
+      setResult(parsed);
+      setActiveTab("summary");
+    } catch(e) {
+      setError(e.message || "Estimation failed. Please try again.");
+    } finally {
+      setBusy(false); setBusyMsg("");
+    }
+  };
+
+  // ── Export client-facing document ──
+  const exportDocument = () => {
+    if (!result) return;
+    const p   = result.project;
+    const s   = result.summary;
+    const date = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
+    const tradeRows = (result.trades||[]).filter(t=>t.included!==false).map(t => `
+      <tr>
+        <td style="font-weight:600">${t.trade}</td>
+        <td style="color:#6b7280;font-size:11px">${t.description}</td>
+        <td style="text-align:right;white-space:nowrap">${fmtN(t.qty)} ${t.unit}</td>
+        <td style="text-align:right;font-family:monospace">₱${fmtR(t.rateLow)}–₱${fmtR(t.rateHigh)}</td>
+        <td style="text-align:right;font-family:monospace">₱${fmtR(t.totalLow)}</td>
+        <td style="text-align:right;font-family:monospace;font-weight:700">₱${fmtR(t.totalHigh)}</td>
+      </tr>`).join("");
+    const assumptionRows = (p.assumptions||[]).map(a => `<li style="margin-bottom:4px;color:#374151">${a}</li>`).join("");
+    const excludedRows   = (p.scopeExcluded||[]).map(e => `<li style="margin-bottom:4px;color:#374151">${e}</li>`).join("");
+    const veRows         = (result.valueEngineering||[]).map(v => `<tr><td>${v.item}</td><td style="text-align:right;color:#16a34a;font-weight:600">${v.potentialSaving}</td></tr>`).join("");
+    const warnings       = (result.marketWarnings||[]).map(w => `<li>${w}</li>`).join("");
+
+    const w = window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><title>Cost Estimate — ${p.name||projectName||"Project"}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0 }
+  body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; padding:0 }
+  .page { max-width:860px; margin:0 auto; padding:48px 48px 60px }
+  .header { border-bottom:3px solid #1e3a5f; padding-bottom:20px; margin-bottom:28px; display:flex; justify-content:space-between; align-items:flex-start }
+  .logo-block h1 { font-size:22px; color:#1e3a5f; font-weight:800; letter-spacing:-0.5px }
+  .logo-block p  { font-size:12px; color:#6b7280; margin-top:3px }
+  .doc-meta { text-align:right; font-size:12px; color:#6b7280; line-height:1.8 }
+  .doc-meta strong { color:#1e3a5f }
+  .section-title { font-size:13px; font-weight:800; color:#1e3a5f; text-transform:uppercase; letter-spacing:1px; margin:28px 0 10px; border-bottom:1.5px solid #e5e7eb; padding-bottom:5px }
+  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-bottom:20px }
+  .info-row { display:flex; gap:8px; font-size:12px }
+  .info-label { color:#6b7280; min-width:120px; flex-shrink:0 }
+  .info-value { color:#111; font-weight:600 }
+  .scope-box { background:#f0f7ff; border:1px solid #bfdbfe; border-radius:6px; padding:14px 16px; font-size:12px; color:#1e3a5f; line-height:1.7; margin-bottom:16px }
+  table { width:100%; border-collapse:collapse; margin-bottom:16px }
+  th { background:#1e3a5f; color:#fff; padding:8px 10px; text-align:left; font-size:11px; font-weight:700 }
+  td { padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; vertical-align:top }
+  tr:nth-child(even) td { background:#f9fafb }
+  .total-row td { background:#1e3a5f!important; color:#fff!important; font-weight:700; font-size:13px }
+  .subtotal-row td { background:#dbeafe!important; color:#1e3a5f!important; font-weight:700 }
+  .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px }
+  .summary-card { border:1.5px solid #e5e7eb; border-radius:8px; padding:16px; text-align:center }
+  .summary-card .num { font-size:22px; font-weight:900; color:#1e3a5f; letter-spacing:-0.5px; font-family:monospace }
+  .summary-card .lbl { font-size:11px; color:#6b7280; margin-top:4px }
+  .range-card { border:2px solid #1e3a5f; border-radius:8px; padding:18px; text-align:center; background:#f0f7ff }
+  .range-card .big { font-size:28px; font-weight:900; color:#1e3a5f; font-family:monospace }
+  .range-card .sub { font-size:12px; color:#6b7280; margin-top:6px }
+  .disclaimer { background:#fef9c3; border:1px solid #fde047; border-radius:6px; padding:14px 16px; font-size:11px; color:#713f12; line-height:1.6; margin-top:24px }
+  .disclaimer strong { color:#92400e }
+  .sig-block { margin-top:40px; display:grid; grid-template-columns:1fr 1fr; gap:40px }
+  .sig-line { border-top:1.5px solid #374151; padding-top:8px; font-size:12px; color:#374151 }
+  .ve-card { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:14px 16px; margin-bottom:16px }
+  .ve-card h4 { color:#15803d; font-size:12px; margin-bottom:8px; font-weight:800 }
+  @media print { button { display:none } .page { padding:32px } }
+</style></head><body>
+<div class="page">
+  <button onclick="window.print()" style="position:fixed;top:20px;right:20px;padding:9px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.2)">🖨️ Print / Save PDF</button>
+
+  <div class="header">
+    <div class="logo-block">
+      <h1>📋 PROJECT COST ESTIMATE</h1>
+      <p>Parametric Pre-Design Estimate · PH Engineering Suite</p>
+    </div>
+    <div class="doc-meta">
+      <div>Date: <strong>${date}</strong></div>
+      ${clientName ? `<div>Prepared for: <strong>${clientName}</strong></div>` : ""}
+      ${engineerName ? `<div>Prepared by: <strong>${engineerName}</strong></div>` : ""}
+      <div>Ref: EST-${Date.now().toString().slice(-6)}</div>
+    </div>
+  </div>
+
+  <div class="section-title">Project Information</div>
+  <div class="info-grid">
+    <div class="info-row"><span class="info-label">Project Name</span><span class="info-value">${p.name||projectName||"—"}</span></div>
+    <div class="info-row"><span class="info-label">Project Type</span><span class="info-value">${p.type} — ${p.subtype}</span></div>
+    <div class="info-row"><span class="info-label">Location</span><span class="info-value">${p.location||LOCATIONS.find(l=>l.v===location)?.l||"—"}</span></div>
+    <div class="info-row"><span class="info-label">Finish Level</span><span class="info-value">${p.finishLevel}</span></div>
+    <div class="info-row"><span class="info-label">Est. Gross Floor Area</span><span class="info-value">${fmtN(p.estimatedGFA)} sqm &nbsp;·&nbsp; <em style="color:#6b7280;font-weight:400;font-size:11px">${p.gfaNote}</em></span></div>
+    <div class="info-row"><span class="info-label">Number of Floors</span><span class="info-value">${p.floors}</span></div>
+  </div>
+
+  <div class="scope-box">
+    <strong style="display:block;margin-bottom:4px">Scope Summary</strong>
+    ${p.scopeSummary}
+  </div>
+
+  <div class="section-title">Cost Estimate by Trade</div>
+  <table>
+    <tr>
+      <th style="width:18%">Trade</th>
+      <th style="width:28%">Scope Description</th>
+      <th style="text-align:right;width:12%">Qty</th>
+      <th style="text-align:right;width:16%">Rate Range</th>
+      <th style="text-align:right;width:13%">Low Estimate</th>
+      <th style="text-align:right;width:13%">High Estimate</th>
+    </tr>
+    ${tradeRows}
+    <tr class="subtotal-row">
+      <td colspan="4">Construction Cost Subtotal</td>
+      <td style="text-align:right;font-family:monospace">₱${fmtR(s.constructionCostLow)}</td>
+      <td style="text-align:right;font-family:monospace">₱${fmtR(s.constructionCostHigh)}</td>
+    </tr>
+    <tr style="background:#fffbeb">
+      <td colspan="4" style="color:#92400e">Contingency (${s.contingencyPct}%)</td>
+      <td style="text-align:right;font-family:monospace;color:#92400e">₱${fmtR(s.contingencyLow)}</td>
+      <td style="text-align:right;font-family:monospace;color:#92400e">₱${fmtR(s.contingencyHigh)}</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="4">TOTAL CONSTRUCTION COST (excl. VAT & Pro. Fees)</td>
+      <td style="text-align:right;font-family:monospace">₱${fmtR(s.totalLow)}</td>
+      <td style="text-align:right;font-family:monospace">₱${fmtR(s.totalHigh)}</td>
+    </tr>
+    ${inclProfFees && s.professionalFeesLow ? `
+    <tr style="background:#f0fdf4">
+      <td colspan="4" style="color:#15803d">Professional Fees (${s.professionalFeesPct}% — ${s.professionalFeesNote})</td>
+      <td style="text-align:right;font-family:monospace;color:#15803d">₱${fmtR(s.professionalFeesLow)}</td>
+      <td style="text-align:right;font-family:monospace;color:#15803d">₱${fmtR(s.professionalFeesHigh)}</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="4">GRAND TOTAL (incl. Pro. Fees, excl. VAT)</td>
+      <td style="text-align:right;font-family:monospace">₱${fmtR(s.grandTotalLow)}</td>
+      <td style="text-align:right;font-family:monospace">₱${fmtR(s.grandTotalHigh)}</td>
+    </tr>` : ""}
+  </table>
+
+  <div class="summary-grid">
+    <div class="range-card">
+      <div class="big">₱${fmtR(s.totalLow)} – ₱${fmtR(s.totalHigh)}</div>
+      <div class="sub">Estimated Construction Cost Range</div>
+      <div style="font-size:13px;margin-top:8px;color:#1e3a5f;font-weight:700">Midpoint: ₱${fmtR(s.midpoint)}</div>
+    </div>
+    <div class="summary-card" style="display:flex;flex-direction:column;justify-content:center;gap:12px">
+      <div><div class="num">₱${fmtR(s.costPerSqmLow)}–₱${fmtR(s.costPerSqmHigh)}</div><div class="lbl">Per sqm range</div></div>
+      <div><div class="num">${fmtN(p.estimatedGFA)} sqm</div><div class="lbl">Estimated GFA</div></div>
+    </div>
+  </div>
+
+  ${veRows ? `
+  <div class="section-title">Value Engineering Opportunities</div>
+  <div class="ve-card">
+    <h4>💡 Potential Cost Reduction Strategies</h4>
+    <table style="margin:0"><tr><th>Suggestion</th><th style="text-align:right;width:180px">Potential Saving</th></tr>${veRows}</table>
+  </div>` : ""}
+
+  <div class="section-title">Scope Notes</div>
+  ${p.scopeIncluded?.length ? `<p style="font-size:12px;color:#374151;font-weight:700;margin-bottom:4px">Included in this estimate:</p><ul style="font-size:12px;padding-left:20px;margin-bottom:12px;line-height:1.8">${(p.scopeIncluded||[]).map(i=>`<li>${i}</li>`).join("")}</ul>` : ""}
+  ${excludedRows ? `<p style="font-size:12px;color:#374151;font-weight:700;margin-bottom:4px">Excluded / Not in scope:</p><ul style="font-size:12px;padding-left:20px;margin-bottom:12px;line-height:1.8">${excludedRows}</ul>` : ""}
+  ${assumptionRows ? `<p style="font-size:12px;color:#374151;font-weight:700;margin-bottom:4px">Key Assumptions:</p><ul style="font-size:12px;padding-left:20px;margin-bottom:12px;line-height:1.8">${assumptionRows}</ul>` : ""}
+  ${warnings ? `<p style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:4px">Market Warnings:</p><ul style="font-size:12px;padding-left:20px;color:#b45309;margin-bottom:12px;line-height:1.8">${warnings}</ul>` : ""}
+
+  <div class="disclaimer">
+    <strong>⚠️ IMPORTANT DISCLAIMER</strong><br/>
+    This is a <strong>parametric pre-design cost estimate</strong> prepared for budgeting and client guidance purposes only. Accuracy is ±20–35% of actual construction cost. This estimate is <strong>NOT a contract document, bill of quantities, or formal tender</strong> and shall not be used as the basis for contract award without a full quantity survey by a licensed Quantity Surveyor.<br/><br/>
+    ${p.validityNote} ${s.vatNote}. Professional fees are indicative based on PRC/IIEE/PICE fee schedules and subject to separate negotiation.
+  </div>
+
+  <div class="sig-block">
+    <div>
+      <div class="sig-line">${engineerName||"________________________________"}<br/><span style="color:#6b7280">Prepared by</span></div>
+    </div>
+    <div>
+      <div class="sig-line">________________________________<br/><span style="color:#6b7280">Client / Owner Acknowledged</span></div>
+    </div>
+  </div>
+
+</div></body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  };
+
+  const trades   = result?.trades?.filter(t=>t.included!==false) || [];
+  const summary  = result?.summary || {};
+  const project  = result?.project || {};
+  const veItems  = result?.valueEngineering || [];
+  const warnings = result?.marketWarnings   || [];
+
+  const TRADE_COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#84cc16","#ec4899","#6366f1","#14b8a6","#a78bfa"];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <NoKeyBanner/>
+
+      {/* ── Config Panel ── */}
+      <Card>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+          <div style={{width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${GOLD},#f97316)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💰</div>
+          <div>
+            <div style={{fontWeight:800,fontSize:16,color:T.text,letterSpacing:"-0.3px"}}>Project Cost Estimator</div>
+            <div style={{fontSize:11,color:T.muted}}>Upload plans → AI reads scope → generates client-ready estimate</div>
+          </div>
+        </div>
+
+        {/* Scope mode */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Scope Mode</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {SCOPE_MODES.map(o=>(
+              <button key={o.v} onClick={()=>setScopeMode(o.v)} style={{padding:"7px 14px",borderRadius:9,border:`1.5px solid ${scopeMode===o.v?GOLD:T.border}`,background:scopeMode===o.v?"rgba(245,158,11,0.12)":"transparent",color:scopeMode===o.v?GOLD:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Renovation level (conditional) */}
+        {(scopeMode==="renovation"||scopeMode==="fitout") && (
+          <div style={{marginBottom:14,background:"rgba(245,158,11,0.05)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10,padding:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:8,textTransform:"uppercase"}}>Renovation Extent</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {RENOV_LEVELS.map(o=>(
+                <button key={o.v} onClick={()=>setRenovScope(o.v)} style={{flex:1,minWidth:140,padding:"10px 12px",borderRadius:9,border:`1.5px solid ${renovScope===o.v?GOLD:T.border}`,background:renovScope===o.v?"rgba(245,158,11,0.12)":"transparent",color:renovScope===o.v?GOLD:T.muted,cursor:"pointer",transition:"all 0.15s",textAlign:"left"}}>
+                  <div style={{fontSize:12,fontWeight:800}}>{o.l}</div>
+                  <div style={{fontSize:10,marginTop:2,lineHeight:1.4}}>{o.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ad-hoc custom scope */}
+        {scopeMode==="adhoc" && (
+          <div style={{marginBottom:14,background:"rgba(99,102,241,0.05)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#6366f1",marginBottom:6,textTransform:"uppercase"}}>Custom Scope Description</div>
+            <textarea value={adhocItems} onChange={e=>setAdhocItems(e.target.value)}
+              placeholder={"Describe the specific works to be estimated. Examples:\n- Replace all windows (12 units, analok frame)\n- Install new 150A electrical panel + rewire 2nd floor\n- Construct perimeter fence 45 linear meters\n- Install ceramic tiles living/dining area ~80 sqm"}
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:100,lineHeight:1.6,fontFamily:"inherit"}}
+              onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor=T.border}/>
+          </div>
+        )}
+
+        {/* Project details grid */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Project Type</div>
+            <select value={projectType} onChange={e=>setProjectType(e.target.value)}
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}>
+              {PROJECT_TYPES.map(p=><option key={p.v} value={p.v}>{p.l}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Finish Level</div>
+            <select value={finishLevel} onChange={e=>setFinishLevel(e.target.value)}
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}>
+              {FINISH_LEVELS.map(f=><option key={f.v} value={f.v}>{f.l} — {f.desc}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Location</div>
+            <select value={location} onChange={e=>setLocation(e.target.value)}
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}>
+              {LOCATIONS.map(l=><option key={l.v} value={l.v}>{l.l}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Client / Engineer fields + GFA override */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:14}}>
+          {[
+            {l:"Client Name",      v:clientName,     s:setClientName,     ph:"e.g. Mr. Juan Dela Cruz"},
+            {l:"Project Name",     v:projectName,    s:setProjectName,    ph:"e.g. Dela Cruz Residence"},
+            {l:"Prepared By",      v:engineerName,   s:setEngineerName,   ph:"Engr. / Arch. name"},
+            {l:"GFA Override (sqm)",v:gfaOverride,   s:setGfaOverride,    ph:"Leave blank to auto-detect"},
+          ].map(f=>(
+            <div key={f.l}>
+              <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
+              <input value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph}
+                style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none"}}
+                onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=T.border}/>
+            </div>
+          ))}
+        </div>
+
+        {/* Special notes + pro fees toggle */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,marginBottom:14,alignItems:"start"}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Special Notes / Scope Clarifications</div>
+            <input value={specialNotes} onChange={e=>setSpecialNotes(e.target.value)} placeholder="e.g. Exclude MEP works · Ground floor only · Existing slab to remain"
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none"}}
+              onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=T.border}/>
+          </div>
+          <div style={{paddingTop:20}}>
+            <button onClick={()=>setInclProfFees(!inclProfFees)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:9,border:`1.5px solid ${inclProfFees?"#10b981":T.border}`,background:inclProfFees?"rgba(16,185,129,0.1)":"transparent",color:inclProfFees?"#10b981":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+              <span>{inclProfFees?"✓":"○"}</span> Include Prof. Fees
+            </button>
+          </div>
+        </div>
+
+        {/* File upload */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:6,textTransform:"uppercase"}}>📐 Upload Plans * <span style={{color:T.muted,fontWeight:400,textTransform:"none"}}>(PDF, JPG, PNG — floor plans, elevations, site plans)</span></div>
+          <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
+            onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>fileRef.current?.click()}
+            style={{border:`2px dashed ${drag?GOLD:T.border}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",background:drag?"rgba(245,158,11,0.06)":"rgba(255,255,255,0.01)",transition:"all 0.2s"}}>
+            <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
+            <div style={{fontSize:28,marginBottom:6}}>📐</div>
+            <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:3}}>Drag & drop plans here</div>
+            <div style={{color:T.muted,fontSize:11,marginBottom:10}}>More plans = more accurate estimate · floor plans · site plan · elevations</div>
+            <div style={{display:"inline-block",background:GOLD,color:"#000",fontWeight:700,padding:"7px 18px",borderRadius:8,fontSize:12}}>Choose Files</div>
+          </div>
+          {files.length>0 && (
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>
+              {files.map(fo=>(
+                <div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 8px",display:"flex",alignItems:"center",gap:5,maxWidth:200}}>
+                  <span style={{fontSize:10}}>{fo.type?.startsWith("image/")?"🖼️":"📄"}</span>
+                  <span style={{fontSize:10,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
+                  <button onClick={e=>{e.stopPropagation();setFiles(p=>p.filter(f=>f.id!==fo.id))}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:16,height:16,borderRadius:3,cursor:"pointer",fontSize:10,flexShrink:0}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
+
+        <button onClick={run} disabled={busy||!files.length} style={{width:"100%",background:busy||!files.length?`rgba(245,158,11,0.2)`:`linear-gradient(135deg,${GOLD},#f97316)`,border:"none",color:busy||!files.length?"#555":"#000",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!files.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
+          {busy ? (busyMsg||"⚙️ Generating estimate…") : "💰 Generate Cost Estimate"}
+        </button>
+        {busy && (
+          <div style={{marginTop:10,background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10,padding:"10px 16px",fontSize:12,color:GOLD,display:"flex",alignItems:"center",gap:10}}>
+            <span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⏳</span>
+            <span>{busyMsg||"Working…"}</span>
+          </div>
+        )}
+        {!files.length && !busy && <div style={{textAlign:"center",fontSize:11,color:T.muted,marginTop:7}}>Upload at least one plan file to begin</div>}
+      </Card>
+
+      {/* ── RESULTS ── */}
+      {result && (
+        <div style={{animation:"fadeIn 0.35s ease"}}>
+
+          {/* Summary header */}
+          <Card style={{marginBottom:14,background:"rgba(245,158,11,0.04)",border:"1.5px solid rgba(245,158,11,0.25)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:3}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:19,color:T.text,letterSpacing:"-0.5px"}}>{project.name||projectName||"Project"}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>{project.type} · {project.subtype} · {project.finishLevel} Finish</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:1}}>{project.location} · {fmtN(project.estimatedGFA)} sqm · {project.floors} floor{project.floors>1?"s":""}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:8,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"8px 12px"}}>{project.scopeSummary}</div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:240}}>
+                <div style={{background:`rgba(245,158,11,0.12)`,border:"1.5px solid rgba(245,158,11,0.35)",borderRadius:12,padding:"16px",textAlign:"center"}}>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:4}}>ESTIMATED CONSTRUCTION COST</div>
+                  <div style={{fontSize:22,fontWeight:900,color:GOLD,fontFamily:"monospace",letterSpacing:"-0.5px"}}>₱{fmtR(summary.totalLow)}</div>
+                  <div style={{fontSize:14,color:T.muted,margin:"4px 0"}}>to</div>
+                  <div style={{fontSize:22,fontWeight:900,color:GOLD,fontFamily:"monospace",letterSpacing:"-0.5px"}}>₱{fmtR(summary.totalHigh)}</div>
+                  <div style={{fontSize:11,color:T.muted,marginTop:6}}>Midpoint: <strong style={{color:T.text}}>₱{fmtR(summary.midpoint)}</strong></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>COST / SQM</div>
+                    <div style={{fontSize:12,fontWeight:800,color:T.text,fontFamily:"monospace"}}>₱{fmtR(summary.costPerSqmLow)}–₱{fmtR(summary.costPerSqmHigh)}</div>
+                  </div>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>GFA</div>
+                    <div style={{fontSize:12,fontWeight:800,color:T.text}}>{fmtN(project.estimatedGFA)} sqm</div>
+                  </div>
+                </div>
+                {inclProfFees && summary.grandTotalLow && (
+                  <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>GRAND TOTAL (incl. Prof. Fees)</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.grandTotalLow)} – ₱{fmtR(summary.grandTotalHigh)}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            {warnings.length>0 && (
+              <div style={{marginTop:12,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:8,padding:"8px 12px",fontSize:12,color:GOLD}}>
+                ⚠️ {warnings.join(" · ")}
+              </div>
+            )}
+          </Card>
+
+          {/* Tabs */}
+          <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {[
+                {k:"summary",  l:"📊 Summary"},
+                {k:"trades",   l:`🏗️ By Trade (${trades.length})`},
+                {k:"scope",    l:"📋 Scope & Assumptions"},
+                {k:"ve",       l:`💡 Value Engineering (${veItems.length})`},
+              ].map(t=>(
+                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?GOLD:T.border}`,background:activeTab===t.k?"rgba(245,158,11,0.12)":"transparent",color:activeTab===t.k?GOLD:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
+              ))}
+            </div>
+            <button onClick={exportDocument} style={{background:`linear-gradient(135deg,${GOLD},#f97316)`,border:"none",color:"#000",fontWeight:700,padding:"8px 18px",borderRadius:9,cursor:"pointer",fontSize:11,fontWeight:800}}>📄 Export Client Document</button>
+          </div>
+
+          {/* SUMMARY TAB */}
+          {activeTab==="summary" && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <Card>
+                <Label>Cost Breakdown</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>Construction Subtotal</span><span style={{fontSize:12,fontWeight:700,color:T.text,fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)} – ₱{fmtR(summary.constructionCostHigh)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(245,158,11,0.06)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>Contingency ({summary.contingencyPct}%)</span><span style={{fontSize:12,fontWeight:700,color:GOLD,fontFamily:"monospace"}}>+₱{fmtR(summary.contingencyLow)} – ₱{fmtR(summary.contingencyHigh)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:`rgba(245,158,11,0.12)`,border:`1.5px solid rgba(245,158,11,0.3)`,borderRadius:10}}><span style={{fontSize:13,fontWeight:800,color:T.text}}>Total Construction</span><span style={{fontSize:14,fontWeight:900,color:GOLD,fontFamily:"monospace"}}>₱{fmtR(summary.totalLow)} – ₱{fmtR(summary.totalHigh)}</span></div>
+                  {inclProfFees && summary.professionalFeesLow && <>
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(16,185,129,0.06)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>Professional Fees ({summary.professionalFeesPct}%)</span><span style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.professionalFeesLow)} – ₱{fmtR(summary.professionalFeesHigh)}</span></div>
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:"rgba(16,185,129,0.1)",border:"1.5px solid rgba(16,185,129,0.3)",borderRadius:10}}><span style={{fontSize:13,fontWeight:800,color:T.text}}>Grand Total</span><span style={{fontSize:14,fontWeight:900,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.grandTotalLow)} – ₱{fmtR(summary.grandTotalHigh)}</span></div>
+                  </>}
+                  <div style={{fontSize:10,color:T.muted,padding:"6px 10px",background:T.dim,borderRadius:6,lineHeight:1.5}}>{summary.vatNote}</div>
+                </div>
+              </Card>
+              <Card>
+                <Label>Trade Distribution</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:12}}>
+                  {trades.slice(0,8).map((t,i)=>{
+                    const maxTotal = Math.max(...trades.map(x=>x.totalHigh||0));
+                    const pct = maxTotal ? ((t.totalHigh||0)/maxTotal*100) : 0;
+                    return (
+                      <div key={t.id||i}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                          <span style={{fontSize:11,color:T.text,fontWeight:600}}>{t.trade}</span>
+                          <span style={{fontSize:11,color:TRADE_COLORS[i%TRADE_COLORS.length],fontFamily:"monospace",fontWeight:700}}>₱{fmtR(t.totalHigh)}</span>
+                        </div>
+                        <div style={{background:T.border,borderRadius:99,height:5,overflow:"hidden"}}>
+                          <div style={{width:`${pct}%`,height:"100%",background:TRADE_COLORS[i%TRADE_COLORS.length],borderRadius:99,transition:"width 0.5s ease"}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {trades.length>8 && <div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:4}}>+{trades.length-8} more trades</div>}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* TRADES TAB */}
+          {activeTab==="trades" && (
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
+                  <thead><tr style={{background:"rgba(245,158,11,0.1)"}}>
+                    {["Trade","Scope Description","Qty","Unit","Rate Low","Rate High","Total Low","Total High","Basis"].map(h=>(
+                      <th key={h} style={{padding:"9px 10px",textAlign:["Rate Low","Rate High","Total Low","Total High"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {trades.map((t,i)=>(
+                      <tr key={t.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                        <td style={{padding:"9px 10px",fontSize:12,fontWeight:700,color:TRADE_COLORS[i%TRADE_COLORS.length]}}>{t.trade}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted,maxWidth:200,lineHeight:1.4}}>{t.description}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(t.qty)}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted}}>{t.unit}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateLow)}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateHigh)}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.muted}}>₱{fmtR(t.totalLow)}</td>
+                        <td style={{padding:"9px 10px",fontSize:12,textAlign:"right",fontFamily:"monospace",color:GOLD,fontWeight:700}}>₱{fmtR(t.totalHigh)}</td>
+                        <td style={{padding:"9px 10px",fontSize:10,color:T.muted,maxWidth:160,lineHeight:1.4}}>{t.basis}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot><tr style={{background:"rgba(245,158,11,0.1)",borderTop:`2px solid rgba(245,158,11,0.3)`}}>
+                    <td colSpan={6} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.text}}>CONSTRUCTION COST TOTAL</td>
+                    <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.muted,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)}</td>
+                    <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:GOLD,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostHigh)}</td>
+                    <td/>
+                  </tr></tfoot>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* SCOPE & ASSUMPTIONS TAB */}
+          {activeTab==="scope" && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              <Card>
+                <Label>Scope Included</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:12}}>
+                  {(project.scopeIncluded||[]).map((s,i)=>(
+                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:T.dim,borderRadius:8}}>
+                      <span style={{color:"#10b981",fontWeight:800,flexShrink:0}}>✓</span>
+                      <span style={{fontSize:12,color:T.text}}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+                <Label style={{marginTop:16}}>Scope Excluded</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:10}}>
+                  {(project.scopeExcluded||[]).map((s,i)=>(
+                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:T.dim,borderRadius:8}}>
+                      <span style={{color:"#ef4444",fontWeight:800,flexShrink:0}}>✗</span>
+                      <span style={{fontSize:12,color:T.muted}}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+              <Card>
+                <Label>Key Assumptions</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:12}}>
+                  {(project.assumptions||[]).map((a,i)=>(
+                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:T.dim,borderRadius:8}}>
+                      <span style={{color:GOLD,fontWeight:800,flexShrink:0,fontSize:12}}>•</span>
+                      <span style={{fontSize:12,color:T.text,lineHeight:1.5}}>{a}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:14,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:9,padding:"10px 12px"}}>
+                  <div style={{fontSize:11,color:GOLD,fontWeight:700,marginBottom:4}}>⚠️ Accuracy Note</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>{project.accuracyNote}</div>
+                </div>
+                <div style={{marginTop:8,background:"rgba(100,116,139,0.08)",border:"1px solid rgba(100,116,139,0.15)",borderRadius:9,padding:"10px 12px"}}>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>{project.validityNote}</div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* VALUE ENGINEERING TAB */}
+          {activeTab==="ve" && (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {veItems.length===0
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>💡</div><div style={{color:T.muted}}>No value engineering suggestions generated</div></Card>
+                : veItems.map((v,i)=>(
+                  <div key={i} style={{background:"rgba(16,185,129,0.05)",border:"1.5px solid rgba(16,185,129,0.2)",borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16}}>
+                    <div style={{display:"flex",gap:12,alignItems:"flex-start",flex:1}}>
+                      <span style={{fontSize:20,flexShrink:0}}>💡</span>
+                      <span style={{fontSize:13,color:T.text,lineHeight:1.6}}>{v.item}</span>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontSize:9,color:T.muted,marginBottom:2}}>POTENTIAL SAVING</div>
+                      <div style={{fontSize:14,fontWeight:800,color:"#10b981"}}>{v.potentialSaving}</div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          <div style={{marginTop:12,padding:"9px 14px",background:T.dim,borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.5}}>
+            ⚠️ Parametric pre-design estimate ±20–35%. Not a contract document or bill of quantities. For contract award, commission a full QS. · PH Engineering Suite
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!result && !busy && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+          {[
+            {i:"📐",t:"Reads Your Plans",       d:"AI identifies GFA, scope, building type from drawings"},
+            {i:"🏗️",t:"New Construction",        d:"Full parametric estimate by trade, NCR to Mindanao"},
+            {i:"🔧",t:"Renovations & Fit-outs",  d:"Light, moderate, or heavy — only affected trades"},
+            {i:"📝",t:"Ad-hoc / Custom Scope",   d:"Describe specific works, AI estimates line by line"},
+            {i:"📊",t:"Detailed Breakdown",      d:"12 trade categories, low–high range per item"},
+            {i:"💡",t:"Value Engineering",        d:"AI suggests where to save without compromising quality"},
+            {i:"📄",t:"Client Document Export",   d:"Professional cost estimate letter, ready to send"},
+            {i:"🏛️",t:"Covers All Locations",    d:"NCR, Luzon, Visayas, Mindanao cost modifiers"},
+          ].map(x=>(
+            <Card key={x.t} style={{textAlign:"center",padding:18}}>
+              <div style={{fontSize:24,marginBottom:7}}>{x.i}</div>
+              <div style={{fontWeight:700,fontSize:12,color:T.text,marginBottom:3}}>{x.t}</div>
+              <div style={{fontSize:10,color:T.muted,lineHeight:1.5}}>{x.d}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
 function StructiCode({ apiKey }) {
   const [tool,setTool] = useState("bom");
@@ -3003,6 +3801,7 @@ function StructiCode({ apiKey }) {
     {key:"footing", icon:"🪨", label:"Footing Design"},
     {key:"slab",    icon:"🔩", label:"Slab Design"},
     {key:"loads",   icon:"📊", label:"Load Combinations"},
+    {key:"estimate", icon:"💰", label:"Cost Estimator", badge:"NEW"},
   ];
   return (
     <div>
@@ -3022,6 +3821,7 @@ function StructiCode({ apiKey }) {
       {tool==="slab"    && <SlabDesign/>}
       {tool==="loads"   && <LoadCombinations/>}
       {tool==="bom"     && <BOMReview apiKey={apiKey}/>}
+      {tool==="estimate" && <CostEstimator apiKey={apiKey}/>}
     </div>
   );
 }
