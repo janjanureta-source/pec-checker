@@ -2138,6 +2138,610 @@ function LoadCombinations() {
   );
 }
 
+// ─── STRUCTICODE: BOM REVIEW ──────────────────────────────────────────────────
+const BOM_SYSTEM_PROMPT = `You are a senior Quantity Surveyor and Cost Estimator licensed in the Philippines with deep expertise in DPWH unit costs, Philippine construction materials pricing, and NSCP structural requirements. You validate Bills of Materials against engineering plans.
+
+Analyze the uploaded plan and draft BOM (if provided). Perform ALL of the following checks:
+
+1. QUANTITY VALIDATION — Are item quantities consistent with what is shown in the plan? Flag over/under estimates.
+2. UNIT COST VALIDATION — Are unit costs realistic for current Philippine market rates (NCR/regional)? Flag items priced too high or suspiciously low.
+3. MISSING ITEMS — What materials visible in the plan are absent from the BOM?
+4. EXCESS ITEMS — What BOM line items appear to have no basis in the plan?
+5. MARKUP/CONTINGENCY — Flag if standard contingency (5–10%) and overhead are absent or unreasonable.
+
+Respond ONLY as valid JSON (no markdown, no preamble):
+{
+  "summary": {
+    "projectName": "string",
+    "projectType": "Residential|Commercial|Industrial|Infrastructure|Unknown",
+    "discipline": "Structural|Architectural|MEP|Civil|Mixed",
+    "overallStatus": "NEEDS REVISION|ACCEPTABLE WITH NOTES|VALIDATED",
+    "bomTotalEstimate": 0,
+    "aiAdjustedEstimate": 0,
+    "variancePercent": 0,
+    "criticalCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "notes": "brief overall assessment under 80 words"
+  },
+  "lineItems": [
+    {
+      "id": 1,
+      "category": "Concrete Works|Steel Works|Masonry|Formwork|Excavation|Waterproofing|Finishing|Electrical|Plumbing|Other",
+      "description": "item name",
+      "unit": "bag|kg|m²|m³|m|pc|lot|set",
+      "qtyBOM": 0,
+      "qtyAI": 0,
+      "qtyStatus": "OK|OVER|UNDER|MISSING|EXCESS",
+      "unitCostBOM": 0,
+      "unitCostAI": 0,
+      "costStatus": "OK|HIGH|LOW|UNKNOWN",
+      "totalBOM": 0,
+      "totalAI": 0,
+      "remarks": "specific finding in under 40 words"
+    }
+  ],
+  "missingItems": [
+    { "description": "item name", "category": "string", "estimatedQty": "approx qty + unit", "estimatedCost": 0, "basis": "where in plan" }
+  ],
+  "excessItems": [
+    { "description": "item name", "category": "string", "qtyBOM": 0, "unit": "string", "remarks": "why it appears excess" }
+  ],
+  "markupAssessment": {
+    "contingencyFound": false,
+    "contingencyPercent": 0,
+    "overheadFound": false,
+    "overheadPercent": 0,
+    "profitFound": false,
+    "profitPercent": 0,
+    "recommendation": "under 60 words"
+  }
+}`;
+
+function BOMReview({ apiKey }) {
+  const [planFiles, setPlanFiles]   = useState([]);
+  const [bomFiles,  setBomFiles]    = useState([]);
+  const [result,    setResult]      = useState(null);
+  const [busy,      setBusy]        = useState(false);
+  const [error,     setError]       = useState(null);
+  const [dragPlan,  setDragPlan]    = useState(false);
+  const [dragBom,   setDragBom]     = useState(false);
+  const [activeTab, setActiveTab]   = useState("summary");
+
+  // Margin controls — per category
+  const [margins, setMargins] = useState({
+    materials:   { label:"Materials",   pct:0  },
+    labor:       { label:"Labor",       pct:0  },
+    overhead:    { label:"Overhead",    pct:10 },
+    contingency: { label:"Contingency", pct:5  },
+    profit:      { label:"Profit",      pct:10 },
+  });
+  const [showMargins, setShowMargins] = useState(false);
+
+  const planRef = useRef(null);
+  const bomRef  = useRef(null);
+
+  const addPlanFiles = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, type:f.type||"application/octet-stream" }))]), []);
+  const addBomFiles  = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, type:f.type||"application/octet-stream" }))]), []);
+
+  const STR = "#3b82f6";
+
+  // Compute margin-adjusted total
+  const computeAdjusted = (base) => {
+    let v = base;
+    v *= (1 + margins.materials.pct   / 100);
+    v *= (1 + margins.labor.pct       / 100);
+    v *= (1 + margins.overhead.pct    / 100);
+    v *= (1 + margins.contingency.pct / 100);
+    v *= (1 + margins.profit.pct      / 100);
+    return v;
+  };
+
+  const run = async () => {
+    if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const blocks = [];
+      const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
+      for (const fo of allFiles) {
+        const b64 = await toBase64(fo.file);
+        const label = `[${fo.role}: ${fo.name}]`;
+        if (fo.type.startsWith("image/"))          { blocks.push({type:"image",    source:{type:"base64",media_type:fo.type,data:b64}}); blocks.push({type:"text",text:label}); }
+        else if (fo.type==="application/pdf")       { blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:label}); }
+        else if (fo.type.includes("sheet") || fo.name.match(/\.(xlsx?|csv)$/i)) { blocks.push({type:"text",text:`${label} — NOTE: spreadsheet uploaded, extract all BOM rows you can read from filename context and user message.`}); }
+        else                                         { blocks.push({type:"text",text:label}); }
+      }
+      blocks.push({ type:"text", text:`Validate this BOM against the plan. Apply Philippine market unit costs (current NCR rates as baseline). Return ONLY the JSON specified in your instructions.` });
+
+      const hdrs = { "Content-Type":"application/json" };
+      if (apiKey) hdrs["x-api-key"] = apiKey;
+      const res  = await fetch("/api/anthropic", { method:"POST", headers:hdrs, body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:8000, system:BOM_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] }) });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || "API Error");
+      const raw  = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
+      let parsed; try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Try again."); }
+      setResult(parsed);
+      setActiveTab("summary");
+    } catch(e) { setError(e.message || "Analysis failed."); }
+    finally { setBusy(false); }
+  };
+
+  const fmt  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const fmtN = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  const STATUS_COL = { "NEEDS REVISION":"#ef4444", "ACCEPTABLE WITH NOTES":"#f59e0b", "VALIDATED":"#10b981" };
+  const QTY_COL   = { OK:"#10b981", OVER:"#f59e0b", UNDER:"#ef4444", MISSING:"#8b5cf6", EXCESS:"#64748b" };
+  const COST_COL  = { OK:"#10b981", HIGH:"#f59e0b", LOW:"#ef4444", UNKNOWN:"#64748b" };
+
+  const lineItems     = result?.lineItems     || [];
+  const missingItems  = result?.missingItems  || [];
+  const excessItems   = result?.excessItems   || [];
+  const markup        = result?.markupAssessment;
+
+  const aiBase        = result?.summary?.aiAdjustedEstimate || 0;
+  const adjustedTotal = computeAdjusted(aiBase);
+  const bomTotal      = result?.summary?.bomTotalEstimate || 0;
+  const totalMarginPct= Object.values(margins).reduce((acc,m) => (1+acc/100)*(1+m.pct/100)*100-100, 0);
+
+  // Export to printable HTML
+  const exportReport = () => {
+    if (!result) return;
+    const date = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
+    const mRows = Object.entries(margins).map(([k,m]) => `<tr><td>${m.label}</td><td style="text-align:right">${m.pct}%</td><td style="text-align:right">${fmt(aiBase*(m.pct/100))}</td></tr>`).join("");
+    const liRows = lineItems.map(li => `
+      <tr>
+        <td>${li.description}</td><td>${li.category}</td><td style="text-align:center">${li.unit}</td>
+        <td style="text-align:right">${fmtN(li.qtyBOM)}</td><td style="text-align:right">${fmtN(li.qtyAI)}</td>
+        <td style="text-align:center;color:${QTY_COL[li.qtyStatus]||"#64748b"};font-weight:700">${li.qtyStatus}</td>
+        <td style="text-align:right">${fmt(li.unitCostBOM)}</td><td style="text-align:right">${fmt(li.unitCostAI)}</td>
+        <td style="text-align:center;color:${COST_COL[li.costStatus]||"#64748b"};font-weight:700">${li.costStatus}</td>
+        <td style="text-align:right">${fmt(li.totalBOM)}</td><td style="text-align:right">${fmt(li.totalAI)}</td>
+        <td style="font-size:11px">${li.remarks}</td>
+      </tr>`).join("");
+    const missingRows = missingItems.map(m => `<tr><td>${m.description}</td><td>${m.category}</td><td>${m.estimatedQty}</td><td style="text-align:right">${fmt(m.estimatedCost)}</td><td>${m.basis}</td></tr>`).join("");
+    const excessRows  = excessItems.map(e => `<tr><td>${e.description}</td><td>${e.category}</td><td style="text-align:right">${fmtN(e.qtyBOM)} ${e.unit}</td><td>${e.remarks}</td></tr>`).join("");
+
+    const w = window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><title>BOM Review Report — ${result.summary.projectName}</title>
+    <style>body{font-family:Arial,sans-serif;margin:40px;color:#111;font-size:12px}
+    table{border-collapse:collapse;width:100%;margin-bottom:24px}
+    th{background:#1e3a5f;color:#fff;padding:8px 6px;text-align:left;font-size:11px}
+    td{padding:7px 6px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+    tr:nth-child(even){background:#f9fafb}
+    h1{color:#1e3a5f;font-size:22px}h2{color:#1e3a5f;font-size:15px;margin:24px 0 10px;border-bottom:2px solid #e5e7eb;padding-bottom:4px}
+    .badge{display:inline-block;padding:4px 12px;border-radius:4px;font-weight:700;font-size:12px}
+    .total-row{background:#1e3a5f!important;color:#fff;font-weight:700}
+    .total-row td{color:#fff}
+    @media print{button{display:none}}</style></head><body>
+    <h1>📋 BOM Review Report</h1>
+    <p style="color:#6b7280">Project: <strong>${result.summary.projectName}</strong> · ${result.summary.projectType} · ${result.summary.discipline} · ${date}</p>
+    <p>Overall Status: <span class="badge" style="background:${STATUS_COL[result.summary.overallStatus]}22;color:${STATUS_COL[result.summary.overallStatus]};border:1px solid ${STATUS_COL[result.summary.overallStatus]}44">${result.summary.overallStatus}</span></p>
+    <p style="color:#6b7280;margin-top:8px">${result.summary.notes}</p>
+
+    <h2>Cost Summary</h2>
+    <table><tr><th>Item</th><th style="text-align:right">Amount</th></tr>
+    <tr><td>BOM Submitted Total</td><td style="text-align:right">${fmt(bomTotal)}</td></tr>
+    <tr><td>AI Validated Base Cost</td><td style="text-align:right">${fmt(aiBase)}</td></tr>
+    ${mRows}
+    <tr class="total-row"><td><strong>ADJUSTED TOTAL (with margins)</strong></td><td style="text-align:right"><strong>${fmt(adjustedTotal)}</strong></td></tr>
+    </table>
+
+    <h2>Line Item Review (${lineItems.length} items)</h2>
+    <table><tr><th>Description</th><th>Category</th><th>Unit</th><th style="text-align:right">Qty BOM</th><th style="text-align:right">Qty AI</th><th>Qty Status</th><th style="text-align:right">Unit Cost BOM</th><th style="text-align:right">Unit Cost AI</th><th>Cost Status</th><th style="text-align:right">Total BOM</th><th style="text-align:right">Total AI</th><th>Remarks</th></tr>
+    ${liRows}</table>
+
+    ${missingItems.length?`<h2>Missing Items (${missingItems.length})</h2><table><tr><th>Description</th><th>Category</th><th>Est. Qty</th><th style="text-align:right">Est. Cost</th><th>Basis (from plan)</th></tr>${missingRows}</table>`:""}
+    ${excessItems.length?`<h2>Excess Items (${excessItems.length})</h2><table><tr><th>Description</th><th>Category</th><th>BOM Qty</th><th>Remarks</th></tr>${excessRows}</table>`:""}
+
+    <h2>Markup Assessment</h2>
+    <p>${markup?.recommendation||""}</p>
+    <p style="margin-top:24px;font-size:10px;color:#9ca3af">⚠️ AI-generated BOM review. All quantities and costs must be verified by a licensed Quantity Surveyor or Engineer before submission.</p>
+    <button onclick="window.print()" style="margin-top:12px;padding:10px 24px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Print / Save PDF</button>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  };
+
+  // ── DROP ZONE component ──
+  const DropZone = ({ label, sublabel, files, onAdd, onRemove, dragState, setDrag, inputRef, icon }) => (
+    <div>
+      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
+        onDrop={e=>{e.preventDefault();setDrag(false);onAdd(e.dataTransfer.files)}}
+        onClick={()=>inputRef.current?.click()}
+        style={{border:`2px dashed ${dragState?STR:T.border}`,borderRadius:14,padding:"28px 20px",textAlign:"center",cursor:"pointer",background:dragState?"rgba(59,130,246,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:10}}>
+        <input ref={inputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" onChange={e=>onAdd(e.target.files)} style={{display:"none"}}/>
+        <div style={{fontSize:28,marginBottom:8}}>{icon}</div>
+        <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{label}</div>
+        <div style={{color:T.muted,fontSize:11,marginBottom:12}}>{sublabel}</div>
+        <div style={{display:"inline-block",background:STR,color:"#fff",fontWeight:700,padding:"7px 18px",borderRadius:8,fontSize:12}}>Choose Files</div>
+      </div>
+      {files.length>0 && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {files.map(fo=>(
+            <div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"5px 10px",display:"flex",alignItems:"center",gap:6,maxWidth:220}}>
+              <span style={{fontSize:12}}>{fo.type?.startsWith("image")?"🖼️":fo.name.match(/\.pdf$/i)?"📄":"📊"}</span>
+              <span style={{fontSize:11,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
+              <button onClick={e=>{e.stopPropagation();onRemove(fo.id)}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:18,height:18,borderRadius:4,cursor:"pointer",fontSize:11,flexShrink:0}}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+      {/* ── Upload panel ── */}
+      <Card>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+          <div>
+            <Label style={{marginBottom:8,display:"block",color:STR}}>📐 Engineering Plans <span style={{color:T.danger}}>*</span></Label>
+            <DropZone label="Upload Plans" sublabel="PDF drawings · JPG / PNG images" files={planFiles}
+              onAdd={addPlanFiles} onRemove={id=>setPlanFiles(p=>p.filter(f=>f.id!==id))}
+              dragState={dragPlan} setDrag={setDragPlan} inputRef={planRef} icon="📐"/>
+          </div>
+          <div>
+            <Label style={{marginBottom:8,display:"block",color:"#f59e0b"}}>📋 Draft BOM <span style={{color:T.muted,fontWeight:400}}>(optional)</span></Label>
+            <DropZone label="Upload BOM" sublabel="Excel · CSV · PDF · Image" files={bomFiles}
+              onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))}
+              dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋"/>
+          </div>
+        </div>
+
+        {/* ── Margin Controls ── */}
+        <div style={{marginBottom:16}}>
+          <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"9px 16px",cursor:"pointer",fontWeight:700,fontSize:13,transition:"all 0.15s"}}>
+            <span>⚙️</span>
+            <span>Margin Controls</span>
+            <span style={{marginLeft:"auto",fontSize:12}}>{showMargins?"▲":"▼"}</span>
+            <span style={{background:STR+"22",color:STR,fontSize:11,padding:"2px 10px",borderRadius:6,fontWeight:800}}>
+              Total uplift: +{Object.values(margins).reduce((acc,m)=>acc+m.pct,0)}%
+            </span>
+          </button>
+
+          {showMargins && (
+            <div style={{marginTop:10,background:"rgba(59,130,246,0.04)",border:`1.5px solid ${STR}33`,borderRadius:12,padding:18}}>
+              <div style={{fontSize:12,color:T.muted,marginBottom:14,lineHeight:1.6}}>
+                Set per-category margins applied on top of the AI-validated base cost. These are applied multiplicatively in order.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+                {Object.entries(margins).map(([key,m])=>(
+                  <div key={key} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 14px"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:6,letterSpacing:"0.3px",textTransform:"uppercase"}}>{m.label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <input type="number" value={m.pct} min={0} max={100} step={0.5}
+                        onChange={e=>setMargins(p=>({...p,[key]:{...p[key],pct:+e.target.value}}))}
+                        style={{flex:1,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"8px 10px",color:T.text,fontSize:16,fontWeight:800,outline:"none",textAlign:"center"}}
+                        onFocus={e=>e.target.style.borderColor=STR} onBlur={e=>e.target.style.borderColor=T.border}/>
+                      <span style={{fontSize:18,fontWeight:800,color:STR}}>%</span>
+                    </div>
+                    {m.pct>0 && aiBase>0 && (
+                      <div style={{fontSize:11,color:T.muted,marginTop:6,textAlign:"right"}}>
+                        +{fmt(aiBase*(m.pct/100))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:14,padding:"10px 14px",background:`${STR}10`,border:`1px solid ${STR}22`,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:13,color:T.muted}}>Combined multiplier</span>
+                <span style={{fontSize:16,fontWeight:800,color:STR}}>
+                  ×{Object.values(margins).reduce((acc,m)=>(acc*(1+m.pct/100)),1).toFixed(4)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
+
+        <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"14px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
+          {busy?"⚙️ Reviewing BOM against plans…":"📋 Run BOM Review"}
+        </button>
+
+        {!planFiles.length && <div style={{textAlign:"center",fontSize:12,color:T.muted,marginTop:8}}>Upload at least one plan file to begin</div>}
+      </Card>
+
+      {/* ── Results ── */}
+      {result && (
+        <div style={{animation:"fadeIn 0.35s ease"}}>
+
+          {/* Summary bar */}
+          <Card style={{marginBottom:16,background:`${STATUS_COL[result.summary.overallStatus]}08`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
+              <div style={{flex:1,minWidth:220}}>
+                <div style={{fontSize:11,color:T.muted,marginBottom:4}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:20,color:T.text,letterSpacing:"-0.5px"}}>{result.summary.projectName}</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:2}}>{result.summary.projectType} · {result.summary.discipline}</div>
+                <div style={{marginTop:14,display:"flex",gap:20}}>
+                  <div><div style={{fontSize:22,fontWeight:800,color:"#ef4444"}}>{result.summary.criticalCount}</div><div style={{fontSize:10,color:T.muted}}>CRITICAL</div></div>
+                  <div><div style={{fontSize:22,fontWeight:800,color:"#f59e0b"}}>{result.summary.warningCount}</div><div style={{fontSize:10,color:T.muted}}>WARNINGS</div></div>
+                  <div><div style={{fontSize:22,fontWeight:800,color:"#10b981"}}>{result.summary.infoCount}</div><div style={{fontSize:10,color:T.muted}}>INFO</div></div>
+                  <div><div style={{fontSize:22,fontWeight:800,color:"#8b5cf6"}}>{missingItems.length}</div><div style={{fontSize:10,color:T.muted}}>MISSING</div></div>
+                  <div><div style={{fontSize:22,fontWeight:800,color:"#64748b"}}>{excessItems.length}</div><div style={{fontSize:10,color:T.muted}}>EXCESS</div></div>
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10,minWidth:260}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div style={{background:T.dim,borderRadius:10,padding:"12px 14px",textAlign:"right"}}>
+                    <div style={{fontSize:10,color:T.muted,marginBottom:2}}>BOM SUBMITTED</div>
+                    <div style={{fontSize:16,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</div>
+                  </div>
+                  <div style={{background:T.dim,borderRadius:10,padding:"12px 14px",textAlign:"right"}}>
+                    <div style={{fontSize:10,color:T.muted,marginBottom:2}}>AI BASE COST</div>
+                    <div style={{fontSize:16,fontWeight:800,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</div>
+                  </div>
+                </div>
+                <div style={{background:`${STR}12`,border:`1.5px solid ${STR}44`,borderRadius:10,padding:"14px 16px",textAlign:"right"}}>
+                  <div style={{fontSize:10,color:T.muted,marginBottom:2}}>ADJUSTED TOTAL (with margins)</div>
+                  <div style={{fontSize:22,fontWeight:900,color:STR,fontFamily:"monospace",letterSpacing:"-0.5px"}}>{fmt(adjustedTotal)}</div>
+                  {bomTotal>0 && <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+                    {adjustedTotal>bomTotal
+                      ? <span style={{color:"#ef4444"}}>▲ {((adjustedTotal/bomTotal-1)*100).toFixed(1)}% vs submitted</span>
+                      : <span style={{color:"#10b981"}}>▼ {((1-adjustedTotal/bomTotal)*100).toFixed(1)}% vs submitted</span>}
+                  </div>}
+                </div>
+                <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:T.muted,marginBottom:2}}>STATUS</div>
+                  <div style={{fontSize:12,fontWeight:800,color:STATUS_COL[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
+                </div>
+              </div>
+            </div>
+            <div style={{marginTop:14,fontSize:13,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.notes}</div>
+          </Card>
+
+          {/* Tab nav */}
+          <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[
+                {k:"summary",  l:"📊 Cost Breakdown"},
+                {k:"lineitems",l:`📋 Line Items (${lineItems.length})`},
+                {k:"missing",  l:`🔴 Missing (${missingItems.length})`},
+                {k:"excess",   l:`🟡 Excess (${excessItems.length})`},
+                {k:"markup",   l:"⚙️ Markup"},
+              ].map(t=>(
+                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?STR:T.border}`,background:activeTab===t.k?"rgba(59,130,246,0.12)":"transparent",color:activeTab===t.k?STR:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  {t.l}
+                </button>
+              ))}
+            </div>
+            <button onClick={exportReport} style={{background:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:"#fff",fontWeight:700,padding:"8px 18px",borderRadius:10,cursor:"pointer",fontSize:12}}>
+              📄 Export Report PDF
+            </button>
+          </div>
+
+          {/* ── COST BREAKDOWN TAB ── */}
+          {activeTab==="summary" && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <Card>
+                <Label>Cost Components</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:T.dim,borderRadius:8}}>
+                    <span style={{fontSize:13,color:T.muted}}>BOM Submitted</span>
+                    <span style={{fontSize:14,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}>
+                    <span style={{fontSize:13,color:T.muted}}>AI Validated Base</span>
+                    <span style={{fontSize:14,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span>
+                  </div>
+                  <div style={{height:1,background:T.border,margin:"4px 0"}}/>
+                  {Object.entries(margins).map(([k,m])=>{
+                    const add = aiBase*(m.pct/100);
+                    return m.pct>0 ? (
+                      <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}>
+                        <span style={{fontSize:13,color:T.muted}}>{m.label} (+{m.pct}%)</span>
+                        <span style={{fontSize:13,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(add)}</span>
+                      </div>
+                    ) : null;
+                  })}
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"12px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}>
+                    <span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span>
+                    <span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{fmt(adjustedTotal)}</span>
+                  </div>
+                </div>
+              </Card>
+              <Card>
+                <Label>Variance Analysis</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
+                  {[
+                    {l:"BOM vs AI Base",    a:bomTotal,   b:aiBase},
+                    {l:"BOM vs Adjusted",   a:bomTotal,   b:adjustedTotal},
+                    {l:"AI Base vs Adjusted", a:aiBase,   b:adjustedTotal},
+                  ].map(r=>{
+                    const diff = r.b - r.a;
+                    const pct  = r.a ? (diff/r.a*100) : 0;
+                    const col  = diff>0?"#ef4444":diff<0?"#10b981":"#64748b";
+                    return (
+                      <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:T.dim,borderRadius:10}}>
+                        <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontSize:14,fontWeight:800,color:col,fontFamily:"monospace"}}>{diff>=0?"+":""}{fmt(diff)}</div>
+                          <div style={{fontSize:11,color:col}}>{pct>=0?"+":""}{pct.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>
+                    Positive = Adjusted is higher than BOM · Negative = Adjusted is lower
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ── LINE ITEMS TAB ── */}
+          {activeTab==="lineitems" && (
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
+                  <thead>
+                    <tr style={{background:"rgba(59,130,246,0.1)"}}>
+                      {["Description","Category","Unit","Qty BOM","Qty AI","Qty Status","Unit Cost BOM","Unit Cost AI","Cost Status","Total BOM","Total AI","Remarks"].map(h=>(
+                        <th key={h} style={{padding:"10px 10px",textAlign:h.includes("Total")||h.includes("Cost")||h.includes("Qty B")||h.includes("Qty A")?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((li,i)=>(
+                      <tr key={li.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                        <td style={{padding:"9px 10px",fontSize:13,color:T.text,fontWeight:600,maxWidth:200}}>{li.description}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted}}>{li.category}</td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:T.muted,textAlign:"center"}}>{li.unit}</td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(li.qtyBOM)}</td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(li.qtyAI)}</td>
+                        <td style={{padding:"9px 10px",textAlign:"center"}}>
+                          <span style={{background:`${QTY_COL[li.qtyStatus]||"#64748b"}18`,color:QTY_COL[li.qtyStatus]||"#64748b",fontSize:10,fontWeight:800,padding:"3px 8px",borderRadius:5}}>{li.qtyStatus}</span>
+                        </td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmt(li.unitCostBOM)}</td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmt(li.unitCostAI)}</td>
+                        <td style={{padding:"9px 10px",textAlign:"center"}}>
+                          <span style={{background:`${COST_COL[li.costStatus]||"#64748b"}18`,color:COST_COL[li.costStatus]||"#64748b",fontSize:10,fontWeight:800,padding:"3px 8px",borderRadius:5}}>{li.costStatus}</span>
+                        </td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(li.totalBOM)}</td>
+                        <td style={{padding:"9px 10px",fontSize:12,color:STR,textAlign:"right",fontFamily:"monospace",fontWeight:700}}>{fmt(li.totalAI)}</td>
+                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted,maxWidth:200,lineHeight:1.5}}>{li.remarks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{background:"rgba(59,130,246,0.08)",borderTop:`2px solid ${STR}44`}}>
+                      <td colSpan={9} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.text}}>TOTALS</td>
+                      <td style={{padding:"10px 10px",fontSize:14,fontWeight:800,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalBOM||0),0))}</td>
+                      <td style={{padding:"10px 10px",fontSize:14,fontWeight:800,color:STR,textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalAI||0),0))}</td>
+                      <td/>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* ── MISSING ITEMS TAB ── */}
+          {activeTab==="missing" && (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {missingItems.length===0
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No missing items detected</div></Card>
+                : missingItems.map((m,i)=>(
+                  <div key={i} style={{background:"rgba(139,92,246,0.05)",border:"1.5px solid rgba(139,92,246,0.25)",borderRadius:12,padding:"14px 18px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
+                      <div>
+                        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+                          <span style={{background:"rgba(139,92,246,0.2)",color:"#8b5cf6",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>MISSING</span>
+                          <span style={{fontSize:11,color:T.muted,background:T.dim,padding:"2px 8px",borderRadius:4}}>{m.category}</span>
+                        </div>
+                        <div style={{fontWeight:700,fontSize:15,color:T.text}}>{m.description}</div>
+                        <div style={{fontSize:12,color:T.muted,marginTop:4}}>Est. qty: <strong style={{color:T.text}}>{m.estimatedQty}</strong> · Found in: {m.basis}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:10,color:T.muted,marginBottom:2}}>EST. COST</div>
+                        <div style={{fontSize:18,fontWeight:800,color:"#8b5cf6",fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+              {missingItems.length>0 && (
+                <div style={{display:"flex",justifyContent:"space-between",padding:"12px 16px",background:"rgba(139,92,246,0.08)",border:"1px solid rgba(139,92,246,0.2)",borderRadius:10}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"#8b5cf6"}}>{missingItems.length} missing item{missingItems.length>1?"s":" "} — estimated value not in BOM</span>
+                  <span style={{fontSize:14,fontWeight:800,color:"#8b5cf6",fontFamily:"monospace"}}>{fmt(missingItems.reduce((s,m)=>s+(+m.estimatedCost||0),0))}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── EXCESS ITEMS TAB ── */}
+          {activeTab==="excess" && (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {excessItems.length===0
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No excess items detected</div></Card>
+                : excessItems.map((e,i)=>(
+                  <div key={i} style={{background:"rgba(100,116,139,0.05)",border:"1.5px solid rgba(100,116,139,0.2)",borderRadius:12,padding:"14px 18px"}}>
+                    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+                      <span style={{background:"rgba(100,116,139,0.2)",color:"#64748b",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>EXCESS</span>
+                      <span style={{fontSize:11,color:T.muted,background:T.dim,padding:"2px 8px",borderRadius:4}}>{e.category}</span>
+                    </div>
+                    <div style={{fontWeight:700,fontSize:15,color:T.text,marginBottom:4}}>{e.description}</div>
+                    <div style={{fontSize:12,color:T.muted}}>BOM qty: <strong style={{color:"#64748b"}}>{fmtN(e.qtyBOM)} {e.unit}</strong></div>
+                    <div style={{fontSize:12,color:T.muted,marginTop:4}}>{e.remarks}</div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {/* ── MARKUP TAB ── */}
+          {activeTab==="markup" && markup && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <Card>
+                <Label>Markup Found in Submitted BOM</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
+                  {[
+                    {l:"Contingency",  found:markup.contingencyFound, pct:markup.contingencyPercent},
+                    {l:"Overhead",     found:markup.overheadFound,    pct:markup.overheadPercent},
+                    {l:"Profit",       found:markup.profitFound,      pct:markup.profitPercent},
+                  ].map(r=>(
+                    <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:r.found?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1px solid ${r.found?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.2)"}`,borderRadius:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <span style={{fontSize:16}}>{r.found?"✅":"❌"}</span>
+                        <span style={{fontSize:14,fontWeight:700,color:T.text}}>{r.l}</span>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:16,fontWeight:800,color:r.found?"#10b981":"#ef4444",fontFamily:"monospace"}}>{r.found?`${r.pct}%`:"Not found"}</div>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{marginTop:6,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:13,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
+                </div>
+              </Card>
+              <Card>
+                <Label>Your Applied Margins (this session)</Label>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
+                  {Object.entries(margins).map(([k,m])=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:m.pct>0?"rgba(59,130,246,0.06)":T.dim,borderRadius:8,border:m.pct>0?`1px solid rgba(59,130,246,0.2)`:"none"}}>
+                      <span style={{fontSize:13,color:T.muted}}>{m.label}</span>
+                      <span style={{fontSize:14,fontWeight:800,color:m.pct>0?STR:"#64748b",fontFamily:"monospace"}}>{m.pct}%</span>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:`${STR}12`,border:`1px solid ${STR}33`,borderRadius:8,marginTop:4}}>
+                    <span style={{fontSize:13,fontWeight:700,color:T.text}}>Combined uplift</span>
+                    <span style={{fontSize:15,fontWeight:900,color:STR}}>+{(Object.values(margins).reduce((a,m)=>(a*(1+m.pct/100)),1)-1)*100 |0}% approx</span>
+                  </div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>Margins are applied multiplicatively: (1+Mat%)×(1+Lab%)×(1+OH%)×(1+Con%)×(1+Prof%) on the AI base cost.</div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          <div style={{marginTop:16,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>
+            ⚠️ AI-generated BOM review for reference only. All quantities, costs, and margins must be verified by a licensed Quantity Surveyor or Engineer before submission to DPWH or any client.
+          </div>
+        </div>
+      )}
+
+      {/* Placeholder when empty */}
+      {!result && !busy && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
+          {[
+            {i:"🔢",t:"Quantity Validation",d:"AI counts items in plan vs. your BOM"},
+            {i:"💰",t:"Unit Cost Check",d:"Validated against PH market rates"},
+            {i:"🔴",t:"Missing Items",d:"Materials in plan but absent from BOM"},
+            {i:"🟡",t:"Excess Items",d:"BOM items with no plan basis"},
+            {i:"⚙️",t:"Margin Control",d:"Materials · Labor · Overhead · Contingency · Profit"},
+            {i:"📄",t:"Exportable Report",d:"Print-ready PDF with full breakdown"},
+          ].map(x=>(
+            <Card key={x.t} style={{textAlign:"center",padding:20}}>
+              <div style={{fontSize:28,marginBottom:8}}>{x.i}</div>
+              <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{x.t}</div>
+              <div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{x.d}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
 function StructiCode({ apiKey }) {
   const [tool,setTool] = useState("checker");
@@ -2149,6 +2753,7 @@ function StructiCode({ apiKey }) {
     {key:"footing", icon:"🪨", label:"Footing Design"},
     {key:"slab",    icon:"🔩", label:"Slab Design"},
     {key:"loads",   icon:"📊", label:"Load Combinations"},
+    {key:"bom",     icon:"📋", label:"BOM Review"},
   ];
   return (
     <div>
@@ -2167,6 +2772,7 @@ function StructiCode({ apiKey }) {
       {tool==="footing" && <FootingDesign/>}
       {tool==="slab"    && <SlabDesign/>}
       {tool==="loads"   && <LoadCombinations/>}
+      {tool==="bom"     && <BOMReview apiKey={apiKey}/>}
     </div>
   );
 }
