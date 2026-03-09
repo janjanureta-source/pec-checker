@@ -4183,12 +4183,460 @@ INSTRUCTIONS:
 }
 
 // ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
+
+// ─── STRUCTURAL INTELLIGENCE: PURE COMPUTATION ENGINE ────────────────────────
+// Runs all design calcs from structuralData without React state.
+// Returns a structuralResults object consumable by the summary panel.
+
+function runAllComputations(sd) {
+  if (!sd) return null;
+  const results = { timestamp: new Date().toISOString(), items: [] };
+
+  const fc = sd.materials?.fc || 27.6;
+  const fy = sd.materials?.fy || 414;
+
+  // ── 1. SEISMIC ──
+  try {
+    const zone = sd.seismic?.zone || "Zone 4";
+    const soil = sd.seismic?.soilTypeLabel || "SD - Stiff Soil";
+    const occ  = sd.seismic?.occupancyCategory || "I - Standard";
+    const W    = sd.seismic?.seismicWeight || 5000;
+    const T    = sd.seismic?.naturalPeriod || 0.3;
+    const R    = sd.seismic?.responseFactor || 8.5;
+    const Zv   = PH_SEISMIC_ZONES[zone]?.Z || 0.4;
+    const soilKey = Object.keys(SOIL_TYPES).find(k => k.startsWith(soil.split(" ")[0])) || "SD - Stiff Soil";
+    const {Fa, Fv} = SOIL_TYPES[soilKey] || {Fa:1.2,Fv:1.7};
+    const I    = OCCUPANCY_I[occ] || 1.0;
+    const Ca   = 0.4*Fa*Zv;
+    const Cv   = 0.4*Fv*Zv*1.5;
+    const Ts   = Cv/(2.5*Ca);
+    const Sa   = T <= 0.2*Ts ? Ca*(0.6*(T/(0.2*Ts))+0.4) : T <= Ts ? 2.5*Ca : Cv/T;
+    const Vmin = 0.11*Ca*I*W;
+    const Vmax = 2.5*Ca*I*W/R;
+    const V    = Math.max(Vmin, Math.min(Sa*I*W/R, Vmax));
+    results.seismic = { zone, W, V: +V.toFixed(1), Cs: +(V/W*100).toFixed(2), status: "COMPUTED" };
+    results.items.push({ tool:"seismic", id:"Seismic Base Shear", value:`V = ${V.toFixed(1)} kN`, Cs:`${(V/W*100).toFixed(2)}%`, status:"COMPUTED" });
+  } catch(e) { results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error: e.message }); }
+
+  // ── 2. BEAMS ──
+  const beams = (sd.beams?.length ? sd.beams : [{ id:"B1", span:5.5, width:300, depth:500, Mu:150, Vu:120 }]);
+  beams.forEach(bm => {
+    try {
+      const b = bm.width || 300, d = bm.depth || 500;
+      const Mu = bm.Mu || 150, Vu = bm.Vu || 120;
+      const phi_b=0.90, phi_v=0.85;
+      const Rn = (Mu*1000)/(phi_b*(b/1000)*(d/1000)*(d/1000)*1e6);
+      const rho_req = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
+      const rho_max = 0.75*0.85*0.85*(fc/fy)*(600/(600+fy));
+      const Vc = (1/6)*Math.sqrt(fc)*b*d/1000;
+      const status_flex = rho_req <= rho_max ? "PASS" : "FAIL";
+      const status_shear = Vc >= Vu/phi_v ? "PASS" : "NEEDS STIRRUPS";
+      const overallStatus = status_flex === "PASS" && status_shear !== "FAIL" ? "PASS" : "FAIL";
+      const As_req = Math.max((0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc))), 1.4/fy) * b * d;
+      results.items.push({ tool:"beam", id: bm.id||"B?", value:`As=${As_req.toFixed(0)}mm²`, detail:`Flex:${status_flex} Shear:${status_shear}`, status: overallStatus });
+    } catch(e) { results.items.push({ tool:"beam", id: bm.id||"B?", status:"ERROR", error:e.message }); }
+  });
+
+  // ── 3. COLUMNS ──
+  const cols = (sd.columns?.length ? sd.columns : [{ id:"C1", width:400, height:400, Pu:1500, Mu:80, type:"tied" }]);
+  cols.forEach(col => {
+    try {
+      const b = col.width||400, h = col.height||400;
+      const Pu = col.Pu||1500, Mu = col.Mu||80;
+      const phi = col.type==="spiral" ? 0.75 : 0.65;
+      const Ag = b*h;
+      const rho_min=0.01, rho_max=0.08;
+      const Pn_req = Pu*1000/phi;
+      const Ast_req = Math.max((Pn_req/0.80 - 0.85*fc*Ag)/(fy - 0.85*fc), rho_min*Ag);
+      const rho_req = Ast_req/Ag;
+      const phiPn = phi*0.80*(0.85*fc*(Ag-Ast_req)+fy*Ast_req)/1000;
+      const status = (rho_req<=rho_max && rho_req>=rho_min && phiPn>=Pu) ? "PASS" : "FAIL";
+      results.items.push({ tool:"column", id: col.id||"C?", value:`Ast=${Ast_req.toFixed(0)}mm²`, detail:`ρ=${(rho_req*100).toFixed(2)}% φPn=${phiPn.toFixed(0)}kN`, status });
+    } catch(e) { results.items.push({ tool:"column", id: col.id||"C?", status:"ERROR", error:e.message }); }
+  });
+
+  // ── 4. FOOTINGS ──
+  const footings = (sd.footings?.length ? sd.footings : [{ id:"F1", columnLoad:800, soilBearing:150, depth:1.5 }]);
+  footings.forEach(ft => {
+    try {
+      const P=ft.columnLoad||800, qa=ft.soilBearing||150, Df=ft.depth||1.5;
+      const qnet = qa - 23.5*Df;
+      const B = Math.ceil(Math.sqrt(P/qnet)*10)/10;
+      const d = Math.max(B*1000/5, 250);
+      const c = (B-0.4)/2;
+      const Mu_ft = (1.2*P/(B*B))*B*c*c/2;
+      const Rn = (Mu_ft*1e6)/(0.90*(B*1000)*d*d);
+      const rho = (0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
+      const As = Math.max(rho,0.0018)*B*1000*d;
+      const status = qnet > 0 ? "PASS" : "FAIL";
+      results.items.push({ tool:"footing", id:ft.id||"F?", value:`B=${B.toFixed(2)}m × ${B.toFixed(2)}m`, detail:`As=${As.toFixed(0)}mm²/m d=${d.toFixed(0)}mm`, status });
+    } catch(e) { results.items.push({ tool:"footing", id:ft.id||"F?", status:"ERROR", error:e.message }); }
+  });
+
+  // ── 5. SLABS ──
+  const slabs = (sd.slabs?.length ? sd.slabs : [{ id:"S1", span:4.0, type:"one-way", DL:3.0, LL:2.4 }]);
+  slabs.forEach(sl => {
+    try {
+      const L=sl.span||4.0, wDL=sl.DL||sd.loads?.floorDL||3.0, wLL=sl.LL||sd.loads?.floorLL||2.4;
+      const wu = 1.2*wDL+1.6*wLL;
+      const h_min = L*1000/20;
+      const h = Math.max(Math.ceil(h_min/10)*10, 100);
+      const d = h-25;
+      const Mu = wu*L*L/8;
+      const Rn = (Mu*1e6)/(0.90*1000*d*d);
+      const rho = (0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
+      const As = Math.max(rho,0.0018)*1000*d;
+      results.items.push({ tool:"slab", id:sl.id||"S?", value:`h=${h}mm As=${As.toFixed(0)}mm²/m`, detail:`wu=${wu.toFixed(2)}kPa Mu=${Mu.toFixed(1)}kN·m/m`, status:"PASS" });
+    } catch(e) { results.items.push({ tool:"slab", id:sl.id||"S?", status:"ERROR", error:e.message }); }
+  });
+
+  // ── 6. LOAD COMBINATIONS ──
+  try {
+    const flDL = sd.loads?.floorDL||3.0, flLL = sd.loads?.floorLL||2.4;
+    const D=flDL*50, L=flLL*50, E=results.seismic?.V||60;
+    const combos = [
+      {name:"1.4D", val:1.4*D},
+      {name:"1.2D+1.6L", val:1.2*D+1.6*L},
+      {name:"1.2D+1.0E+1.0L", val:1.2*D+E+L},
+      {name:"0.9D+1.0E", val:0.9*D+E},
+    ];
+    const maxCombo = combos.reduce((a,b)=>a.val>b.val?a:b);
+    results.loadCombos = combos;
+    results.items.push({ tool:"loads", id:"Load Combinations", value:`Max: ${maxCombo.name}`, detail:`${maxCombo.val.toFixed(1)} kN/m²`, status:"COMPUTED" });
+  } catch(e) { results.items.push({ tool:"loads", id:"Load Combinations", status:"ERROR", error:e.message }); }
+
+  results.summary = {
+    total: results.items.length,
+    pass:  results.items.filter(i=>i.status==="PASS").length,
+    fail:  results.items.filter(i=>i.status==="FAIL").length,
+    computed: results.items.filter(i=>i.status==="COMPUTED").length,
+    error: results.items.filter(i=>i.status==="ERROR").length,
+  };
+
+  return results;
+}
+
+// ─── STRUCTURAL INTELLIGENCE PANEL ───────────────────────────────────────────
+function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runState }) {
+  const [expanded, setExpanded] = useState({ building:true, materials:true, seismic:true, members:false, loads:true });
+  const toggle = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
+
+  const Fp = ({children}) => (
+    <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)",padding:"1px 5px",borderRadius:3,fontWeight:700,marginLeft:6}}>PLANS</span>
+  );
+
+  const SectionHeader = ({label, skey, count}) => (
+    <div onClick={()=>toggle(skey)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"8px 0",borderBottom:`1px solid ${T.border}`,marginBottom:expanded[skey]?12:0}}>
+      <span style={{fontSize:12,fontWeight:800,color:T.text,textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</span>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {count > 0 && <span style={{fontSize:10,background:"rgba(6,150,215,0.15)",color:"#0696d7",padding:"1px 7px",borderRadius:10,fontWeight:700}}>{count} extracted</span>}
+        <span style={{color:T.muted,fontSize:12}}>{expanded[skey]?"▲":"▼"}</span>
+      </div>
+    </div>
+  );
+
+  const Field = ({label, value, path, type="number", fromPlans=false}) => {
+    const parts = path.split(".");
+    const handleChange = (v) => {
+      const updated = JSON.parse(JSON.stringify(data));
+      let ref = updated;
+      for (let i=0; i<parts.length-1; i++) {
+        if (!ref[parts[i]]) ref[parts[i]] = {};
+        ref = ref[parts[i]];
+      }
+      ref[parts[parts.length-1]] = type==="number" ? +v : v;
+      onUpdate(updated);
+    };
+    return (
+      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+        <label style={{fontSize:10,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.3px"}}>
+          {label}{fromPlans && <Fp/>}
+        </label>
+        <input type={type} value={value??""} onChange={e=>handleChange(e.target.value)}
+          style={{background:fromPlans?"rgba(34,197,94,0.05)":"rgba(255,255,255,0.03)",border:`1px solid ${fromPlans?"rgba(34,197,94,0.3)":T.border}`,borderRadius:7,padding:"6px 10px",color:T.text,fontSize:13,fontWeight:600,outline:"none",width:"100%"}}/>
+      </div>
+    );
+  };
+
+  const bldg = data.building||{};
+  const mat  = data.materials||{};
+  const sei  = data.seismic||{};
+  const lds  = data.loads||{};
+  const beams = data.beams||[];
+  const cols  = data.columns||[];
+  const ftgs  = data.footings||[];
+  const slbs  = data.slabs||[];
+  const memberCount = beams.length + cols.length + ftgs.length + slbs.length;
+
+  const passCount  = runState?.summary?.pass || 0;
+  const failCount  = runState?.summary?.fail || 0;
+  const totalCount = runState?.summary?.total || 0;
+
+  return (
+    <div style={{background:"rgba(6,150,215,0.04)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:14,padding:20,marginBottom:20}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#0696d7,#0569a8)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Icon name="structural" size={16} color="#fff"/>
+          </div>
+          <div>
+            <div style={{fontWeight:800,fontSize:14,color:T.text}}>Structural Intelligence Panel</div>
+            <div style={{fontSize:11,color:T.muted}}>Extracted from uploaded plans · All values editable</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {runState && (
+            <div style={{display:"flex",gap:6,alignItems:"center",fontSize:12}}>
+              {passCount > 0 && <span style={{color:"#22c55e",fontWeight:700}}>✓ {passCount} PASS</span>}
+              {failCount > 0 && <span style={{color:"#ef4444",fontWeight:700}}>✗ {failCount} FAIL</span>}
+            </div>
+          )}
+          <button onClick={onRunAll} disabled={runState?.running}
+            style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",background:runState?.running?"rgba(6,150,215,0.2)":"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:runState?.running?"#64748b":"#fff",borderRadius:9,cursor:runState?.running?"not-allowed":"pointer",fontWeight:800,fontSize:13,transition:"all 0.2s"}}>
+            {runState?.running ? (
+              <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⚙</span> Running…</>
+            ) : (
+              <><Icon name="loads" size={14} color="#fff"/> Run All Computations</>
+            )}
+          </button>
+          <button onClick={onClear} style={{padding:"9px 12px",background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:9,cursor:"pointer",fontSize:12}}>Clear</button>
+        </div>
+      </div>
+
+      {/* Sections */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+
+        {/* Building Info */}
+        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
+          <SectionHeader label="Building Info" skey="building" count={Object.values(bldg).filter(Boolean).length}/>
+          {expanded.building && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div style={{gridColumn:"1/-1"}}><Field label="Project Name" value={bldg.name} path="building.name" type="text" fromPlans={!!bldg.name}/></div>
+              <Field label="Occupancy" value={bldg.occupancy} path="building.occupancy" type="text" fromPlans={!!bldg.occupancy}/>
+              <Field label="No. of Floors" value={bldg.floors} path="building.floors" fromPlans={!!bldg.floors}/>
+              <Field label="Floor Height (m)" value={bldg.floorHeight} path="building.floorHeight" fromPlans={!!bldg.floorHeight}/>
+              <Field label="Total Height (m)" value={bldg.totalHeight} path="building.totalHeight" fromPlans={!!bldg.totalHeight}/>
+              <Field label="Floor Area (m²)" value={bldg.floorArea} path="building.floorArea" fromPlans={!!bldg.floorArea}/>
+            </div>
+          )}
+        </div>
+
+        {/* Materials */}
+        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
+          <SectionHeader label="Materials" skey="materials" count={Object.values(mat).filter(v=>v!==null&&v!==undefined).length}/>
+          {expanded.materials && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <Field label="f'c (MPa)" value={mat.fc} path="materials.fc" fromPlans={!!mat.fc}/>
+              <Field label="fy (MPa)" value={mat.fy} path="materials.fy" fromPlans={!!mat.fy}/>
+              <Field label="Cover — Beam (mm)" value={mat.coverBeam} path="materials.coverBeam" fromPlans={!!mat.coverBeam}/>
+              <Field label="Cover — Column (mm)" value={mat.coverColumn} path="materials.coverColumn" fromPlans={!!mat.coverColumn}/>
+              <Field label="Cover — Slab (mm)" value={mat.coverSlab} path="materials.coverSlab" fromPlans={!!mat.coverSlab}/>
+            </div>
+          )}
+        </div>
+
+        {/* Seismic */}
+        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
+          <SectionHeader label="Seismic Parameters" skey="seismic" count={Object.values(sei).filter(Boolean).length}/>
+          {expanded.seismic && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <Field label="Seismic Zone" value={sei.zone} path="seismic.zone" type="text" fromPlans={!!sei.zone}/>
+              <Field label="Soil Type" value={sei.soilTypeLabel} path="seismic.soilTypeLabel" type="text" fromPlans={!!sei.soilTypeLabel}/>
+              <Field label="Seismic Weight (kN)" value={sei.seismicWeight} path="seismic.seismicWeight" fromPlans={!!sei.seismicWeight}/>
+              <Field label="Natural Period T (s)" value={sei.naturalPeriod} path="seismic.naturalPeriod" fromPlans={!!sei.naturalPeriod}/>
+              <Field label="Response Factor R" value={sei.responseFactor} path="seismic.responseFactor" fromPlans={!!sei.responseFactor}/>
+            </div>
+          )}
+        </div>
+
+        {/* Loads */}
+        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
+          <SectionHeader label="Design Loads" skey="loads" count={Object.values(lds).filter(Boolean).length}/>
+          {expanded.loads && (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <Field label="Floor DL (kPa)" value={lds.floorDL} path="loads.floorDL" fromPlans={!!lds.floorDL}/>
+              <Field label="Floor LL (kPa)" value={lds.floorLL} path="loads.floorLL" fromPlans={!!lds.floorLL}/>
+              <Field label="Roof DL (kPa)" value={lds.roofDL} path="loads.roofDL" fromPlans={!!lds.roofDL}/>
+              <Field label="Roof LL (kPa)" value={lds.roofLL} path="loads.roofLL" fromPlans={!!lds.roofLL}/>
+            </div>
+          )}
+        </div>
+
+        {/* Members */}
+        <div style={{background:T.card,borderRadius:10,padding:"14px 16px",gridColumn:"1/-1"}}>
+          <SectionHeader label="Structural Members" skey="members" count={memberCount}/>
+          {expanded.members && (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
+              {/* Beams */}
+              {beams.length > 0 && (
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#0696d7",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>Beams ({beams.length})</div>
+                  {beams.map((bm,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:8,padding:"8px 10px",background:"rgba(6,150,215,0.05)",borderRadius:8,border:"1px solid rgba(6,150,215,0.15)"}}>
+                      <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"#0696d7",marginBottom:4}}>{bm.id||`B${i+1}`}</div>
+                      <div><div style={{fontSize:9,color:T.muted}}>SPAN(m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.span??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>b(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.width??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>d(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.depth??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>Mu(kN·m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.Mu??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>Vu(kN)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.Vu??"-"}</div></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Columns */}
+              {cols.length > 0 && (
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>Columns ({cols.length})</div>
+                  {cols.map((c,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8,padding:"8px 10px",background:"rgba(245,158,11,0.05)",borderRadius:8,border:"1px solid rgba(245,158,11,0.15)"}}>
+                      <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:4}}>{c.id||`C${i+1}`}</div>
+                      <div><div style={{fontSize:9,color:T.muted}}>b(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.width??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>h(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.height??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>Pu(kN)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.Pu??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>Mu(kN·m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.Mu??"-"}</div></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Footings */}
+              {ftgs.length > 0 && (
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#22c55e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>Footings ({ftgs.length})</div>
+                  {ftgs.map((f,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:8,padding:"8px 10px",background:"rgba(34,197,94,0.05)",borderRadius:8,border:"1px solid rgba(34,197,94,0.15)"}}>
+                      <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"#22c55e",marginBottom:4}}>{f.id||`F${i+1}`}</div>
+                      <div><div style={{fontSize:9,color:T.muted}}>P(kN)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{f.columnLoad??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>qa(kPa)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{f.soilBearing??"-"}</div></div>
+                      <div><div style={{fontSize:9,color:T.muted}}>Df(m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{f.depth??"-"}</div></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {memberCount === 0 && (
+                <div style={{gridColumn:"1/-1",textAlign:"center",padding:"20px",color:T.muted,fontSize:13}}>
+                  No member data extracted. Member dimensions not found in plans or plans don't include schedule tables.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── STRUCTURAL COMPUTATION SUMMARY ──────────────────────────────────────────
+function StructuralComputationSummary({ results, onNavigate }) {
+  if (!results) return null;
+
+  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", COMPUTED:"#0696d7", ERROR:"#f59e0b" };
+  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)" };
+  const toolLabel   = { seismic:"Seismic", beam:"Beam", column:"Column", footing:"Footing", slab:"Slab", loads:"Load Combos" };
+
+  const exportReport = () => {
+    const w = window.open("","_blank");
+    const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+    const rows = results.items.map(item=>`
+      <tr>
+        <td>${toolLabel[item.tool]||item.tool}</td>
+        <td><strong>${item.id}</strong></td>
+        <td>${item.value||"-"}</td>
+        <td>${item.detail||"-"}</td>
+        <td style="color:${statusColor[item.status]};font-weight:700">${item.status}</td>
+      </tr>`).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title>Structural Computation Package</title>
+      <style>body{font-family:Arial,sans-serif;margin:40px;font-size:13px}
+      table{border-collapse:collapse;width:100%}th{background:#1e293b;color:#fff;padding:9px}
+      td{border:1px solid #e2e8f0;padding:8px 10px}h1{color:#0696d7}
+      .pass{color:#16a34a}.fail{color:#dc2626}.sum{display:flex;gap:20;margin:16px 0}
+      .sum-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 20px;text-align:center}
+      @media print{button{display:none}}</style></head><body>
+      <h1>Structural Computation Package</h1>
+      <p style="color:#64748b">NSCP 2015 · ${date} · Buildify by Jon Ureta</p>
+      <div class="sum">
+        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#22c55e">${results.summary.pass}</div><div>PASS</div></div>
+        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#ef4444">${results.summary.fail}</div><div>FAIL</div></div>
+        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#0696d7">${results.summary.computed}</div><div>COMPUTED</div></div>
+        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#64748b">${results.summary.total}</div><div>TOTAL</div></div>
+      </div>
+      <h2>Computation Results</h2>
+      <table><tr><th>Tool</th><th>Member ID</th><th>Result</th><th>Detail</th><th>Status</th></tr>${rows}</table>
+      <p style="margin-top:24px;font-size:11px;color:#9ca3af">⚠️ AI-assisted computation. All results must be verified by a licensed PSCE before use in construction documents.</p>
+      </body></html>`);
+    w.document.close(); setTimeout(()=>w.print(),400);
+  };
+
+  return (
+    <div style={{background:"rgba(6,150,215,0.04)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:14,padding:20,marginBottom:20,animation:"fadeIn 0.35s ease"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:15,color:T.text}}>Structural Computation Package</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>NSCP 2015 · {new Date().toLocaleDateString("en-PH")}</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            {[
+              {label:`${results.summary.pass} PASS`, color:"#22c55e", bg:"rgba(34,197,94,0.1)"},
+              {label:`${results.summary.fail} FAIL`, color:"#ef4444", bg:"rgba(239,68,68,0.1)"},
+              {label:`${results.summary.computed} COMPUTED`, color:"#0696d7", bg:"rgba(6,150,215,0.1)"},
+            ].map(s=>(
+              <span key={s.label} style={{fontSize:11,fontWeight:700,color:s.color,background:s.bg,padding:"4px 10px",borderRadius:6}}>{s.label}</span>
+            ))}
+          </div>
+          <button onClick={exportReport} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:"#fff",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>
+            <Icon name="download" size={13} color="#fff"/> Export PDF
+          </button>
+        </div>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {results.items.map((item,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:statusBg[item.status]||T.dim,borderRadius:9,border:`1px solid ${statusColor[item.status]}33`}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:statusColor[item.status],flexShrink:0}}/>
+            <div style={{width:80,flexShrink:0}}>
+              <span style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase"}}>{toolLabel[item.tool]||item.tool}</span>
+            </div>
+            <div style={{width:70,flexShrink:0}}>
+              <span style={{fontSize:12,fontWeight:700,color:T.text,fontFamily:"monospace"}}>{item.id}</span>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <span style={{fontSize:12,color:T.text,fontWeight:600}}>{item.value||"-"}</span>
+              {item.detail && <span style={{fontSize:11,color:T.muted,marginLeft:8}}>{item.detail}</span>}
+              {item.error  && <span style={{fontSize:11,color:"#f59e0b",marginLeft:8}}>⚠ {item.error}</span>}
+            </div>
+            <span style={{fontSize:11,fontWeight:800,color:statusColor[item.status],background:statusBg[item.status],padding:"3px 10px",borderRadius:5,flexShrink:0}}>{item.status}</span>
+            <button onClick={()=>onNavigate(item.tool)} style={{fontSize:10,color:"#0696d7",background:"rgba(6,150,215,0.1)",border:"1px solid rgba(6,150,215,0.25)",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700,flexShrink:0}}>Open →</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{marginTop:14,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
+        ⚠️ All computations use simplified NSCP 2015 methods. Results are for preliminary design only. Full detailed analysis by a licensed PSCE is required before construction.
+      </div>
+    </div>
+  );
+}
+
 function StructiCode({ apiKey, initialTool }) {
   const [tool,setTool] = useState(initialTool||"bom");
   useEffect(() => { if(initialTool) setTool(initialTool); }, [initialTool]);
 
   // ── Shared structural data extracted from plans ──
   const [structuralData, setStructuralData] = useState(null);
+  const [structuralResults, setStructuralResults] = useState(null);
+  const [runState, setRunState] = useState(null); // { running, summary }
+
+  const handleRunAll = async () => {
+    if (!structuralData) return;
+    setRunState({ running: true });
+    setStructuralResults(null);
+    // Small delay to let UI update
+    await new Promise(r => setTimeout(r, 80));
+    const results = runAllComputations(structuralData);
+    setStructuralResults(results);
+    setRunState({ running: false, summary: results.summary });
+  };
 
   const TOOLS = [
     {key:"bom",      icon:"bom",      label:"BOM Review",     badge:"⭐"},
@@ -4228,22 +4676,26 @@ function StructiCode({ apiKey, initialTool }) {
         ))}
       </div>
 
-      {/* Plans data banner */}
+      {/* Structural Intelligence Panel — replaces old simple green banner */}
       {structuralData && (
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:10,marginBottom:20,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,color:"#22c55e",fontWeight:700}}>✓ Plan data loaded</span>
-          <span style={{fontSize:12,color:T.muted}}>
-            {structuralData.building?.name && `${structuralData.building.name} · `}
-            {structuralData.building?.floors && `${structuralData.building.floors}F · `}
-            {structuralData.seismic?.zone && `${structuralData.seismic.zone} · `}
-            {structuralData.materials?.fc && `f'c=${structuralData.materials.fc}MPa · `}
-            {structuralData.materials?.fy && `fy=${structuralData.materials.fy}MPa`}
-          </span>
-          <button onClick={()=>setStructuralData(null)} style={{marginLeft:"auto",fontSize:11,color:T.muted,background:"transparent",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>Clear</button>
-        </div>
+        <StructuralIntelligencePanel
+          data={structuralData}
+          onUpdate={setStructuralData}
+          onRunAll={handleRunAll}
+          onClear={() => { setStructuralData(null); setStructuralResults(null); setRunState(null); }}
+          runState={runState}
+        />
       )}
 
-      {tool==="checker"  && <StructuralChecker apiKey={apiKey} onDataExtracted={setStructuralData}/>}
+      {/* Computation Summary — appears after Run All */}
+      {structuralResults && (
+        <StructuralComputationSummary
+          results={structuralResults}
+          onNavigate={(toolKey) => setTool(toolKey)}
+        />
+      )}
+
+      {tool==="checker"  && <StructuralChecker apiKey={apiKey} onDataExtracted={(d)=>{ setStructuralData(d); setStructuralResults(null); setRunState(null); }}/>}
       {tool==="seismic"  && <SeismicCalc   structuralData={structuralData}/>}
       {tool==="beam"     && <BeamDesign    structuralData={structuralData}/>}
       {tool==="column"   && <ColumnDesign  structuralData={structuralData}/>}
