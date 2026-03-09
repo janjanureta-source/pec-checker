@@ -5036,7 +5036,7 @@ function LandingPage({ onLogin }) {
         borderBottom:navSolid?"1px solid rgba(6,150,215,0.12)":"none",
         transition:"all 0.3s ease" }}>
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-          <div style={{ width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${BLUE},#0569a8)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:`0 4px 16px rgba(6,150,215,0.4)` }}>🏗️</div>
+          <div style={{ width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${BLUE},#0569a8)`,display:"flex",alignItems:"center",justifyContent:"center" }}><BuildifyLogo size={30}/></div>
           <div>
             <div style={{ fontWeight:900,fontSize:16,color:"#e8edf5",letterSpacing:"-0.5px" }}>Buildify</div>
             <div style={{ fontSize:9,color:"#475569",letterSpacing:"0.8px",textTransform:"uppercase" }}>Engineering Suite · PH</div>
