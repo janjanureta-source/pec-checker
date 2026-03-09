@@ -62,12 +62,14 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
     Array.isArray(m.content) && m.content.some(b => b.type === "image" || b.type === "document")
   );
 
-  const payload = { model: "claude-sonnet-4-20250514", max_tokens, system, messages };
+  const payload = { model: "claude-sonnet-4-20250514", max_tokens, messages };
+  if (system) payload.system = system;
 
-  if (hasFiles) {
-    // Direct browser → Anthropic (no size limit from Vercel)
-    const key = apiKey || window.__PHEN_KEY__;
-    if (!key) throw new Error("No API key. Click the 🔑 button in the top bar and enter your Anthropic API key.");
+  // Resolve key: prop → window global → nothing (proxy will use env var)
+  const key = apiKey || window.__PHEN_KEY__ || "";
+
+  if (hasFiles && key) {
+    // Files + key available → call Anthropic directly from browser (no Vercel size limit)
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -82,11 +84,15 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
     if (data.error) throw new Error(data.error.message || "Anthropic API error");
     return data;
   } else {
-    // Text-only → go through proxy (uses server-side env key)
+    // Text-only OR no client key → route through proxy (uses ANTHROPIC_API_KEY env var)
+    // If files are present here it means no client key exists — proxy will hit 413 for very
+    // large files, but works fine for small ones and all text-only calls.
     const hdrs = { "Content-Type": "application/json" };
-    if (apiKey) hdrs["x-api-key"] = apiKey;
+    if (key) hdrs["x-api-key"] = key;
     const res = await fetch("/api/anthropic", { method: "POST", headers: hdrs, body: JSON.stringify(payload) });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`); }
     if (data.error) throw new Error(data.error.message || "API error");
     return data;
   }
@@ -3888,7 +3894,7 @@ function Dashboard({ user, onLogout }) {
           <div style={{ borderTop:`1px solid ${T.border}`, background:"rgba(245,158,11,0.04)", padding:"12px 24px" }}>
             <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", gap:12, alignItems:"center" }}>
               <span style={{ fontSize:13, color:T.accent, whiteSpace:"nowrap", fontWeight:600 }}>Anthropic API Key</span>
-              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}/>
+              <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); window.__PHEN_KEY__ = e.target.value; }} placeholder="sk-ant-..." style={{ flex:1, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:9, padding:"8px 14px", color:T.text, fontSize:13, outline:"none" }} onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}/>
               <button onClick={() => { window.__PHEN_KEY__ = apiKey; setShowKey(false); }} style={{ background:"linear-gradient(135deg,#f59e0b,#f97316)", border:"none", color:"#000", fontWeight:700, padding:"8px 18px", borderRadius:9, cursor:"pointer", fontSize:13 }}>Save</button>
             </div>
           </div>
