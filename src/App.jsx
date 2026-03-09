@@ -53,49 +53,64 @@ const DEMAND_FACTORS = {
 const toBase64 = f => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.onerror=rej; r.readAsDataURL(f); });
 const fmtSize  = n => n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
 
-// ─── SMART AI CALLER ─────────────────────────────────────────────────────────
-// When messages contain file data (images/PDFs), call Anthropic directly from
-// the browser to avoid Vercel's 4.5MB body limit (413 errors).
-// Falls back to the /api/anthropic proxy for text-only requests.
-const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
-  const hasFiles = messages.some(m =>
-    Array.isArray(m.content) && m.content.some(b => b.type === "image" || b.type === "document")
-  );
+// Compress an image file to JPEG at reduced quality/size before base64 encoding
+const compressImage = (file, maxPx = 1600, quality = 0.75) => new Promise((resolve, reject) => {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    let { width: w, height: h } = img;
+    if (w > maxPx || h > maxPx) {
+      if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+      else       { w = Math.round(w * maxPx / h); h = maxPx; }
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    canvas.toBlob(blob => {
+      if (!blob) { resolve(file); return; } // fallback to original
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }, "image/jpeg", quality);
+  };
+  img.onerror = reject;
+  img.src = url;
+});
 
+// ─── UNIFIED AI CALLER — always via proxy, images compressed first ────────────
+const MAX_PAYLOAD_MB = 3.5;
+
+const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, messages };
   if (system) payload.system = system;
 
-  // Resolve key: prop → window global → nothing (proxy will use env var)
-  const key = apiKey || window.__PHEN_KEY__ || "";
-
-  if (hasFiles && key) {
-    // Files + key available → call Anthropic directly from browser (no Vercel size limit)
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message || "Anthropic API error");
-    return data;
-  } else {
-    // Text-only OR no client key → route through proxy (uses ANTHROPIC_API_KEY env var)
-    // If files are present here it means no client key exists — proxy will hit 413 for very
-    // large files, but works fine for small ones and all text-only calls.
-    const hdrs = { "Content-Type": "application/json" };
-    if (key) hdrs["x-api-key"] = key;
-    const res = await fetch("/api/anthropic", { method: "POST", headers: hdrs, body: JSON.stringify(payload) });
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`); }
-    if (data.error) throw new Error(data.error.message || "API error");
-    return data;
+  // Warn if payload is too large
+  const payloadStr = JSON.stringify(payload);
+  const payloadMB = payloadStr.length / 1024 / 1024;
+  if (payloadMB > MAX_PAYLOAD_MB) {
+    throw new Error(
+      `File too large (${payloadMB.toFixed(1)}MB). Please use smaller files or fewer pages. ` +
+      `For PDFs, upload only the relevant pages (ideally under 2MB each).`
+    );
   }
+
+  const key = apiKey || window.__PHEN_KEY__ || "";
+  const hdrs = { "Content-Type": "application/json" };
+  if (key) hdrs["x-api-key"] = key;
+
+  const res = await fetch("/api/anthropic", {
+    method: "POST",
+    headers: hdrs,
+    body: payloadStr,
+  });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); }
+  catch { throw new Error(`Server error ${res.status}: ${text.slice(0, 200)}`); }
+  if (data.error) throw new Error(data.error.message || "API error");
+  return data;
 };
 
 const repairJSON = str => {
@@ -1071,8 +1086,8 @@ function PlanChecker({ apiKey }) {
   const buildContent = async fobjs => {
     const blocks=[];
     for(const fo of fobjs){
-      const b64=await toBase64(fo.file);
-      if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:fo.type,data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
+      const b64 = fo.type.startsWith("image/") ? await compressImage(fo.file) : await toBase64(fo.file);
+      if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
       else if(fo.type==="application/pdf") { blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:`[PDF: ${fo.name}]`}); }
       else blocks.push({type:"text",text:`[File: ${fo.name} — analyze context for electrical compliance]`});
     }
@@ -1428,8 +1443,8 @@ function StructuralChecker({ apiKey }) {
     try {
       const blocks=[];
       for(const fo of files){
-        const b64=await toBase64(fo.file);
-        if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:fo.type,data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
+        const b64 = fo.type.startsWith("image/") ? await compressImage(fo.file) : await toBase64(fo.file);
+        if(fo.type.startsWith("image/")) { blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:`[Image: ${fo.name}]`}); }
         else if(fo.type==="application/pdf") { blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:`[PDF: ${fo.name}]`}); }
         else blocks.push({type:"text",text:`[File: ${fo.name}]`});
       }
@@ -2281,9 +2296,9 @@ function BOMReview({ apiKey }) {
       const blocks = [];
       const allFiles = [...planFiles.map(f=>({...f,role:"PLAN"})), ...bomFiles.map(f=>({...f,role:"BOM"}))];
       for (const fo of allFiles) {
-        const b64 = await toBase64(fo.file);
+        const b64 = fo.type.startsWith("image/") ? await compressImage(fo.file) : await toBase64(fo.file);
         const label = `[${fo.role}: ${fo.name}]`;
-        if (fo.type.startsWith("image/"))          { blocks.push({type:"image",    source:{type:"base64",media_type:fo.type,data:b64}}); blocks.push({type:"text",text:label}); }
+        if (fo.type.startsWith("image/"))          { blocks.push({type:"image",    source:{type:"base64",media_type:"image/jpeg",data:b64}}); blocks.push({type:"text",text:label}); }
         else if (fo.type==="application/pdf")       { blocks.push({type:"document", source:{type:"base64",media_type:"application/pdf",data:b64}}); blocks.push({type:"text",text:label}); }
         else if (fo.type.includes("sheet") || fo.name.match(/\.(xlsx?|csv)$/i)) { blocks.push({type:"text",text:`${label} — NOTE: spreadsheet uploaded, extract all BOM rows you can read from filename context and user message.`}); }
         else                                         { blocks.push({type:"text",text:label}); }
@@ -2882,7 +2897,7 @@ function PlumbingChecker({ apiKey }) {
     if(!files.length)return;setBusy(true);setError(null);setResult(null);
     try{
       const blocks=[];
-      for(const fo of files){const b64=await toBase64(fo.file);if(fo.type.startsWith("image/")){blocks.push({type:"image",source:{type:"base64",media_type:fo.type,data:b64}});blocks.push({type:"text",text:`[Image: ${fo.name}]`});}else if(fo.type==="application/pdf"){blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}});blocks.push({type:"text",text:`[PDF: ${fo.name}]`});}}
+      for(const fo of files){const b64=fo.type.startsWith("image/")?await compressImage(fo.file):await toBase64(fo.file);if(fo.type.startsWith("image/")){blocks.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}});blocks.push({type:"text",text:`[Image: ${fo.name}]`});}else if(fo.type==="application/pdf"){blocks.push({type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}});blocks.push({type:"text",text:`[PDF: ${fo.name}]`});}}
       blocks.push({type:"text",text:"Analyze for NPC 2000 and PD 856 compliance. Return only JSON."});
       const hdrs={"Content-Type":"application/json"};if(apiKey)hdrs["x-api-key"]=apiKey;
       const data=await callAI({ apiKey, system:NPC_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });

@@ -1,8 +1,7 @@
-// Increase body size limit to 25MB for plan + BOM file uploads
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "25mb",
+      sizeLimit: "20mb",
     },
   },
 };
@@ -21,8 +20,7 @@ export default async function handler(req, res) {
   if (!apiKey) {
     return res.status(401).json({
       error: {
-        message:
-          "No API key found. Add ANTHROPIC_API_KEY to Vercel environment variables, or enter one via the 🔑 button.",
+        message: "No API key. Set ANTHROPIC_API_KEY in Vercel environment variables, or paste your key via the 🔑 button.",
       },
     });
   }
@@ -38,21 +36,14 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body),
     });
 
-    // Read as text first — Anthropic sometimes returns plain-text errors
     const text = await response.text();
-
     let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      // Non-JSON response (e.g. "Request Entity Too Large", gateway errors)
+    try { data = JSON.parse(text); }
+    catch {
       return res.status(response.status).json({
-        error: {
-          message: `API error ${response.status}: ${text.slice(0, 300)}`,
-        },
+        error: { message: `API error ${response.status}: ${text.slice(0, 300)}` },
       });
     }
-
     return res.status(response.status).json(data);
   } catch (err) {
     return res.status(500).json({ error: { message: err.message } });
