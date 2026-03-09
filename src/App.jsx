@@ -1747,6 +1747,7 @@ function StructuralChecker({ apiKey, onDataExtracted }) {
   const [corrections,setCorrections] = useState(null);
   const [correcting,setCorrecting]   = useState(false);
   const [revNum,setRevNum] = useState(1);
+  const [extractedData, setExtractedData] = useState(null);
   const ref = useRef(null);
 
   const addFiles = useCallback(fs=>{
@@ -1787,6 +1788,7 @@ function StructuralChecker({ apiKey, onDataExtracted }) {
         const rawExtract = extractionResp.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
         const extracted = JSON.parse(rawExtract);
         if (onDataExtracted) onDataExtracted(extracted);
+              setExtractedData(extracted);
       } catch { /* extraction failed silently - compliance result still shown */ }
 
       setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
@@ -1955,6 +1957,49 @@ Respond ONLY as valid JSON array:
               )}
             </div>
           )}
+          {/* Issue 3: Design Computation Capability Summary */}
+          {extractedData && (
+            <div style={{marginTop:16,background:"rgba(6,150,215,0.04)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:12,padding:16}}>
+              <div style={{fontSize:12,fontWeight:800,color:T.text,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+                <Icon name="structural" size={14} color="#0696d7"/>
+                Design Computation Readiness
+                <span style={{fontSize:10,color:T.muted,fontWeight:400,marginLeft:4}}>— what was extracted for structural calcs</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
+                {[
+                  { key:"seismic", label:"Seismic Load",     ok:!!(extractedData.seismic?.zone||extractedData.seismic?.seismicWeight),     detail: extractedData.seismic?.zone ? `${extractedData.seismic.zone}` : null },
+                  { key:"beam",    label:"Beam Design",       ok:!!(extractedData.beams?.length&&extractedData.materials?.fc),               detail: extractedData.beams?.length ? `${extractedData.beams.length} beam(s)` : null },
+                  { key:"column",  label:"Column Design",     ok:!!(extractedData.columns?.length&&extractedData.materials?.fc),             detail: extractedData.columns?.length ? `${extractedData.columns.length} column(s)` : null },
+                  { key:"footing", label:"Footing Design",    ok:!!(extractedData.footings?.length),                                         detail: extractedData.footings?.length ? `${extractedData.footings.length} footing(s)` : null },
+                  { key:"slab",    label:"Slab Design",       ok:!!(extractedData.slabs?.length&&extractedData.materials?.fc),               detail: extractedData.slabs?.length ? `${extractedData.slabs.length} slab(s)` : null },
+                  { key:"loads",   label:"Load Combinations", ok:!!(extractedData.loads?.floorDL&&extractedData.loads?.floorLL),            detail: extractedData.loads?.floorDL ? `DL=${extractedData.loads.floorDL}kPa` : null },
+                ].map(item=>(
+                  <div key={item.key} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
+                    background:item.ok?"rgba(34,197,94,0.06)":"rgba(255,255,255,0.02)",
+                    border:`1px solid ${item.ok?"rgba(34,197,94,0.2)":T.border}`,borderRadius:9}}>
+                    <div style={{width:22,height:22,borderRadius:"50%",
+                      background:item.ok?"rgba(34,197,94,0.15)":"rgba(100,116,139,0.1)",
+                      display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      <span style={{fontSize:11,fontWeight:900,color:item.ok?"#22c55e":T.muted}}>{item.ok?"✓":"✗"}</span>
+                    </div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:700,color:item.ok?T.text:T.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.label}</div>
+                      <div style={{fontSize:10,color:item.ok?"#22c55e":T.muted,marginTop:1}}>{item.ok?(item.detail||"Ready"):"Not in plans"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {(extractedData.materials?.fc||extractedData.materials?.fy) && (
+                <div style={{marginTop:10,padding:"7px 12px",background:"rgba(6,150,215,0.06)",borderRadius:8,fontSize:11,color:T.muted}}>
+                  Materials: {extractedData.materials?.fc ? `f'c = ${extractedData.materials.fc} MPa` : "f'c not found"} · {extractedData.materials?.fy ? `fy = ${extractedData.materials.fy} MPa` : "fy not found"}
+                </div>
+              )}
+              <div style={{marginTop:10,fontSize:11,color:"#0696d7",fontWeight:600}}>
+                ↓ Use the Design Calcs toolbar above to open pre-filled calculators, or click "Run All Computations" in the Structural Intelligence Panel.
+              </div>
+            </div>
+          )}
+
           <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>⚠️ AI-generated report for reference only. All plans must be reviewed and stamped by a licensed PSCE before submission to DPWH or LGU.</div>
         </div>
       )}
@@ -1969,323 +2014,337 @@ Respond ONLY as valid JSON array:
   );
 }
 
+
 // ─── STRUCTICODE: SEISMIC LOAD CALC ──────────────────────────────────────────
 function SeismicCalc({ structuralData }) {
   const sd = structuralData;
-  const [zone,setZone] = useState(sd?.seismic?.zone || "Zone 4");
-  const [soil,setSoil] = useState(sd?.seismic?.soilTypeLabel || "SD - Stiff Soil");
-  const [occ,setOcc]   = useState(sd?.seismic?.occupancyCategory || "I - Standard");
-  const [W,setW]       = useState(sd?.seismic?.seismicWeight || 5000);
-  const [T,setTp]      = useState(sd?.seismic?.naturalPeriod || 0.3);
-  const [R,setR]       = useState(sd?.seismic?.responseFactor || 8.5);
-  const [result,setResult] = useState(null);
+  const [zone, setZone] = useState(sd?.seismic?.zone || "");
+  const [soil, setSoil] = useState(sd?.seismic?.soilTypeLabel || "");
+  const [occ,  setOcc]  = useState(sd?.seismic?.occupancyCategory || "");
+  const [W,    setW]    = useState(sd?.seismic?.seismicWeight ?? "");
+  const [TK,   setTp]   = useState(sd?.seismic?.naturalPeriod  ?? "");
+  const [R,    setR]    = useState(sd?.seismic?.responseFactor  ?? "");
+  const [result, setResult] = useState(null);
+  const [fp, setFp] = useState({
+    zone: !!sd?.seismic?.zone, soil: !!sd?.seismic?.soilTypeLabel,
+    occ: !!sd?.seismic?.occupancyCategory, W: sd?.seismic?.seismicWeight != null,
+    TK: sd?.seismic?.naturalPeriod != null, R: sd?.seismic?.responseFactor != null,
+  });
 
-  // Re-fill if structuralData arrives after mount
   useEffect(() => {
-    if (!sd) return;
-    if (sd.seismic?.zone) setZone(sd.seismic.zone);
-    if (sd.seismic?.soilTypeLabel) setSoil(sd.seismic.soilTypeLabel);
-    if (sd.seismic?.occupancyCategory) setOcc(sd.seismic.occupancyCategory);
-    if (sd.seismic?.seismicWeight) setW(sd.seismic.seismicWeight);
-    if (sd.seismic?.naturalPeriod) setTp(sd.seismic.naturalPeriod);
-    if (sd.seismic?.responseFactor) setR(sd.seismic.responseFactor);
+    if (!sd?.seismic) return;
+    const s = sd.seismic;
+    if (s.zone)              { setZone(s.zone);              setFp(p=>({...p,zone:true})); }
+    if (s.soilTypeLabel)     { setSoil(s.soilTypeLabel);     setFp(p=>({...p,soil:true})); }
+    if (s.occupancyCategory) { setOcc(s.occupancyCategory);  setFp(p=>({...p,occ:true})); }
+    if (s.seismicWeight != null) { setW(s.seismicWeight);    setFp(p=>({...p,W:true})); }
+    if (s.naturalPeriod  != null){ setTp(s.naturalPeriod);   setFp(p=>({...p,TK:true})); }
+    if (s.responseFactor != null){ setR(s.responseFactor);   setFp(p=>({...p,R:true})); }
   }, [sd]);
 
   const calc = () => {
-    const Zv  = PH_SEISMIC_ZONES[zone].Z;
-    const {Fa,Fv} = SOIL_TYPES[soil];
-    const I   = OCCUPANCY_I[occ];
-    const Ca  = 0.4*Fa*Zv;
-    const Cv  = 0.4*Fv*Zv*1.5;
-    const Ts  = Cv/(2.5*Ca);
-    const T0  = 0.2*Ts;
-    let Sa;
-    if(T<=T0)      Sa = Ca*(0.6*(T/T0)+0.4);
-    else if(T<=Ts) Sa = 2.5*Ca;
-    else           Sa = Cv/T;
-    const Vmin = 0.11*Ca*I*W;
-    const Vmax = 2.5*Ca*I*W/R;
-    const V    = Math.max(Vmin, Math.min(Sa*I*W/R, Vmax));
-    const Cs   = V/W;
+    if (!zone || !soil || !occ || W==="" || TK==="" || R==="") return;
+    const Zv = PH_SEISMIC_ZONES[zone]?.Z;
+    if (!Zv) return;
+    const soilKey = Object.keys(SOIL_TYPES).find(k=>k===soil) || Object.keys(SOIL_TYPES)[3];
+    const {Fa,Fv} = SOIL_TYPES[soilKey];
+    const I  = OCCUPANCY_I[occ] || 1.0;
+    const Ca = 0.4*Fa*Zv;
+    const Cv = 0.4*Fv*Zv*1.5;
+    const Ts = Cv/(2.5*Ca);
+    const T0 = 0.2*Ts;
+    const t  = +TK;
+    const Sa = t<=T0 ? Ca*(0.6*(t/T0)+0.4) : t<=Ts ? 2.5*Ca : Cv/t;
+    const Vmin = 0.11*Ca*I*(+W);
+    const Vmax = 2.5*Ca*I*(+W)/(+R);
+    const V    = Math.max(Vmin, Math.min(Sa*I*(+W)/(+R), Vmax));
+    const Cs   = V/(+W);
     setResult({Ca,Cv,Ts,T0,Sa,V,Cs,Vmin,Vmax,Zv,I,Fa,Fv});
   };
 
-  const TK = T; // local theme alias
+  const Hint = ({children}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{children}</div>;
+  const canCalc = zone && soil && occ && W!=="" && TK!=="" && R!=="";
+
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
-        <Label>Seismic Zone (NSCP 2015 Sec. 208.4)</Label>
+        {!sd && (
+          <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>
+            💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill these parameters, or enter values manually below.
+          </div>
+        )}
+        <Label>Seismic Zone (NSCP 2015 Sec. 208.4) {fp.zone && <FromPlansBadge/>}</Label>
         <Select value={zone} onChange={e=>setZone(e.target.value)} style={{marginBottom:4}}>
+          <option value="">— Select zone —</option>
           {Object.entries(PH_SEISMIC_ZONES).map(([k,v])=><option key={k} value={k}>{k} — Z={v.Z}</option>)}
         </Select>
-        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>{PH_SEISMIC_ZONES[zone].desc}</div>
+        {zone ? <div style={{fontSize:11,color:T.muted,marginBottom:16}}>{PH_SEISMIC_ZONES[zone].desc}</div>
+               : <Hint>Zone 4 covers most of Luzon and Mindanao. Confirm with geohazard map.</Hint>}
 
-        <Label>Soil Profile Type (NSCP Table 208-2)</Label>
-        <Select value={soil} onChange={e=>setSoil(e.target.value)} style={{marginBottom:16}}>
+        <Label>Soil Profile Type (NSCP Table 208-2) {fp.soil && <FromPlansBadge/>}</Label>
+        <Select value={soil} onChange={e=>setSoil(e.target.value)} style={{marginBottom:4}}>
+          <option value="">— Select soil type —</option>
           {Object.keys(SOIL_TYPES).map(k=><option key={k} value={k}>{k}</option>)}
         </Select>
+        <Hint>From geotechnical report. SD (Stiff Soil) is most common for urban sites.</Hint>
 
-        <Label>Occupancy Category</Label>
+        <Label>Occupancy Category {fp.occ && <FromPlansBadge/>}</Label>
         <Select value={occ} onChange={e=>setOcc(e.target.value)} style={{marginBottom:16}}>
+          <option value="">— Select occupancy —</option>
           {Object.keys(OCCUPANCY_I).map(k=><option key={k} value={k}>{k} (I={OCCUPANCY_I[k]})</option>)}
         </Select>
 
-        <Label>Seismic Weight W (kN)</Label>
-        <Input type="number" value={W} onChange={e=>setW(+e.target.value)} style={{marginBottom:16}}/>
+        <Label>Seismic Weight W (kN) {fp.W && <FromPlansBadge/>}</Label>
+        <Input type="number" value={W} onChange={e=>setW(e.target.value)} placeholder="e.g. 5000 — total gravity load at base" style={{marginBottom:16}}/>
 
-        <Label>Fundamental Period T (seconds)</Label>
-        <Input type="number" value={TK} onChange={e=>setTp(+e.target.value)} step="0.05" style={{marginBottom:16}}/>
+        <Label>Fundamental Period T (seconds) {fp.TK && <FromPlansBadge/>}</Label>
+        <Input type="number" value={TK} onChange={e=>setTp(e.target.value)} step="0.05" placeholder="e.g. 0.30 — use NSCP Eq. 208-8 or modal analysis" style={{marginBottom:16}}/>
 
-        <Label>Response Modification Factor R</Label>
-        <Input type="number" value={R} onChange={e=>setR(+e.target.value)} step="0.5" style={{marginBottom:20}}/>
-        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>Typical: SMRF=8.5, OMRF=3.5, Shear Wall=5.5</div>
+        <Label>Response Modification Factor R {fp.R && <FromPlansBadge/>}</Label>
+        <Input type="number" value={R} onChange={e=>setR(e.target.value)} step="0.5" placeholder="SMRF=8.5 · OMRF=3.5 · Shear Wall=5.5" style={{marginBottom:4}}/>
+        <Hint>Per NSCP Table 208-11. Confirm with structural system type.</Hint>
 
-        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🌍 Calculate Seismic Base Shear</button>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+          {canCalc ? "⚡ Calculate Seismic Base Shear" : "Fill all fields to calculate"}
+        </button>
       </Card>
-
       {result ? (
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <Card style={{background:"rgba(59,130,246,0.06)",border:"1.5px solid rgba(59,130,246,0.3)"}}>
+          <Card style={{background:"rgba(6,150,215,0.06)",border:"1.5px solid rgba(6,150,215,0.3)"}}>
             <div style={{fontSize:11,color:T.muted,marginBottom:4}}>DESIGN BASE SHEAR</div>
-            <div style={{fontSize:42,fontWeight:900,color:"#3b82f6",letterSpacing:"-2px"}}>{result.V.toFixed(1)} <span style={{fontSize:18,fontWeight:400}}>kN</span></div>
+            <div style={{fontSize:42,fontWeight:900,color:"#0696d7",letterSpacing:"-2px"}}>{result.V.toFixed(1)} <span style={{fontSize:18,fontWeight:400}}>kN</span></div>
             <div style={{fontSize:13,color:T.muted,marginTop:4}}>Cs = {(result.Cs*100).toFixed(2)}% of seismic weight</div>
           </Card>
           {[
-            {l:"Seismic Zone Factor Z",v:`${result.Zv}`},
-            {l:"Site Coefficient Fa",v:`${result.Fa}`},
-            {l:"Site Coefficient Fv",v:`${result.Fv}`},
-            {l:"Seismic Coeff. Ca",v:`${result.Ca.toFixed(4)}`},
-            {l:"Seismic Coeff. Cv",v:`${result.Cv.toFixed(4)}`},
-            {l:"Spectral Accel. Sa",v:`${result.Sa.toFixed(4)} g`},
-            {l:"Characteristic Period Ts",v:`${result.Ts.toFixed(3)} s`},
-            {l:"Min Base Shear Vmin",v:`${result.Vmin.toFixed(1)} kN`},
-            {l:"Max Base Shear Vmax",v:`${result.Vmax.toFixed(1)} kN`},
-            {l:"Design Base Shear V",v:`${result.V.toFixed(1)} kN`,highlight:true},
+            {l:"Zone Factor Z",v:`${result.Zv}`},{l:"Fa",v:`${result.Fa}`},{l:"Fv",v:`${result.Fv}`},
+            {l:"Ca",v:result.Ca.toFixed(4)},{l:"Cv",v:result.Cv.toFixed(4)},{l:"Sa",v:`${result.Sa.toFixed(4)} g`},
+            {l:"Ts",v:`${result.Ts.toFixed(3)} s`},{l:"Vmin",v:`${result.Vmin.toFixed(1)} kN`},{l:"Vmax",v:`${result.Vmax.toFixed(1)} kN`},
+            {l:"Design Base Shear V",v:`${result.V.toFixed(1)} kN`,hi:true},
           ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.1)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.3)":"none"}}>
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:r.hi?"rgba(6,150,215,0.1)":T.dim,borderRadius:8,border:r.hi?"1px solid rgba(6,150,215,0.3)":"none"}}>
               <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
-              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+              <span style={{fontSize:14,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
-          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
-            Formula: V = Sa·I·W/R, bounded by Vmin = 0.11·Ca·I·W and Vmax = 2.5·Ca·I·W/R
-          </div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>V = Sa·I·W/R, bounded by Vmin=0.11·Ca·I·W and Vmax=2.5·Ca·I·W/R (NSCP 2015 Sec. 208.5.2)</div>
         </div>
       ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <div style={{fontSize:48}}>🌍</div>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter parameters and click<br/>Calculate to see results</div>
+          <Icon name="seismic" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
   );
 }
 
-// ─── STRUCTICODE: BEAM DESIGN ─────────────────────────────────────────────────
+// ─── STRUCTICODE: BEAM DESIGN ────────────────────────────────────────────────
 function BeamDesign({ structuralData }) {
   const sd = structuralData;
   const b0 = sd?.beams?.[0];
-  const [fc,setFc] = useState(sd?.materials?.fc  || 27.6);
-  const [fy,setFy] = useState(sd?.materials?.fy  || 414);
-  const [b,setB]   = useState(b0?.width  || 300);
-  const [d,setD]   = useState(b0?.depth  || 500);
-  const [Mu,setMu] = useState(b0?.Mu     || 150);
-  const [Vu,setVu] = useState(b0?.Vu     || 120);
-  const [result,setResult] = useState(null);
-  const [fromPlans,setFromPlans] = useState({fc:!!sd?.materials?.fc, fy:!!sd?.materials?.fy, b:!!b0?.width, d:!!b0?.depth, Mu:!!b0?.Mu, Vu:!!b0?.Vu});
+  const [fc, setFc] = useState(sd?.materials?.fc ?? "");
+  const [fy, setFy] = useState(sd?.materials?.fy ?? "");
+  const [b,  setB]  = useState(b0?.width  ?? "");
+  const [d,  setD]  = useState(b0?.depth  ?? "");
+  const [Mu, setMu] = useState(b0?.Mu     ?? "");
+  const [Vu, setVu] = useState(b0?.Vu     ?? "");
+  const [result, setResult] = useState(null);
+  const [fp, setFp] = useState({fc:!!sd?.materials?.fc,fy:!!sd?.materials?.fy,b:!!b0?.width,d:!!b0?.depth,Mu:!!b0?.Mu,Vu:!!b0?.Vu});
 
-  useEffect(() => {
-    if (!sd) return;
-    const b1 = sd?.beams?.[0];
-    if (sd.materials?.fc)  { setFc(sd.materials.fc);  setFromPlans(p=>({...p,fc:true})); }
-    if (sd.materials?.fy)  { setFy(sd.materials.fy);  setFromPlans(p=>({...p,fy:true})); }
-    if (b1?.width) { setB(b1.width);  setFromPlans(p=>({...p,b:true})); }
-    if (b1?.depth) { setD(b1.depth);  setFromPlans(p=>({...p,d:true})); }
-    if (b1?.Mu)    { setMu(b1.Mu);    setFromPlans(p=>({...p,Mu:true})); }
-    if (b1?.Vu)    { setVu(b1.Vu);    setFromPlans(p=>({...p,Vu:true})); }
-  }, [sd]);
+  useEffect(()=>{
+    if(!sd) return;
+    const b1=sd?.beams?.[0];
+    if(sd.materials?.fc)  {setFc(sd.materials.fc);  setFp(p=>({...p,fc:true}));}
+    if(sd.materials?.fy)  {setFy(sd.materials.fy);  setFp(p=>({...p,fy:true}));}
+    if(b1?.width) {setB(b1.width);  setFp(p=>({...p,b:true}));}
+    if(b1?.depth) {setD(b1.depth);  setFp(p=>({...p,d:true}));}
+    if(b1?.Mu)    {setMu(b1.Mu);    setFp(p=>({...p,Mu:true}));}
+    if(b1?.Vu)    {setVu(b1.Vu);    setFp(p=>({...p,Vu:true}));}
+  },[sd]);
 
   const calc = () => {
-    const bm=b/1000, dm=d/1000; // convert to meters
-    const phi_b=0.90, phi_v=0.85;
-    const Rn = (Mu*1000)/(phi_b*bm*dm*dm*1e6); // MPa
-    const rho_req = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
-    const rho_min = Math.max(1.4/fy, 0.25*Math.sqrt(fc)/fy);
-    const rho_max = 0.75*0.85*0.85*(fc/fy)*(600/(600+fy));
-    const rho_use = Math.max(rho_min, Math.min(rho_req, rho_max));
-    const As_req  = rho_use*b*d; // mm²
-    // Shear
-    const Vc = (1/6)*Math.sqrt(fc)*b*d/1000; // kN
-    const Vs_req = Vu/phi_v - Vc;
-    const needsStirrup = Vs_req > 0;
-    const s_max = Math.min(d/2, 600); // mm max stirrup spacing
-    const Av_req = needsStirrup ? (Vs_req*1000*s_max)/(fy*d) : 0; // mm²
-    const status_flex = rho_req <= rho_max ? "PASS" : "FAIL";
-    const status_shear = Vc >= Vu/phi_v ? "PASS" : "NEEDS STIRRUPS";
-    setResult({Rn,rho_req,rho_min,rho_max,rho_use,As_req,Vc,Vs_req,needsStirrup,s_max,Av_req,status_flex,status_shear});
+    if([fc,fy,b,d,Mu,Vu].some(v=>v==="")) return;
+    const bm=+b/1000, dm=+d/1000, phi_b=0.90, phi_v=0.85;
+    const Rn = (+Mu*1e3)/(phi_b*bm*dm*dm*1e6);
+    const beta1 = +fc>=28 ? Math.max(0.65, 0.85-0.05*(+fc-28)/7) : 0.85;
+    const rho_req = (0.85*+fc/+fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*+fc))));
+    const rho_min = Math.max(0.25*Math.sqrt(+fc)/+fy, 1.4/+fy);
+    const rho_max = 0.75*0.85*beta1*(+fc/+fy)*(600/(600+(+fy)));
+    const rho_use = Math.max(rho_req, rho_min);
+    const As_req  = rho_use*(+b)*(+d);
+    const Vc = (1/6)*Math.sqrt(+fc)*(+b)*(+d)/1000;
+    const Vs_req = +Vu/phi_v - Vc;
+    const status_flex  = rho_req<=rho_max ? "PASS ✓" : "FAIL — over-reinforced ✗";
+    const status_shear = Vc*phi_v>=(+Vu) ? "Vc adequate ✓" : `Stirrups required (Vs=${Vs_req.toFixed(1)} kN)`;
+    setResult({Rn,rho_req,rho_min,rho_max,rho_use,As_req,Vc,Vs_req,status_flex,status_shear});
   };
+
+  const Hint = ({c}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const canCalc = [fc,fy,b,d,Mu,Vu].every(v=>v!=="");
 
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
-        <Label>Concrete Strength f'c {fromPlans.fc && <FromPlansBadge/>}</Label>
-        <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+        {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill beam dimensions.</div>}
+        <Label>Concrete Strength f'c (MPa) {fp.fc && <FromPlansBadge/>}</Label>
+        <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:4}}>
+          <option value="">— Select grade —</option>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <Label>Steel Yield Strength fy {fromPlans.fy && <FromPlansBadge/>}</Label>
+        <Hint c="Standard: 20.7 MPa (3000psi) residential, 27.6 MPa (4000psi) commercial."/>
+        <Label>Steel Yield Strength fy (MPa) {fp.fy && <FromPlansBadge/>}</Label>
         <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <div><Label>Width b (mm) {fromPlans.b && <FromPlansBadge/>}</Label><Input type="number" value={b} onChange={e=>setB(+e.target.value)}/></div>
-          <div><Label>Eff. Depth d (mm) {fromPlans.d && <FromPlansBadge/>}</Label><Input type="number" value={d} onChange={e=>setD(+e.target.value)}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:4}}>
+          <div><Label>Width b (mm) {fp.b && <FromPlansBadge/>}</Label><Input type="number" value={b} onChange={e=>setB(e.target.value)} placeholder="e.g. 300"/></div>
+          <div><Label>Eff. Depth d (mm) {fp.d && <FromPlansBadge/>}</Label><Input type="number" value={d} onChange={e=>setD(e.target.value)} placeholder="e.g. 450"/></div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-          <div><Label>Factored Moment Mu (kN·m) {fromPlans.Mu && <FromPlansBadge/>}</Label><Input type="number" value={Mu} onChange={e=>setMu(+e.target.value)}/></div>
-          <div><Label>Factored Shear Vu (kN) {fromPlans.Vu && <FromPlansBadge/>}</Label><Input type="number" value={Vu} onChange={e=>setVu(+e.target.value)}/></div>
+        <Hint c="Effective depth d = total depth − cover (40mm) − stirrup dia. − ½ main bar dia."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:4}}>
+          <div><Label>Mu (kN·m) {fp.Mu && <FromPlansBadge/>}</Label><Input type="number" value={Mu} onChange={e=>setMu(e.target.value)} placeholder="Factored moment"/></div>
+          <div><Label>Vu (kN) {fp.Vu && <FromPlansBadge/>}</Label><Input type="number" value={Vu} onChange={e=>setVu(e.target.value)} placeholder="Factored shear"/></div>
         </div>
-        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>📐 Design Beam Section</button>
+        <Hint c="Use factored loads per NSCP Sec. 203. Critical section for Vu at distance d from face of support."/>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+          {canCalc ? "⚡ Design Beam (NSCP 2015 Sec. 406)" : "Fill all fields to calculate"}
+        </button>
       </Card>
-
       {result ? (
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <Card style={{background:result.status_flex==="PASS"?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status_flex==="PASS"?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
-              <div style={{fontSize:11,color:T.muted,marginBottom:4}}>FLEXURE</div>
-              <div style={{fontSize:28,fontWeight:900,color:result.status_flex==="PASS"?T.success:T.danger}}>{result.status_flex}</div>
-            </Card>
-            <Card style={{background:result.status_shear==="PASS"?"rgba(16,185,129,0.06)":"rgba(245,158,11,0.06)",border:`1.5px solid ${result.status_shear==="PASS"?"rgba(16,185,129,0.3)":"rgba(245,158,11,0.3)"}`}}>
-              <div style={{fontSize:11,color:T.muted,marginBottom:4}}>SHEAR</div>
-              <div style={{fontSize:18,fontWeight:900,color:result.status_shear==="PASS"?T.success:T.warn}}>{result.status_shear}</div>
-            </Card>
-          </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <Card style={{background:result.status_flex.includes("PASS")?"rgba(34,197,94,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status_flex.includes("PASS")?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:2}}>FLEXURE STATUS</div>
+            <div style={{fontSize:16,fontWeight:800,color:result.status_flex.includes("PASS")?"#22c55e":"#ef4444"}}>{result.status_flex}</div>
+            <div style={{fontSize:22,fontWeight:900,color:T.text,marginTop:8}}>{result.As_req.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:T.muted}}>mm² required</span></div>
+          </Card>
           {[
-            {l:"Required As (flexure)",v:`${result.As_req.toFixed(0)} mm²`,highlight:true},
-            {l:"Req. steel ratio ρ",v:result.rho_req.toFixed(5)},
-            {l:"Min steel ratio ρmin",v:result.rho_min.toFixed(5)},
-            {l:"Max steel ratio ρmax",v:result.rho_max.toFixed(5)},
-            {l:"Design ratio ρuse",v:result.rho_use.toFixed(5)},
-            {l:"Nominal moment Rn",v:`${result.Rn.toFixed(2)} MPa`},
-            {l:"Concrete shear cap. Vc",v:`${result.Vc.toFixed(1)} kN`},
-            result.needsStirrup&&{l:"Required Av/s",v:`${result.Av_req.toFixed(1)} mm²/mm`,highlight:true},
-            result.needsStirrup&&{l:"Max stirrup spacing",v:`${result.s_max} mm`},
-          ].filter(Boolean).map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
-              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
-              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            {l:"Nominal Coeff. Rn",v:`${result.Rn.toFixed(4)} MPa`},
+            {l:"Required ρ",v:`${(result.rho_req*100).toFixed(4)}%`},
+            {l:"Minimum ρ",v:`${(result.rho_min*100).toFixed(4)}%`},
+            {l:"Maximum ρ (0.75ρb)",v:`${(result.rho_max*100).toFixed(4)}%`},
+            {l:"Design ρ used",v:`${(result.rho_use*100).toFixed(4)}%`,hi:true},
+            {l:"Steel Area As",v:`${result.As_req.toFixed(0)} mm²`,hi:true},
+            {l:"Concrete Shear Vc",v:`${result.Vc.toFixed(1)} kN`},
+            {l:"Shear Status",v:result.status_shear,color:result.status_shear.includes("✓")?"#22c55e":"#f59e0b"},
+          ].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+              <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.color||(r.hi?"#0696d7":T.text),fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
-          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 405 · USD/Strength Method · φb=0.90, φv=0.85</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 — Singly reinforced. Verify bar selection and spacing per Sec. 406.4.</div>
         </div>
       ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <div style={{fontSize:48}}>📐</div>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter beam parameters<br/>and click Design</div>
+          <Icon name="beam" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
   );
 }
 
-// ─── STRUCTICODE: COLUMN DESIGN ───────────────────────────────────────────────
+// ─── STRUCTICODE: COLUMN DESIGN ──────────────────────────────────────────────
 function ColumnDesign({ structuralData }) {
-  const sd = structuralData;
-  const c0 = sd?.columns?.[0];
-  const [fc,setFc]     = useState(sd?.materials?.fc || 27.6);
-  const [fy,setFy]     = useState(sd?.materials?.fy || 414);
-  const [b,setB]       = useState(c0?.width  || 400);
-  const [h,setH]       = useState(c0?.height || 400);
-  const [Pu,setPu]     = useState(c0?.Pu     || 1500);
-  const [Mu,setMu]     = useState(c0?.Mu     || 80);
-  const [type,setType] = useState(c0?.type === "spiral" ? "spiral" : "tied");
-  const [result,setResult] = useState(null);
-  const [fromPlans,setFromPlans] = useState({fc:!!sd?.materials?.fc, fy:!!sd?.materials?.fy, b:!!c0?.width, h:!!c0?.height, Pu:!!c0?.Pu, Mu:!!c0?.Mu});
+  const sd=structuralData, c0=sd?.columns?.[0];
+  const [fc,setFc]=useState(sd?.materials?.fc??"");
+  const [fy,setFy]=useState(sd?.materials?.fy??"");
+  const [b,setB]=useState(c0?.width??"");
+  const [h,setH]=useState(c0?.height??"");
+  const [Pu,setPu]=useState(c0?.Pu??"");
+  const [Mu,setMu]=useState(c0?.Mu??"");
+  const [type,setType]=useState(c0?.type==="spiral"?"spiral":"tied");
+  const [result,setResult]=useState(null);
+  const [fp,setFp]=useState({fc:!!sd?.materials?.fc,fy:!!sd?.materials?.fy,b:!!c0?.width,h:!!c0?.height,Pu:!!c0?.Pu,Mu:!!c0?.Mu});
 
-  useEffect(() => {
-    if (!sd) return;
-    const c1 = sd?.columns?.[0];
-    if (sd.materials?.fc)  { setFc(sd.materials.fc);  setFromPlans(p=>({...p,fc:true})); }
-    if (sd.materials?.fy)  { setFy(sd.materials.fy);  setFromPlans(p=>({...p,fy:true})); }
-    if (c1?.width)  { setB(c1.width);   setFromPlans(p=>({...p,b:true})); }
-    if (c1?.height) { setH(c1.height);  setFromPlans(p=>({...p,h:true})); }
-    if (c1?.Pu)     { setPu(c1.Pu);     setFromPlans(p=>({...p,Pu:true})); }
-    if (c1?.Mu)     { setMu(c1.Mu);     setFromPlans(p=>({...p,Mu:true})); }
-  }, [sd]);
+  useEffect(()=>{
+    if(!sd) return; const c1=sd?.columns?.[0];
+    if(sd.materials?.fc){setFc(sd.materials.fc);setFp(p=>({...p,fc:true}));}
+    if(sd.materials?.fy){setFy(sd.materials.fy);setFp(p=>({...p,fy:true}));}
+    if(c1?.width){setB(c1.width);setFp(p=>({...p,b:true}));}
+    if(c1?.height){setH(c1.height);setFp(p=>({...p,h:true}));}
+    if(c1?.Pu){setPu(c1.Pu);setFp(p=>({...p,Pu:true}));}
+    if(c1?.Mu){setMu(c1.Mu);setFp(p=>({...p,Mu:true}));}
+    if(c1?.type){setType(c1.type==="spiral"?"spiral":"tied");}
+  },[sd]);
 
-  const calc = () => {
-    const Ag = b*h; // mm²
-    const phi = type==="tied"?0.65:0.75;
-    const phi_b=0.65;
-    const rho_min=0.01, rho_max=0.08;
-    // Axial capacity at min/max rho
-    const Po_min = 0.85*fc*(Ag-rho_min*Ag)+fy*rho_min*Ag;
-    const Po_max = 0.85*fc*(Ag-rho_max*Ag)+fy*rho_max*Ag;
-    const phiPn_max = phi*(0.8*(0.85*fc*(Ag)+fy*rho_min*Ag));  // simplified
-    // Required Ast
-    const Pn_req = Pu*1000/phi;
-    const Ast_req = Math.max((Pn_req/0.80 - 0.85*fc*Ag)/(fy - 0.85*fc), rho_min*Ag);
-    const rho_req = Ast_req/Ag;
-    const phiPn = phi*0.80*(0.85*fc*(Ag-Ast_req)+fy*Ast_req)/1000; // kN
-    const ecc = Mu/Pu*1000; // mm
-    const status = (rho_req<=rho_max && rho_req>=rho_min && phiPn>=Pu) ? "PASS" : "FAIL";
+  const calc=()=>{
+    if([fc,fy,b,h,Pu].some(v=>v==="")) return;
+    const phi=type==="spiral"?0.75:0.65, Ag=(+b)*(+h);
+    const Pn_req=(+Pu)*1000/phi;
+    const Ast_req=Math.max((Pn_req/0.80-0.85*+fc*Ag)/(+fy-0.85*+fc),0.01*Ag);
+    const rho_req=Ast_req/Ag, rho_min=0.01, rho_max=0.08;
+    const phiPn=phi*0.80*(0.85*+fc*(Ag-Ast_req)+Ast_req*(+fy))/1000;
+    const ecc=Mu&&Pu?(+Mu*1e3)/(+Pu):0;
+    const status=(rho_req<=rho_max&&rho_req>=rho_min&&phiPn>=(+Pu))?"PASS ✓":"FAIL ✗";
     setResult({Ag,Ast_req,rho_req,rho_min,rho_max,phiPn,ecc,status,phi});
   };
+
+  const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const canCalc=[fc,fy,b,h,Pu].every(v=>v!=="");
 
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
-        <Label>Concrete Strength f'c {fromPlans.fc && <FromPlansBadge/>}</Label>
+        {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill column schedule data.</div>}
+        <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
         <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <Label>Steel Yield Strength fy {fromPlans.fy && <FromPlansBadge/>}</Label>
+        <Label>fy (MPa) {fp.fy&&<FromPlansBadge/>}</Label>
         <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
         <Label>Column Type</Label>
-        <Select value={type} onChange={e=>setType(e.target.value)} style={{marginBottom:16}}>
-          <option value="tied">Tied Column (φ=0.65)</option>
-          <option value="spiral">Spiral Column (φ=0.75)</option>
+        <Select value={type} onChange={e=>setType(e.target.value)} style={{marginBottom:4}}>
+          <option value="tied">Tied Column (φ = 0.65)</option>
+          <option value="spiral">Spiral Column (φ = 0.75)</option>
         </Select>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <div><Label>Width b (mm) {fromPlans.b && <FromPlansBadge/>}</Label><Input type="number" value={b} onChange={e=>setB(+e.target.value)}/></div>
-          <div><Label>Depth h (mm) {fromPlans.h && <FromPlansBadge/>}</Label><Input type="number" value={h} onChange={e=>setH(+e.target.value)}/></div>
+        <Hint c="Spiral columns preferred in high seismic zones for ductility."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:4}}>
+          <div><Label>Width b (mm) {fp.b&&<FromPlansBadge/>}</Label><Input type="number" value={b} onChange={e=>setB(e.target.value)} placeholder="e.g. 400"/></div>
+          <div><Label>Height h (mm) {fp.h&&<FromPlansBadge/>}</Label><Input type="number" value={h} onChange={e=>setH(e.target.value)} placeholder="e.g. 400"/></div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-          <div><Label>Factored Axial Pu (kN)</Label><Input type="number" value={Pu} onChange={e=>setPu(+e.target.value)}/></div>
-          <div><Label>Factored Moment Mu (kN·m)</Label><Input type="number" value={Mu} onChange={e=>setMu(+e.target.value)}/></div>
+        <Hint c="Min. 300mm per NSCP Sec. 421 for seismic zones. From column schedule on structural plans."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:4}}>
+          <div><Label>Pu (kN) {fp.Pu&&<FromPlansBadge/>}</Label><Input type="number" value={Pu} onChange={e=>setPu(e.target.value)} placeholder="e.g. 1500"/></div>
+          <div><Label>Mu (kN·m) {fp.Mu&&<FromPlansBadge/>}</Label><Input type="number" value={Mu} onChange={e=>setMu(e.target.value)} placeholder="Optional"/></div>
         </div>
-        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🏛️ Design Column Section</button>
+        <Hint c="Pu = 1.2D + 1.6L. Sum tributary loads per floor × number of floors above."/>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+          {canCalc?"⚡ Design Column (NSCP 2015 Sec. 410)":"Fill required fields to calculate"}
+        </button>
       </Card>
-
-      {result ? (
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <Card style={{background:result.status==="PASS"?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status==="PASS"?"rgba(16,185,129,0.3)":"rgba(239,68,68,0.3)"}`}}>
-            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>COLUMN STATUS</div>
-            <div style={{fontSize:42,fontWeight:900,color:result.status==="PASS"?T.success:T.danger}}>{result.status}</div>
-            <div style={{fontSize:13,color:T.muted,marginTop:4}}>φPn = {result.phiPn.toFixed(1)} kN vs Pu = {Pu} kN</div>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <Card style={{background:result.status.includes("PASS")?"rgba(34,197,94,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status.includes("PASS")?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:2}}>STATUS</div>
+            <div style={{fontSize:16,fontWeight:800,color:result.status.includes("PASS")?"#22c55e":"#ef4444"}}>{result.status}</div>
+            <div style={{fontSize:22,fontWeight:900,color:T.text,marginTop:8}}>{result.Ast_req.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:T.muted}}>mm² steel req'd</span></div>
           </Card>
           {[
             {l:"Gross Area Ag",v:`${result.Ag.toFixed(0)} mm²`},
-            {l:"Required Ast",v:`${result.Ast_req.toFixed(0)} mm²`,highlight:true},
             {l:"Required ρ",v:`${(result.rho_req*100).toFixed(2)}%`},
-            {l:"Min ρ (1%)",v:"1.00%",ok:result.rho_req>=result.rho_min},
-            {l:"Max ρ (8%)",v:"8.00%",ok:result.rho_req<=result.rho_max},
-            {l:"φPn (capacity)",v:`${result.phiPn.toFixed(1)} kN`,highlight:true},
-            {l:"Eccentricity e",v:`${result.ecc.toFixed(1)} mm`},
-            {l:"Reduction factor φ",v:`${result.phi}`},
+            {l:"Min ρ / Max ρ",v:`${(result.rho_min*100).toFixed(0)}% / ${(result.rho_max*100).toFixed(0)}%`},
+            {l:"φPn capacity",v:`${result.phiPn.toFixed(1)} kN`,hi:true},
+            {l:"Ast required",v:`${result.Ast_req.toFixed(0)} mm²`,hi:true},
+            {l:"Eccentricity e",v:result.ecc?`${result.ecc.toFixed(1)} mm`:"—"},
+            {l:"φ factor",v:`${result.phi}`},
           ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
-              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
-              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+              <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
-          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 · Short column assumption · Compression-controlled</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 — Short column, concentric load. Apply magnification for slender columns per Sec. 410.12.</div>
         </div>
-      ) : (
+      ):(
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <div style={{fontSize:48}}>🏛️</div>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter column parameters<br/>and click Design</div>
+          <Icon name="column" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
@@ -2294,242 +2353,213 @@ function ColumnDesign({ structuralData }) {
 
 // ─── STRUCTICODE: FOOTING DESIGN ─────────────────────────────────────────────
 function FootingDesign({ structuralData }) {
-  const sd = structuralData;
-  const f0 = sd?.footings?.[0];
-  const [fc,setFc]   = useState(sd?.materials?.fc || 20.7);
-  const [fy,setFy]   = useState(sd?.materials?.fy || 276);
-  const [P,setP]     = useState(f0?.columnLoad   || 800);
-  const [qa,setQa]   = useState(f0?.soilBearing  || 150);
-  const [Df,setDf]   = useState(f0?.depth        || 1.5);
-  const [conc_wt]    = useState(23.5);
-  const [result,setResult] = useState(null);
-  const [fromPlans,setFromPlans] = useState({fc:!!sd?.materials?.fc, fy:!!sd?.materials?.fy, P:!!f0?.columnLoad, qa:!!f0?.soilBearing, Df:!!f0?.depth});
+  const sd=structuralData, f0=sd?.footings?.[0];
+  const [fc,setFc]=useState(sd?.materials?.fc??"");
+  const [fy,setFy]=useState(sd?.materials?.fy??"");
+  const [P,setP]=useState(f0?.columnLoad??"");
+  const [qa,setQa]=useState(f0?.soilBearing??"");
+  const [Df,setDf]=useState(f0?.depth??"");
+  const [result,setResult]=useState(null);
+  const [fp,setFp]=useState({fc:!!sd?.materials?.fc,fy:!!sd?.materials?.fy,P:!!f0?.columnLoad,qa:!!f0?.soilBearing,Df:!!f0?.depth});
 
-  useEffect(() => {
-    if (!sd) return;
-    const f1 = sd?.footings?.[0];
-    if (sd.materials?.fc)    { setFc(sd.materials.fc);    setFromPlans(p=>({...p,fc:true})); }
-    if (sd.materials?.fy)    { setFy(sd.materials.fy);    setFromPlans(p=>({...p,fy:true})); }
-    if (f1?.columnLoad)  { setP(f1.columnLoad);   setFromPlans(p=>({...p,P:true})); }
-    if (f1?.soilBearing) { setQa(f1.soilBearing); setFromPlans(p=>({...p,qa:true})); }
-    if (f1?.depth)       { setDf(f1.depth);        setFromPlans(p=>({...p,Df:true})); }
-  }, [sd]);
+  useEffect(()=>{
+    if(!sd) return; const f1=sd?.footings?.[0];
+    if(sd.materials?.fc){setFc(sd.materials.fc);setFp(p=>({...p,fc:true}));}
+    if(sd.materials?.fy){setFy(sd.materials.fy);setFp(p=>({...p,fy:true}));}
+    if(f1?.columnLoad){setP(f1.columnLoad);setFp(p=>({...p,P:true}));}
+    if(f1?.soilBearing){setQa(f1.soilBearing);setFp(p=>({...p,qa:true}));}
+    if(f1?.depth){setDf(f1.depth);setFp(p=>({...p,Df:true}));}
+  },[sd]);
 
-  const calc = () => {
-    const qnet = qa - conc_wt*Df;
-    const Areq = P/qnet;
-    const B    = Math.ceil(Math.sqrt(Areq)*10)/10; // round up to 0.1m
-    const A    = B*B;
-    const qu   = (1.2*P + 0.0)/A; // factored (simplified)
-    const Pu   = 1.2*P;
-    const qu_f = Pu/A;
-    // Depth from punching shear (assume d = B/5 min)
-    const d_min = B*1000/5; // mm
-    const d = Math.max(d_min, 250);
-    // One-way shear check
-    const Vc1 = (1/6)*Math.sqrt(fc)*(B*1000)*d/1000; // kN per meter width
-    // Flexure — cantilever moment
-    const c = (B - 0.4)/2; // assuming 400mm column
-    const Mu = qu_f*B*c*c/2; // kN·m
-    const phi=0.90;
-    const Rn = (Mu*1e6)/(phi*(B*1000)*d*d);
-    const rho = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
-    const rho_min = Math.max(0.0018, 1.4/fy);
-    const rho_use = Math.max(rho, rho_min);
-    const As = rho_use*(B*1000)*d; // mm²
-    setResult({qnet,B,A,qu_f,d,Mu,As,rho_use,rho_min});
+  const calc=()=>{
+    if([fc,fy,P,qa,Df].some(v=>v==="")) return;
+    const qnet=(+qa)-23.5*(+Df);
+    if(qnet<=0){setResult({error:"Net bearing ≤ 0. Reduce Df or increase qa."});return;}
+    const B=Math.ceil(Math.sqrt((+P)/qnet)*10)/10;
+    const qu=1.2*(+P)/(B*B);
+    const d=Math.max(B*1000/5,250);
+    const c=(B-0.4)/2;
+    const Mu_f=qu*B*c*c/2;
+    const Rn=(Mu_f*1e6)/(0.90*(B*1000)*d*d);
+    const rho=(0.85*+fc/+fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*+fc))));
+    const rho_use=Math.max(rho,0.0018);
+    const As=rho_use*(B*1000)*d;
+    setResult({qnet,B,qu,d,Mu_f,As,rho_use});
   };
+
+  const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const canCalc=[fc,fy,P,qa,Df].every(v=>v!=="");
 
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
-        <Label>Concrete Strength f'c {fromPlans.fc && <FromPlansBadge/>}</Label>
+        {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill footing data.</div>}
+        <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
         <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <Label>Steel Yield Strength fy {fromPlans.fy && <FromPlansBadge/>}</Label>
+        <Label>fy (MPa) {fp.fy&&<FromPlansBadge/>}</Label>
         <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <Label>Column Service Load P (kN) {fromPlans.P && <FromPlansBadge/>}</Label>
-        <Input type="number" value={P} onChange={e=>setP(+e.target.value)} style={{marginBottom:16}}/>
-        <Label>Allowable Bearing Capacity qa (kPa) {fromPlans.qa && <FromPlansBadge/>}</Label>
-        <Input type="number" value={qa} onChange={e=>setQa(+e.target.value)} style={{marginBottom:16}}/>
-        <Label>Foundation Depth Df (m) {fromPlans.Df && <FromPlansBadge/>}</Label>
-        <Input type="number" value={Df} onChange={e=>setDf(+e.target.value)} step="0.1" style={{marginBottom:20}}/>
-        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🪨 Design Footing</button>
+        <Label>Column Service Load P (kN) {fp.P&&<FromPlansBadge/>}</Label>
+        <Input type="number" value={P} onChange={e=>setP(e.target.value)} placeholder="e.g. 800 — unfactored service load" style={{marginBottom:4}}/>
+        <Hint c="Use unfactored (service) load. Sum all floor loads from tributary area × floors above."/>
+        <Label>Allowable Bearing qa (kPa) {fp.qa&&<FromPlansBadge/>}</Label>
+        <Input type="number" value={qa} onChange={e=>setQa(e.target.value)} placeholder="e.g. 150 — from geotechnical report" style={{marginBottom:4}}/>
+        <Hint c="Must come from a geotechnical investigation (NSCP Sec. 304). Never assume."/>
+        <Label>Foundation Depth Df (m) {fp.Df&&<FromPlansBadge/>}</Label>
+        <Input type="number" value={Df} onChange={e=>setDf(e.target.value)} step="0.1" placeholder="e.g. 1.50" style={{marginBottom:4}}/>
+        <Hint c="Depth from finished grade to bottom of footing. Min 0.60m for non-frost areas."/>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+          {canCalc?"⚡ Design Footing (NSCP 2015 Sec. 415)":"Fill all fields to calculate"}
+        </button>
       </Card>
-
-      {result ? (
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <Card style={{background:"rgba(59,130,246,0.06)",border:"1.5px solid rgba(59,130,246,0.3)"}}>
-            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>FOOTING SIZE</div>
-            <div style={{fontSize:42,fontWeight:900,color:"#3b82f6",letterSpacing:"-2px"}}>{result.B.toFixed(1)} <span style={{fontSize:18,fontWeight:400}}>m × {result.B.toFixed(1)} m</span></div>
-            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Area = {result.A.toFixed(2)} m²</div>
+      {result?(
+        result.error?(
+          <Card style={{background:"rgba(239,68,68,0.06)",border:"1.5px solid rgba(239,68,68,0.3)"}}>
+            <div style={{fontSize:14,color:"#ef4444",fontWeight:700}}>⚠ {result.error}</div>
           </Card>
-          {[
-            {l:"Net bearing capacity qnet",v:`${result.qnet.toFixed(1)} kPa`},
-            {l:"Factored soil pressure qu",v:`${result.qu_f.toFixed(2)} kPa`},
-            {l:"Effective depth d",v:`${result.d.toFixed(0)} mm`},
-            {l:"Factored moment Mu",v:`${result.Mu.toFixed(1)} kN·m`,highlight:true},
-            {l:"Required As (each dir.)",v:`${result.As.toFixed(0)} mm²`,highlight:true},
-            {l:"Design steel ratio ρ",v:`${(result.rho_use*100).toFixed(3)}%`},
-            {l:"Min steel ratio ρmin",v:`${(result.rho_min*100).toFixed(3)}%`},
-          ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
-              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
-              <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
-            </div>
-          ))}
-          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 305–306 · Square isolated footing · USD method</div>
-        </div>
-      ) : (
+        ):(
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <Card style={{background:"rgba(34,197,94,0.06)",border:"1.5px solid rgba(34,197,94,0.3)"}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:2}}>FOOTING SIZE</div>
+              <div style={{fontSize:32,fontWeight:900,color:"#22c55e"}}>{result.B.toFixed(2)} m × {result.B.toFixed(2)} m</div>
+              <div style={{fontSize:13,color:T.muted,marginTop:4}}>d = {result.d.toFixed(0)} mm</div>
+            </Card>
+            {[
+              {l:"Net Bearing qnet",v:`${result.qnet.toFixed(1)} kPa`},
+              {l:"Factored Pressure qu",v:`${result.qu.toFixed(2)} kPa`},
+              {l:"Design Moment Mu",v:`${result.Mu_f.toFixed(1)} kN·m`},
+              {l:"Design ρ",v:`${(result.rho_use*100).toFixed(4)}%`,hi:true},
+              {l:"Steel Area As",v:`${result.As.toFixed(0)} mm²/m`,hi:true},
+            ].map(r=>(
+              <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+                <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+                <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
+              </div>
+            ))}
+            <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 415 — Square isolated footing. Verify punching shear and wide-beam shear separately.</div>
+          </div>
+        )
+      ):(
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <div style={{fontSize:48}}>🪨</div>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter footing parameters<br/>and click Design</div>
+          <Icon name="footing" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
   );
 }
 
-// ─── STRUCTICODE: SLAB DESIGN ─────────────────────────────────────────────────
+// ─── STRUCTICODE: SLAB DESIGN ────────────────────────────────────────────────
 function SlabDesign({ structuralData }) {
-  const sd = structuralData;
-  const s0 = sd?.slabs?.[0];
-  const [fc,setFc]         = useState(sd?.materials?.fc || 20.7);
-  const [fy,setFy]         = useState(sd?.materials?.fy || 276);
-  const [slabType,setSlabType] = useState(s0?.type || "one-way");
-  const [L,setL]           = useState(s0?.span  || 4.0);
-  const [S,setS]           = useState(3.0);
-  const [wDL,setWDL]       = useState(s0?.DL || sd?.loads?.floorDL || 3.0);
-  const [wLL,setWLL]       = useState(s0?.LL || sd?.loads?.floorLL || 2.4);
-  const [result,setResult] = useState(null);
-  const [fromPlans,setFromPlans] = useState({fc:!!sd?.materials?.fc, fy:!!sd?.materials?.fy, L:!!s0?.span, wDL:!!(s0?.DL||sd?.loads?.floorDL), wLL:!!(s0?.LL||sd?.loads?.floorLL)});
+  const sd=structuralData, s0=sd?.slabs?.[0];
+  const [fc,setFc]=useState(sd?.materials?.fc??"");
+  const [fy,setFy]=useState(sd?.materials?.fy??"");
+  const [slabType,setSlabType]=useState(s0?.type||"one-way");
+  const [L,setL]=useState(s0?.span??"");
+  const [S,setS]=useState("");
+  const [wDL,setWDL]=useState(s0?.DL??sd?.loads?.floorDL??"");
+  const [wLL,setWLL]=useState(s0?.LL??sd?.loads?.floorLL??"");
+  const [result,setResult]=useState(null);
+  const [fp,setFp]=useState({fc:!!sd?.materials?.fc,fy:!!sd?.materials?.fy,L:!!s0?.span,wDL:!!(s0?.DL||sd?.loads?.floorDL),wLL:!!(s0?.LL||sd?.loads?.floorLL)});
 
-  useEffect(() => {
-    if (!sd) return;
-    const s1 = sd?.slabs?.[0];
-    if (sd.materials?.fc) { setFc(sd.materials.fc); setFromPlans(p=>({...p,fc:true})); }
-    if (sd.materials?.fy) { setFy(sd.materials.fy); setFromPlans(p=>({...p,fy:true})); }
-    if (s1?.span) { setL(s1.span); setFromPlans(p=>({...p,L:true})); }
-    const dl = s1?.DL || sd?.loads?.floorDL;
-    const ll = s1?.LL || sd?.loads?.floorLL;
-    if (dl) { setWDL(dl); setFromPlans(p=>({...p,wDL:true})); }
-    if (ll) { setWLL(ll); setFromPlans(p=>({...p,wLL:true})); }
-  }, [sd]);
+  useEffect(()=>{
+    if(!sd) return; const s1=sd?.slabs?.[0];
+    if(sd.materials?.fc){setFc(sd.materials.fc);setFp(p=>({...p,fc:true}));}
+    if(sd.materials?.fy){setFy(sd.materials.fy);setFp(p=>({...p,fy:true}));}
+    if(s1?.span){setL(s1.span);setFp(p=>({...p,L:true}));}
+    if(s1?.DL||sd.loads?.floorDL){setWDL(s1?.DL||sd.loads.floorDL);setFp(p=>({...p,wDL:true}));}
+    if(s1?.LL||sd.loads?.floorLL){setWLL(s1?.LL||sd.loads.floorLL);setFp(p=>({...p,wLL:true}));}
+  },[sd]);
 
-  const calc = () => {
-    const wu = 1.2*wDL + 1.6*wLL;
-    if(slabType==="one-way"){
-      const h_min = L*1000/20; // mm (simply supported)
-      const h     = Math.max(Math.ceil(h_min/10)*10, 100);
-      const d     = h - 25; // mm cover
-      const Mu   = wu*L*L/8; // kN·m/m
-      const phi=0.90;
-      const Rn   = (Mu*1e6)/(phi*1000*d*d);
-      const rho  = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
-      const rho_min = Math.max(0.0018, 1.4/fy);
-      const rho_use = Math.max(rho, rho_min);
-      const As   = rho_use*1000*d; // mm²/m
-      const As_temp = 0.0018*1000*h; // temp/shrinkage
-      setResult({slabType,h,d,wu,Mu,As,As_temp,rho_use,rho_min,L,S:null,Ma:null,Mb:null});
-    } else {
-      // Two-way slab — coefficient method (NSCP Table 413-1, simply supported)
-      const ratio = S/L; // short/long
-      const Ca = ratio<=0.5?0.085:ratio<=0.6?0.071:ratio<=0.7?0.060:ratio<=0.8?0.051:ratio<=0.9?0.044:0.039;
-      const Cb = ratio<=0.5?0.015:ratio<=0.6?0.021:ratio<=0.7?0.028:ratio<=0.8?0.037:ratio<=0.9?0.049:0.062;
-      const h_min = S*1000/28;
-      const h     = Math.max(Math.ceil(h_min/10)*10, 100);
-      const d     = h - 25;
-      const Ma   = Ca*wu*S*S; // kN·m/m short dir
-      const Mb   = Cb*wu*S*S; // kN·m/m long dir
-      const phi=0.90;
-      const Rna  = (Ma*1e6)/(phi*1000*d*d);
-      const Rnb  = (Mb*1e6)/(phi*1000*d*d);
-      const rho_min=0.0018;
-      const rhoA = Math.max((0.85*fc/fy)*(1-Math.sqrt(1-(2*Rna)/(0.85*fc))), rho_min);
-      const rhoB = Math.max((0.85*fc/fy)*(1-Math.sqrt(1-(2*Rnb)/(0.85*fc))), rho_min);
-      const AsA  = rhoA*1000*d;
-      const AsB  = rhoB*1000*d;
-      const As_temp = 0.0018*1000*h;
-      setResult({slabType,h,d,wu,Mu:null,As:null,As_temp,rho_use:rhoA,rho_min,L,S,Ma,Mb,AsA,AsB,ratio});
+  const calc=()=>{
+    if([fc,fy,L,wDL,wLL].some(v=>v==="")||( slabType==="two-way"&&S==="")) return;
+    const wu=1.2*(+wDL)+1.6*(+wLL);
+    const h_min=slabType==="one-way"?(+L)*1000/20:(+S)*1000/33;
+    const h=Math.max(Math.ceil(h_min/10)*10,100), d=h-25;
+    let Ma=wu*(+L)*(+L)/8, Mb=null;
+    if(slabType==="two-way"){
+      const r=(+L)/(+S), Ca=Math.max(0.05,Math.min(0.5,0.0625+(r-1)*0.03));
+      const Cb=Math.max(0.05,Math.min(0.5,0.0625-(r-1)*0.015));
+      Ma=Ca*wu*(+S)*(+S); Mb=Cb*wu*(+L)*(+L);
     }
+    const Mu_des=Mb!=null?Math.max(Ma,Mb):Ma;
+    const Rn=(Mu_des*1e6)/(0.90*1000*d*d);
+    const rho=(0.85*+fc/+fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*+fc))));
+    const rho_use=Math.max(rho,0.0018);
+    const As=rho_use*1000*d;
+    setResult({wu,h,d,Ma,Mb,Mu_des,As,rho_use});
   };
+
+  const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const canCalc=[fc,fy,L,wDL,wLL].every(v=>v!=="")&&(slabType==="one-way"||S!=="");
 
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
+        {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill slab data.</div>}
         <Label>Slab Type</Label>
-        <Select value={slabType} onChange={e=>setSlabType(e.target.value)} style={{marginBottom:16}}>
+        <Select value={slabType} onChange={e=>setSlabType(e.target.value)} style={{marginBottom:4}}>
           <option value="one-way">One-Way Slab (L/S &gt; 2)</option>
           <option value="two-way">Two-Way Slab (L/S ≤ 2)</option>
         </Select>
-        <Label>Concrete f'c</Label>
+        <Hint c="One-way: strips span in one direction. Two-way: more efficient for near-square panels."/>
+        <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
         <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(CONCRETE_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <Label>Steel fy</Label>
+        <Label>fy (MPa) {fp.fy&&<FromPlansBadge/>}</Label>
         <Select value={fy} onChange={e=>setFy(+e.target.value)} style={{marginBottom:16}}>
-          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k}</option>)}
+          <option value="">— Select grade —</option>
+          {Object.entries(REBAR_GRADES).map(([k,v])=><option key={k} value={v}>{k} ({v} MPa)</option>)}
         </Select>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <div><Label>{slabType==="two-way"?"Short Span S (m)":"Span L (m)"}</Label><Input type="number" value={slabType==="two-way"?S:L} onChange={e=>slabType==="two-way"?setS(+e.target.value):setL(+e.target.value)} step="0.1"/></div>
-          {slabType==="two-way"&&<div><Label>Long Span L (m)</Label><Input type="number" value={L} onChange={e=>setL(+e.target.value)} step="0.1"/></div>}
+        <div style={{display:"grid",gridTemplateColumns:slabType==="two-way"?"1fr 1fr":"1fr",gap:12,marginBottom:4}}>
+          <div>
+            <Label>{slabType==="two-way"?"Short Span S (m)":"Span L (m)"} {fp.L&&<FromPlansBadge/>}</Label>
+            <Input type="number" value={slabType==="two-way"?S:L} onChange={e=>slabType==="two-way"?setS(e.target.value):setL(e.target.value)} step="0.1" placeholder={slabType==="two-way"?"e.g. 4.0":"e.g. 4.5"}/>
+          </div>
+          {slabType==="two-way"&&<div><Label>Long Span L (m) {fp.L&&<FromPlansBadge/>}</Label><Input type="number" value={L} onChange={e=>setL(e.target.value)} step="0.1" placeholder="e.g. 6.0"/></div>}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-          <div><Label>Dead Load wDL (kPa)</Label><Input type="number" value={wDL} onChange={e=>setWDL(+e.target.value)} step="0.1"/></div>
-          <div><Label>Live Load wLL (kPa)</Label><Input type="number" value={wLL} onChange={e=>setWLL(+e.target.value)} step="0.1"/></div>
+        <Hint c="Clear span measured face-to-face of supporting beams or walls."/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:4}}>
+          <div><Label>DL (kPa) {fp.wDL&&<FromPlansBadge/>}</Label><Input type="number" value={wDL} onChange={e=>setWDL(e.target.value)} step="0.1" placeholder="e.g. 3.0"/></div>
+          <div><Label>LL (kPa) {fp.wLL&&<FromPlansBadge/>}</Label><Input type="number" value={wLL} onChange={e=>setWLL(e.target.value)} step="0.1" placeholder="e.g. 2.4"/></div>
         </div>
-        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🔩 Design Slab</button>
+        <Hint c="LL per NSCP Table 205-1: Residential=2.0, Office=2.4, Corridor=4.8kPa."/>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+          {canCalc?"⚡ Design Slab (NSCP 2015 Sec. 409)":"Fill all fields to calculate"}
+        </button>
       </Card>
-
-      {result ? (
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <Card style={{background:"rgba(59,130,246,0.06)",border:"1.5px solid rgba(59,130,246,0.3)"}}>
-            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>SLAB THICKNESS</div>
-            <div style={{fontSize:42,fontWeight:900,color:"#3b82f6",letterSpacing:"-2px"}}>{result.h} <span style={{fontSize:18,fontWeight:400}}>mm</span></div>
-            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Effective depth d = {result.d} mm</div>
+      {result?(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <Card style={{background:"rgba(34,197,94,0.06)",border:"1.5px solid rgba(34,197,94,0.3)"}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:2}}>SLAB THICKNESS</div>
+            <div style={{fontSize:36,fontWeight:900,color:"#22c55e"}}>{result.h} <span style={{fontSize:16,fontWeight:400}}>mm</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>d = {result.d} mm</div>
           </Card>
-          {result.slabType==="one-way" ? (
-            <>
-              {[
-                {l:"Factored load wu",v:`${result.wu.toFixed(2)} kPa`},
-                {l:"Factored moment Mu",v:`${result.Mu.toFixed(2)} kN·m/m`},
-                {l:"Required As (main)",v:`${result.As.toFixed(0)} mm²/m`,highlight:true},
-                {l:"Temp/shrinkage As",v:`${result.As_temp.toFixed(0)} mm²/m`},
-                {l:"Design ratio ρ",v:`${(result.rho_use*100).toFixed(3)}%`},
-              ].map(r=>(
-                <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
-                  <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
-                  <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
-                </div>
-              ))}
-            </>
-          ) : (
-            <>
-              {[
-                {l:"Span ratio S/L",v:`${result.ratio.toFixed(2)}`},
-                {l:"Factored load wu",v:`${result.wu.toFixed(2)} kPa`},
-                {l:"Moment Ma (short dir)",v:`${result.Ma.toFixed(2)} kN·m/m`},
-                {l:"Moment Mb (long dir)",v:`${result.Mb.toFixed(2)} kN·m/m`},
-                {l:"As short direction",v:`${result.AsA.toFixed(0)} mm²/m`,highlight:true},
-                {l:"As long direction",v:`${result.AsB.toFixed(0)} mm²/m`,highlight:true},
-                {l:"Temp/shrinkage As",v:`${result.As_temp.toFixed(0)} mm²/m`},
-              ].map(r=>(
-                <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.highlight?"rgba(59,130,246,0.08)":T.dim,borderRadius:8,border:r.highlight?"1px solid rgba(59,130,246,0.2)":"none"}}>
-                  <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
-                  <span style={{fontSize:14,fontWeight:700,color:r.highlight?"#3b82f6":T.text,fontFamily:"monospace"}}>{r.v}</span>
-                </div>
-              ))}
-            </>
-          )}
-          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 · USD Method · φ=0.90 · 25mm clear cover</div>
+          {[
+            {l:"wu (factored)",v:`${result.wu.toFixed(2)} kPa`},
+            {l:result.Mb!=null?"Ma (short dir)":"Design Moment",v:`${result.Ma.toFixed(2)} kN·m/m`},
+            ...(result.Mb!=null?[{l:"Mb (long dir)",v:`${result.Mb.toFixed(2)} kN·m/m`}]:[]),
+            {l:"ρ used",v:`${(result.rho_use*100).toFixed(4)}%`,hi:true},
+            {l:"As required",v:`${result.As.toFixed(0)} mm²/m`,hi:true},
+          ].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+              <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
+            </div>
+          ))}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 409 — Minimum h for deflection control. Bar spacing ≤ 3h or 450mm (Sec. 407.7.5).</div>
         </div>
-      ) : (
+      ):(
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <div style={{fontSize:48}}>🔩</div>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter slab parameters<br/>and click Design</div>
+          <Icon name="slab" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
@@ -2539,148 +2569,97 @@ function SlabDesign({ structuralData }) {
 // ─── STRUCTICODE: LOAD COMBINATIONS ──────────────────────────────────────────
 function LoadCombinations({ structuralData }) {
   const sd = structuralData;
-  const [D,setD]   = useState(sd?.loads?.floorDL ? sd.loads.floorDL*50 : 100);
-  const [L,setL]   = useState(sd?.loads?.floorLL ? sd.loads.floorLL*50 : 80);
-  const [W,setW]   = useState(40);
-  const [E,setE]   = useState(40);
-  const [S,setS]   = useState(0);
-  const [result,setResult] = useState(null);
-  const [fromPlans,setFromPlans] = useState({D:!!sd?.loads?.floorDL, L:!!sd?.loads?.floorLL});
+  const [D, setD] = useState(sd?.loads?.floorDL ? sd.loads.floorDL*50 : "");
+  const [L, setL] = useState(sd?.loads?.floorLL ? sd.loads.floorLL*50 : "");
+  const [W, setW] = useState("");
+  const [E, setE] = useState("");
+  const [S, setS] = useState("");
+  const [result, setResult] = useState(null);
+  const [fp, setFp] = useState({D:!!sd?.loads?.floorDL, L:!!sd?.loads?.floorLL});
 
-  useEffect(() => {
-    if (!sd) return;
-    if (sd.loads?.floorDL) { setD(Math.round(sd.loads.floorDL*50)); setFromPlans(p=>({...p,D:true})); }
-    if (sd.loads?.floorLL) { setL(Math.round(sd.loads.floorLL*50)); setFromPlans(p=>({...p,L:true})); }
-  }, [sd]);
+  useEffect(()=>{
+    if (!sd?.loads) return;
+    if (sd.loads.floorDL) { setD(sd.loads.floorDL*50); setFp(p=>({...p,D:true})); }
+    if (sd.loads.floorLL) { setL(sd.loads.floorLL*50); setFp(p=>({...p,L:true})); }
+  },[sd]);
 
   const calc = () => {
+    if (D===""||L==="") return;
+    const d=+D,l=+L,w=W?+W:0,e=E?+E:0,s=S?+S:0;
     const combos = [
-      {name:"1.4D",            val:1.4*D},
-      {name:"1.2D + 1.6L",     val:1.2*D+1.6*L},
-      {name:"1.2D + 1.6L + 0.5W", val:1.2*D+1.6*L+0.5*W},
-      {name:"1.2D + 1.0W + 1.0L", val:1.2*D+1.0*W+1.0*L},
-      {name:"1.2D + 1.0E + 1.0L", val:1.2*D+1.0*E+1.0*L},
-      {name:"0.9D + 1.0W",     val:0.9*D+1.0*W},
-      {name:"0.9D + 1.0E",     val:0.9*D+1.0*E},
-      {name:"1.2D + 1.6S + 1.0L", val:1.2*D+1.6*S+1.0*L},
+      {name:"1.4D",              val:1.4*d,             formula:"1.4D"},
+      {name:"1.2D + 1.6L",      val:1.2*d+1.6*l,       formula:"1.2D + 1.6L + 0.5Lr"},
+      {name:"1.2D + 1.0W + L",  val:1.2*d+1.0*w+l,    formula:"1.2D + 1.0W + L"},
+      {name:"0.9D + 1.0W",      val:0.9*d+1.0*w,       formula:"0.9D + 1.0W"},
+      {name:"1.2D + 1.0E + L",  val:1.2*d+1.0*e+l,    formula:"1.2D + 1.0E + L"},
+      {name:"0.9D + 1.0E",      val:0.9*d+1.0*e,       formula:"0.9D + 1.0E"},
     ];
-    const max = Math.max(...combos.map(c=>c.val));
-    setResult(combos.map(c=>({...c,isMax:c.val===max})));
+    const maxVal = Math.max(...combos.map(c=>c.val));
+    setResult(combos.map(c=>({...c,isMax:Math.abs(c.val-maxVal)<0.01})));
   };
+
+  const Hint = ({c}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const canCalc = D!==""&&L!=="";
+
+  const fields = [
+    {l:"Dead Load D (kN)",     v:D,s:setD, fp:fp.D, ph:"e.g. 150 — total gravity dead load"},
+    {l:"Live Load L (kN)",     v:L,s:setL, fp:fp.L, ph:"e.g. 120 — total floor live load"},
+    {l:"Wind Load W (kN)",     v:W,s:setW, fp:false, ph:"e.g. 40 — from wind analysis (optional)"},
+    {l:"Seismic Load E (kN)", v:E,s:setE, fp:false, ph:"From seismic base shear V (optional)"},
+    {l:"Snow Load S (kN)",     v:S,s:setS, fp:false, ph:"0 for most PH locations (optional)"},
+  ];
 
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
-        <Label>NSCP 2015 Section 203 — Load Combinations (USD)</Label>
-        <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:12,marginBottom:20}}>
-          {[{l:"Dead Load D (kN)",v:D,s:setD},{l:"Live Load L (kN)",v:L,s:setL},{l:"Wind Load W (kN)",v:W,s:setW},{l:"Seismic Load E (kN)",v:E,s:setE},{l:"Snow Load S (kN)",v:S,s:setS}].map(f=>(
-            <div key={f.l}><Label>{f.l}</Label><Input type="number" value={f.v} onChange={e=>f.s(+e.target.value)}/></div>
+        {!sd && (
+          <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>
+            💡 Upload plans in <strong>AI Plan Checker</strong> to auto-fill D and L, or run <strong>Seismic Load</strong> first to get E.
+          </div>
+        )}
+        <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:12,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 203 — Factored Load Combinations (LRFD)</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+          {fields.map(f=>(
+            <div key={f.l}>
+              <Label>{f.l} {f.fp && <FromPlansBadge/>}</Label>
+              <Input type="number" value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph}/>
+            </div>
           ))}
         </div>
-        <button onClick={calc} style={{width:"100%",background:"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>📊 Calculate Load Combinations</button>
+        <Hint c="D and L are required. W and E are optional — combos using zero values will show 0 contribution."/>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",transition:"all 0.2s"}}>
+          {canCalc ? "📊 Calculate Load Combinations" : "Enter D and L to calculate"}
+        </button>
       </Card>
 
       {result ? (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <div style={{fontSize:13,color:T.muted,marginBottom:4}}>All factored load combinations — NSCP 2015 Sec. 203.3</div>
+          <div style={{fontSize:12,color:T.muted,marginBottom:4}}>Factored load combinations — NSCP 2015 Sec. 203.3</div>
           {result.map(r=>(
             <div key={r.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:r.isMax?"rgba(239,68,68,0.08)":T.dim,borderRadius:10,border:r.isMax?"1.5px solid rgba(239,68,68,0.3)":"1px solid transparent",transition:"all 0.15s"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                {r.isMax&&<span style={{background:"#dc2626",color:"#fff",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>MAX</span>}
-                <span style={{fontSize:13,color:T.muted,fontFamily:"monospace"}}>{r.name}</span>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:r.isMax?"#ef4444":T.text}}>{r.name}</div>
+                <div style={{fontSize:10,color:T.muted,marginTop:2,fontFamily:"monospace"}}>{r.formula}</div>
               </div>
-              <span style={{fontSize:16,fontWeight:800,color:r.isMax?T.danger:T.text,fontFamily:"monospace"}}>{r.val.toFixed(1)} kN</span>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:18,fontWeight:900,color:r.isMax?"#ef4444":T.text,fontFamily:"monospace"}}>{r.val.toFixed(1)}</div>
+                <div style={{fontSize:10,color:T.muted}}>kN</div>
+              </div>
             </div>
           ))}
-          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>Governing combination: <strong style={{color:T.danger}}>{result.find(r=>r.isMax)?.name}</strong> = {result.find(r=>r.isMax)?.val.toFixed(1)} kN</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>
+            Highlighted combination governs design. Use for member sizing and connection design.
+          </div>
         </div>
       ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <div style={{fontSize:48}}>📊</div>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate</div>
+          <Icon name="loads" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate to see combinations</div>
         </Card>
       )}
     </div>
   );
 }
-
-// ─── STRUCTICODE: BOM REVIEW ──────────────────────────────────────────────────
-const BOM_SYSTEM_PROMPT = `You are a senior Quantity Surveyor and Cost Estimator licensed in the Philippines with 20+ years of experience in residential, commercial, and government projects. You have deep expertise in DPWH unit costs, Philippine construction materials pricing, NSCP 2015, and current NCR market rates.
-
-You help contractors and estimators build accurate, complete, and competitive Bills of Materials. Your role is to IMPROVE the estimate — identify gaps, correct pricing, and ensure nothing is missed before submission.
-
-COST REFERENCES:
-- PRIVATE projects: use current NCR market rates (2025). Rebar 10mm ~₱170/pc, 16mm ~₱410/pc. Ready-mix 3000psi ~₱6,500/m3. CHB 5in ~₱380/m2. Portland cement ~₱290/bag.
-- GOVERNMENT/DPWH projects: benchmark against DPWH Blue Book latest edition. Note items that may exceed allowable DPWH unit costs so they can be adjusted.
-
-Perform ALL of the following:
-1. QUANTITY CHECK — Are quantities consistent with the plan? Note items that may be over or under-estimated.
-2. UNIT COST CHECK — Are unit costs realistic for current PH market rates? Flag items priced significantly above or below market to help avoid losing the bid or underpricing.
-3. MISSING ITEMS — Materials visible in the plan but not yet in the BOM. These are items the estimator should add to avoid cost overruns during construction.
-4. EXCESS ITEMS — BOM entries with no clear plan basis — review these to ensure accuracy.
-5. MARKUP/OCM — Review if contingency (5-10%), overhead (5-10%), and profit (8-15%) are included and adequate. Suggest improvements.
-6. DATE WARNING — If BOM date is detectable and appears older than 3 months, set bomDateWarning to a short note about re-validating prices against current market rates.
-7. SCOPE COMPLETENESS — Score each trade 0-100 in tradeCompleteness. Higher score = more complete coverage.
-
-Respond ONLY as valid JSON (no markdown, no preamble, no backticks):
-{
-  "summary": {
-    "projectName": "string",
-    "projectType": "Residential|Commercial|Industrial|Infrastructure|Government|Unknown",
-    "projectScope": "one-line scope description",
-    "discipline": "Structural|Architectural|MEP|Civil|Mixed",
-    "overallStatus": "NEEDS REVISION|ACCEPTABLE WITH NOTES|VALIDATED",
-    "bomTotalEstimate": 0,
-    "aiAdjustedEstimate": 0,
-    "variancePercent": 0,
-    "criticalCount": 0,
-    "warningCount": 0,
-    "infoCount": 0,
-    "bomDateWarning": null,
-    "notes": "overall assessment under 80 words — constructive tone, focused on helping the estimator improve",
-    "tradeCompleteness": {
-      "structural": 0,
-      "architectural": 0,
-      "electrical": 0,
-      "plumbing": 0,
-      "civil": 0
-    }
-  },
-  "lineItems": [
-    {
-      "id": 1,
-      "category": "Concrete Works|Steel Works|Masonry|Formwork|Roofing|Waterproofing|Finishing|Electrical|Plumbing|Civil|Other",
-      "description": "item name",
-      "unit": "bag|kg|m2|m3|m|pc|lot|set",
-      "qtyBOM": 0,
-      "qtyAI": 0,
-      "qtyStatus": "OK|OVER|UNDER|MISSING|EXCESS",
-      "unitCostBOM": 0,
-      "unitCostAI": 0,
-      "costStatus": "OK|HIGH|LOW|UNKNOWN",
-      "totalBOM": 0,
-      "totalAI": 0,
-      "remarks": "specific finding under 40 words"
-    }
-  ],
-  "missingItems": [
-    { "description": "item name", "category": "string", "estimatedQty": "approx qty + unit", "estimatedCost": 0, "basis": "where in plan", "priority": "CRITICAL|WARNING|INFO" }
-  ],
-  "excessItems": [
-    { "description": "item name", "category": "string", "qtyBOM": 0, "unit": "string", "remarks": "why it appears excess" }
-  ],
-  "markupAssessment": {
-    "contingencyFound": false,
-    "contingencyPercent": 0,
-    "overheadFound": false,
-    "overheadPercent": 0,
-    "profitFound": false,
-    "profitPercent": 0,
-    "vatStatus": "INCLUSIVE|EXCLUSIVE|NOT STATED",
-    "recommendation": "under 60 words"
-  },
-  "priceEscalationWarning": null
-}`;
 
 function BOMReview({ apiKey }) {
   const [planFiles,     setPlanFiles]     = useState([]);
@@ -4619,91 +4598,241 @@ function StructuralComputationSummary({ results, onNavigate }) {
 }
 
 function StructiCode({ apiKey, initialTool }) {
-  const [tool,setTool] = useState(initialTool||"bom");
-  useEffect(() => { if(initialTool) setTool(initialTool); }, [initialTool]);
+  // ── Top-level 3 tools ──
+  const [tab, setTab] = useState("checker");
+  useEffect(()=>{ if(initialTool==="bom") setTab("bom"); else if(initialTool==="estimate") setTab("estimate"); },[initialTool]);
 
-  // ── Shared structural data extracted from plans ──
-  const [structuralData, setStructuralData] = useState(null);
+  // ── Structural data (lives here, never lost on tool switch) ──
+  const [structuralData, setStructuralData]     = useState(null);
   const [structuralResults, setStructuralResults] = useState(null);
-  const [runState, setRunState] = useState(null); // { running, summary }
+  const [runState, setRunState]                 = useState(null);
+
+  // ── Sub-tool inside Plan Checker ──
+  const [subTool, setSubTool] = useState(null); // null = show checker+summary, else show that calc
+
+  const handleDataExtracted = (d) => {
+    setStructuralData(d);
+    setStructuralResults(null);
+    setRunState(null);
+    setSubTool(null);
+  };
 
   const handleRunAll = async () => {
     if (!structuralData) return;
     setRunState({ running: true });
     setStructuralResults(null);
-    // Small delay to let UI update
     await new Promise(r => setTimeout(r, 80));
     const results = runAllComputations(structuralData);
     setStructuralResults(results);
     setRunState({ running: false, summary: results.summary });
   };
 
-  const TOOLS = [
-    {key:"bom",      icon:"bom",      label:"BOM Review",     badge:"⭐"},
-    {key:"checker",  icon:"checker",  label:"AI Plan Checker"},
-    {key:"seismic",  icon:"seismic",  label:"Seismic Load"},
-    {key:"beam",     icon:"beam",     label:"Beam Design"},
-    {key:"column",   icon:"column",   label:"Column Design"},
-    {key:"footing",  icon:"footing",  label:"Footing Design"},
-    {key:"slab",     icon:"slab",     label:"Slab Design"},
-    {key:"loads",    icon:"loads",    label:"Load Combinations"},
-    {key:"estimate", icon:"estimate", label:"Cost Estimator",  badge:"NEW"},
+  const handleClear = () => {
+    setStructuralData(null);
+    setStructuralResults(null);
+    setRunState(null);
+    setSubTool(null);
+  };
+
+  // Sub-tool definitions
+  const SUB_TOOLS = [
+    { key:"seismic", icon:"seismic", label:"Seismic Load",      code:"NSCP Sec. 208" },
+    { key:"beam",    icon:"beam",    label:"Beam Design",        code:"NSCP Sec. 406" },
+    { key:"column",  icon:"column",  label:"Column Design",      code:"NSCP Sec. 410" },
+    { key:"footing", icon:"footing", label:"Footing Design",     code:"NSCP Sec. 415" },
+    { key:"slab",    icon:"slab",    label:"Slab Design",        code:"NSCP Sec. 409" },
+    { key:"loads",   icon:"loads",   label:"Load Combinations",  code:"NSCP Sec. 203" },
   ];
 
-  // Badge shown on tools that have pre-filled data
+  // Which sub-tools have extracted data
   const hasData = (key) => {
     if (!structuralData) return false;
-    if (key === "seismic") return !!(structuralData.seismic?.zone || structuralData.seismic?.seismicWeight);
-    if (key === "beam")    return !!(structuralData.beams?.length && structuralData.materials?.fc);
-    if (key === "column")  return !!(structuralData.columns?.length && structuralData.materials?.fc);
-    if (key === "footing") return !!(structuralData.footings?.length);
-    if (key === "slab")    return !!(structuralData.slabs?.length && structuralData.materials?.fc);
-    if (key === "loads")   return !!(structuralData.loads?.floorDL);
+    if (key==="seismic") return !!(structuralData.seismic?.zone||structuralData.seismic?.seismicWeight);
+    if (key==="beam")    return !!(structuralData.beams?.length&&structuralData.materials?.fc);
+    if (key==="column")  return !!(structuralData.columns?.length&&structuralData.materials?.fc);
+    if (key==="footing") return !!(structuralData.footings?.length);
+    if (key==="slab")    return !!(structuralData.slabs?.length&&structuralData.materials?.fc);
+    if (key==="loads")   return !!(structuralData.loads?.floorDL);
     return false;
+  };
+
+  // Which sub-tools have computed results
+  const getResult = (key) => {
+    if (!structuralResults) return null;
+    return structuralResults.items.filter(i=>i.tool===key);
+  };
+
+  const MAIN_TABS = [
+    { key:"bom",      icon:"bom",      label:"BOM Review",      badge:"⭐" },
+    { key:"checker",  icon:"checker",  label:"AI Plan Checker"             },
+    { key:"estimate", icon:"estimate", label:"Cost Estimator",   badge:"NEW" },
+  ];
+
+  const SubToolStatus = ({ toolKey }) => {
+    const items = getResult(toolKey);
+    const hasDat = hasData(toolKey);
+    if (items && items.length > 0) {
+      const allPass  = items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
+      const anyFail  = items.some(i=>i.status==="FAIL");
+      return (
+        <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,
+          background: anyFail?"rgba(239,68,68,0.12)":allPass?"rgba(34,197,94,0.12)":"rgba(6,150,215,0.12)",
+          color:      anyFail?"#ef4444":allPass?"#22c55e":"#0696d7",
+          border:`1px solid ${anyFail?"rgba(239,68,68,0.25)":allPass?"rgba(34,197,94,0.25)":"rgba(6,150,215,0.25)"}`
+        }}>
+          {anyFail?"✗ FAIL":allPass?"✓ PASS":"✓"}
+        </span>
+      );
+    }
+    if (hasDat) return <span style={{width:7,height:7,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 4px #22c55e",marginLeft:4}}/>;
+    return <span style={{width:7,height:7,borderRadius:"50%",background:T.muted,display:"inline-block",opacity:0.3,marginLeft:4}}/>;
   };
 
   return (
     <div>
-      {/* Sub-nav */}
-      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
-        {TOOLS.map(t=>(
-          <button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?"#0696d7":T.border}`,background:tool===t.key?"rgba(6,150,215,0.12)":"transparent",color:tool===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s",position:"relative"}}>
-            <Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/>
+      {/* ── 3 Main Tabs ── */}
+      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
+        {MAIN_TABS.map(t=>(
+          <button key={t.key} onClick={()=>{ setTab(t.key); setSubTool(null); }}
+            style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
+              border:`1.5px solid ${tab===t.key?"#0696d7":T.border}`,
+              background:tab===t.key?"rgba(6,150,215,0.12)":"transparent",
+              color:tab===t.key?"#0696d7":T.muted,
+              cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
+            <Icon name={t.icon||"report"} size={15} color={tab===t.key?"#0696d7":T.muted}/>
             <span>{t.label}</span>
             {t.badge && <span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
-            {hasData(t.key) && <span title="Pre-filled from plans" style={{width:7,height:7,borderRadius:"50%",background:"#22c55e",position:"absolute",top:4,right:4,boxShadow:"0 0 4px #22c55e"}}/>}
           </button>
         ))}
       </div>
 
-      {/* Structural Intelligence Panel — replaces old simple green banner */}
-      {structuralData && (
-        <StructuralIntelligencePanel
-          data={structuralData}
-          onUpdate={setStructuralData}
-          onRunAll={handleRunAll}
-          onClear={() => { setStructuralData(null); setStructuralResults(null); setRunState(null); }}
-          runState={runState}
-        />
-      )}
+      {/* ── BOM Review ── */}
+      {tab==="bom" && <BOMReview apiKey={apiKey}/>}
 
-      {/* Computation Summary — appears after Run All */}
-      {structuralResults && (
-        <StructuralComputationSummary
-          results={structuralResults}
-          onNavigate={(toolKey) => setTool(toolKey)}
-        />
-      )}
+      {/* ── Cost Estimator ── */}
+      {tab==="estimate" && <CostEstimator apiKey={apiKey}/>}
 
-      {tool==="checker"  && <StructuralChecker apiKey={apiKey} onDataExtracted={(d)=>{ setStructuralData(d); setStructuralResults(null); setRunState(null); }}/>}
-      {tool==="seismic"  && <SeismicCalc   structuralData={structuralData}/>}
-      {tool==="beam"     && <BeamDesign    structuralData={structuralData}/>}
-      {tool==="column"   && <ColumnDesign  structuralData={structuralData}/>}
-      {tool==="footing"  && <FootingDesign structuralData={structuralData}/>}
-      {tool==="slab"     && <SlabDesign    structuralData={structuralData}/>}
-      {tool==="loads"    && <LoadCombinations structuralData={structuralData}/>}
-      {tool==="bom"      && <BOMReview apiKey={apiKey}/>}
-      {tool==="estimate" && <CostEstimator apiKey={apiKey}/>}
+      {/* ── AI Plan Checker (main tab with embedded sub-tools) ── */}
+      {tab==="checker" && (
+        <div>
+          {/* Sub-tool navigation — always visible inside checker tab */}
+          <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap",padding:"12px 16px",background:T.card,borderRadius:12,border:`1px solid ${T.border}`,alignItems:"center"}}>
+            <button onClick={()=>setSubTool(null)}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,
+                border:`1.5px solid ${subTool===null?"#0696d7":T.border}`,
+                background:subTool===null?"rgba(6,150,215,0.12)":"transparent",
+                color:subTool===null?"#0696d7":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+              <Icon name="checker" size={13} color={subTool===null?"#0696d7":T.muted}/>
+              Plan Analysis
+            </button>
+
+            <div style={{width:1,height:24,background:T.border,margin:"0 4px"}}/>
+
+            <span style={{fontSize:10,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginRight:4}}>Design Calcs:</span>
+
+            {SUB_TOOLS.map(t=>(
+              <button key={t.key} onClick={()=>setSubTool(t.key)}
+                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
+                  border:`1.5px solid ${subTool===t.key?"#0696d7":T.border}`,
+                  background:subTool===t.key?"rgba(6,150,215,0.12)":"transparent",
+                  color:subTool===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:11,fontWeight:700,
+                  transition:"all 0.15s",position:"relative"}}>
+                <Icon name={t.icon} size={12} color={subTool===t.key?"#0696d7":T.muted}/>
+                <span>{t.label}</span>
+                <SubToolStatus toolKey={t.key}/>
+              </button>
+            ))}
+          </div>
+
+          {/* Plan Checker view */}
+          {subTool===null && (
+            <div>
+              {/* Intelligence Panel — only when data available */}
+              {structuralData && (
+                <StructuralIntelligencePanel
+                  data={structuralData}
+                  onUpdate={setStructuralData}
+                  onRunAll={handleRunAll}
+                  onClear={handleClear}
+                  runState={runState}
+                />
+              )}
+
+              {/* Computation Summary — after Run All */}
+              {structuralResults && (
+                <StructuralComputationSummary
+                  results={structuralResults}
+                  onNavigate={(key)=>setSubTool(key)}
+                />
+              )}
+
+              {/* The actual plan checker (upload + compliance findings) */}
+              <StructuralChecker apiKey={apiKey} onDataExtracted={handleDataExtracted}/>
+            </div>
+          )}
+
+          {/* Design sub-tool views */}
+          {subTool==="seismic"  && (
+            <div>
+              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="seismic")} onBack={()=>setSubTool(null)} hasData={hasData("seismic")}/>
+              <SeismicCalc structuralData={structuralData}/>
+            </div>
+          )}
+          {subTool==="beam"     && (
+            <div>
+              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="beam")} onBack={()=>setSubTool(null)} hasData={hasData("beam")}/>
+              <BeamDesign structuralData={structuralData}/>
+            </div>
+          )}
+          {subTool==="column"   && (
+            <div>
+              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="column")} onBack={()=>setSubTool(null)} hasData={hasData("column")}/>
+              <ColumnDesign structuralData={structuralData}/>
+            </div>
+          )}
+          {subTool==="footing"  && (
+            <div>
+              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="footing")} onBack={()=>setSubTool(null)} hasData={hasData("footing")}/>
+              <FootingDesign structuralData={structuralData}/>
+            </div>
+          )}
+          {subTool==="slab"     && (
+            <div>
+              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="slab")} onBack={()=>setSubTool(null)} hasData={hasData("slab")}/>
+              <SlabDesign structuralData={structuralData}/>
+            </div>
+          )}
+          {subTool==="loads"    && (
+            <div>
+              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="loads")} onBack={()=>setSubTool(null)} hasData={hasData("loads")}/>
+              <LoadCombinations structuralData={structuralData}/>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sub-tool breadcrumb header
+function SubToolHeader({ tool, onBack, hasData }) {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"10px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600,transition:"all 0.15s"}}>
+        ← Plan Analysis
+      </button>
+      <div style={{width:1,height:20,background:T.border}}/>
+      <Icon name={tool.icon} size={16} color="#0696d7"/>
+      <div>
+        <div style={{fontSize:14,fontWeight:800,color:T.text}}>{tool.label}</div>
+        <div style={{fontSize:11,color:T.muted}}>{tool.code}</div>
+      </div>
+      {hasData && (
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#22c55e",fontWeight:700}}>
+          <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block"}}/>
+          Pre-filled from plans
+        </div>
+      )}
     </div>
   );
 }
