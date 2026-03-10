@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── SVG ICON SYSTEM — Professional (Phosphor/Linear-grade) ────────────────
 const Icon = ({ name, size=16, color="currentColor", strokeWidth=1.6 }) => {
@@ -551,33 +551,6 @@ const T = {
   warn:      "#d97706",
   info:      "#0284c7",
 };
-
-class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { console.error("BUILDIFY CRASH:", error, info); }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ minHeight:"100vh", background:"#080d18", color:"#e8edf5", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, fontFamily:"monospace", padding:40 }}>
-          <div style={{ fontSize:32 }}>💥</div>
-          <div style={{ fontSize:18, fontWeight:800, color:"#ef4444" }}>Buildify crashed</div>
-          <div style={{ fontSize:13, color:"#f59e0b", maxWidth:600, textAlign:"center", lineHeight:1.6 }}>
-            {this.state.error?.message || String(this.state.error)}
-          </div>
-          <div style={{ fontSize:11, color:"#64748b", maxWidth:700, textAlign:"left", whiteSpace:"pre-wrap", background:"#0f1624", padding:16, borderRadius:8, border:"1px solid rgba(255,255,255,0.07)" }}>
-            {this.state.error?.stack?.slice(0, 800)}
-          </div>
-          <button onClick={() => { localStorage.clear(); window.location.reload(); }}
-            style={{ padding:"10px 24px", borderRadius:8, background:"#0696d7", border:"none", color:"#fff", cursor:"pointer", fontWeight:800, fontSize:13 }}>
-            Clear All Data &amp; Reload
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 
 // ─── SHARED UI COMPONENTS ────────────────────────────────────────────────────
@@ -9313,6 +9286,6 @@ function Dashboard({ user, onLogout }) {
 export default function App() {
   const [auth, setAuth] = useState(null); // null = not logged in
 
-  if (auth) return <ErrorBoundary><Dashboard user={auth} onLogout={() => setAuth(null)} /></ErrorBoundary>;
-  return <ErrorBoundary><LandingPage onLogin={setAuth} /></ErrorBoundary>;
+  if (auth) return <Dashboard user={auth} onLogout={() => setAuth(null)} />;
+  return <LandingPage onLogin={setAuth} />;
 }
