@@ -5611,6 +5611,18 @@ function StructiCode({ apiKey, initialTool }) {
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null);
 
+  // ── Restore last session on mount ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      if (!s?.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
+      if (s.checkerExtracted?.building) { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
+      if (s.structuralResults?.items)   setStructuralResults(s.structuralResults);
+      if (s.runState)                   setRunState(s.runState);
+    } catch {}
+  }, []); // eslint-disable-line
+
   const handleDataExtracted = (d) => {
     setStructuralData(d);
     setCheckerExtracted(d);
@@ -7659,6 +7671,20 @@ function ElecCode({ apiKey }) {
 
   // ── Navigation ──
   const [mainTab,  setMainTab]  = useState("checker");
+
+  // ── Restore last session on mount ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_electrical") || "null");
+      if (!s?.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
+      if (s.electricalData) setElectricalData(s.electricalData);
+      if (s.elecResults)    setElecResults(s.elecResults);
+      if (s.runState)       setRunState(s.runState);
+      if (s.calcStates)     setCalcStates(s.calcStates);
+      if (s._mainTab)       setMainTab(s._mainTab);
+    } catch {}
+  }, []); // eslint-disable-line
   const [calcTool, setCalcTool] = useState(null);
 
   const CALC_TOOLS = [
@@ -7953,7 +7979,18 @@ function ElecCode({ apiKey }) {
 
 
 function SaniCode({ apiKey }) {
-  const [tool, setTool] = useState("checker");
+  const [tool,          setTool]          = useState("checker");
+  const [checkerResult, setCheckerResult] = useState(null);
+
+  // ── Restore last session on mount ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_sanitary") || "null");
+      if (!s?.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
+      if (s._tool) setTool(s._tool);
+    } catch {}
+  }, []); // eslint-disable-line
 
   const TOOLS=[
     {key:"checker",  icon:"🤖", label:"AI Plan Checker"},
