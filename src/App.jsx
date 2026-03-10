@@ -3055,94 +3055,160 @@ function LoadCombinations({ structuralData }) {
 }
 
 // ─── BOM REVIEW DATA ─────────────────────────────────────────────────────────
-const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines. Your job is to produce a CONTRACTOR-READY Bill of Materials (BOM/BOQ) from uploaded engineering plans — detailed enough that a contractor can use it directly to procure materials and price labor.
+const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines generating a CONTRACTOR-READY Bill of Materials (BOQ) from engineering plans.
 
-REFERENCES (2025 NCR market rates — materials only unless stated):
-- Ready-mix concrete f'c=20.7MPa: P5,500-6,500/m3 | f'c=24MPa: P6,000-7,000/m3 | f'c=28MPa: P6,500-7,500/m3
-- Steel rebar 10mm: P52-58/kg | 12mm: P54-60/kg | 16mm: P56-62/kg | 20mm: P58-65/kg
-- CHB 4": P13-16/pc | CHB 5": P16-19/pc | CHB 6": P18-22/pc
-- Cement: P270-310/bag | Sand: P1,200-1,800/m3 | Gravel: P1,500-2,200/m3
-- Marine plywood 3/4": P950-1,200/sht | Ordinary plywood 1/2": P550-700/sht
-- Ceramic tiles 30x30: P280-350/m2 | 30x60: P380-500/m2 | 60x60: P450-650/m2
-- Tile adhesive: P280-320/bag | Tile grout: P120-160/bag
-- Paint latex interior: P85-130/m2 | Exterior: P120-180/m2 | Skim coat: P80-120/m2
-- Gypsum board 9mm: P480-550/sht | Metal furring: P120-160/pc | Wall angle: P55-70/pc
-- THHN wire 2.0mm2: P22-28/m | 3.5mm2: P38-48/m | 5.5mm2: P60-75/m | 14mm2: P130-160/m
-- PVC conduit 1/2": P55-70/pc(10ft) | Junction box 4x4: P38-50/pc | Utility box 2x4: P28-38/pc
-- PPR pipe 18mm: P280-350/6m | 12mm: P180-220/6m
-- PVC pipe 4": P420-520/6m | 3": P280-360/6m | 2": P180-230/6m
-- Roofing GA26 long-span: P320-420/lm | Gutter 16": P750-950/pc | Flashing: P850-1100/pc
-- GI tie wire: P1,300-1,600/bundle | Common nails: P90-110/kg
+PHILIPPINE CONSTRUCTION RATES (2025 NCR — materials only unless stated):
+CONCRETE: f'c=20.7MPa ready-mix ₱5,500-6,500/m3 | f'c=24MPa ₱6,000-7,000/m3
+REBAR: 10mm ₱52-58/kg | 12mm ₱54-60/kg | 16mm ₱56-62/kg | 20mm ₱58-65/kg
+CHB: 4" ₱13-16/pc | 5" ₱16-19/pc | 6" ₱18-22/pc
+CEMENT: ₱270-310/bag | SAND ₱1,200-1,800/m3 | GRAVEL ₱1,500-2,200/m3
+PLASTERING: ₱380-500/m2 (materials+labor) | SKIM COAT ₱80-120/m2
+GYPSUM BOARD 9mm: ₱480-550/sht | METAL FURRING ₱120-160/pc | WALL ANGLE ₱55-70/pc | CARRYING CHANNEL ₱130-160/pc | PVC SPANDREL ₱140-165/pc
+TILES 20x20: ₱280-360/m2 | 30x30 ₱300-400/m2 | 30x60 ₱420-560/m2 | 60x60 ₱500-700/m2
+TILE ADHESIVE: ₱280-320/bag (covers 4m2/bag) | WATERPROOFING ₱800-1,200/m2
+PAINT interior: ₱85-130/m2 | exterior ₱120-180/m2 | ceiling ₱100-140/m2
+ROOFING GA26 long-span: ₱320-420/lm | STEEL TRUSS 2x6: ₱1,100-1,400/pc | C-PURLIN 2x4: ₱420-520/pc | SAG ROD 12mm ₱180-220/pc | BOX GUTTER 16" ₱750-950/pc | FLASHING ₱850-1,100/pc | INSULATION 6mm ₱1,800-2,200/roll
+THHN 2.0mm2: ₱22-28/m | 3.5mm2 ₱38-48/m | 5.5mm2 ₱60-75/m | 14mm2 ₱130-160/m | 38mm2 ₱350-430/m | 60mm2 ₱520-650/m | 125mm2 ₱1,100-1,300/m
+PVC CONDUIT 1/2": ₱55-70/pc(10ft) | JUNCTION BOX 4x4 ₱38-50/pc | UTILITY BOX 2x4 ₱28-38/pc | MCB 30A ₱750-900/pc | MCB 60A ₱1,200-1,500/pc | MCB 200A ₱12,000-14,000/pc
+PPR PIPE 18mm: ₱280-350/6m | 12mm ₱180-220/6m | GATE VALVE ₱750-900/set | CHECK VALVE ₱750-900/set | PPR ACCESSORIES ₱220-280/pc
+PVC PIPE 4": ₱420-520/6m | 3" ₱280-360/6m | 2" ₱180-230/6m | PVC ACCESSORIES 4" ₱110-140/pc | 3" ₱90-120/pc | 2" ₱90-110/pc
+LAVATORY: ₱7,000-10,000/set | WATER CLOSET ₱12,000-18,000/set | KITCHEN SINK ₱6,000-9,000/set | SHOWER ₱6,000-9,000/set | FLOOR DRAIN ₱450-600/pc | ANGLE VALVE ₱320-420/pc | FLEXIBLE PIPE ₱320-400/pc | GREASE TRAP ₱900-1,200/pc
+SCAFFOLDING: ₱280-380/m2 of facade area | GI TIE WIRE ₱1,300-1,600/bundle | COMMON NAIL ₱90-110/kg
 
-PROCESS — follow each step:
-1. READ every plan sheet: architectural, structural, electrical, plumbing, site plan.
-2. For each STRUCTURAL ELEMENT, take off quantities separately:
-   - Concrete: compute volume per element (footing, tie beam, column per floor, beam per floor, slab per floor, stair)
-   - Rebar: count bars by ELEMENT and DIAMETER in both PIECES (pcs) and KG (kg = 0.00617 x dia_mm^2 x length_m). Include 40-dia lap splices.
-   - Formworks: compute exposed surface area per element type
-3. For ARCHITECTURAL, list separately:
-   - Ceiling system: furring (double/single), wall angle, carrying channel, gypsum board (count sheets), spandrel
-   - Flooring: separate by tile size and area (main, T&B, balcony/stair); add tile adhesive (1 bag per 4m2) and waterproofing
-   - Painting: separate interior walls, exterior walls, ceiling; add skim coat as its own line (same areas as paint)
-   - Doors: list by type from door schedule (D1, D2, etc.) with size and count
-   - Windows: list by type from window schedule (W1, W2, etc.)
-   - Railings: stair railing, balcony railing — itemize tubular, glass, hardware
-   - Kitchen/cabinets: include if visible in plans; if not detailed, add as allowance item
-   - Secondary structures: ALWAYS check for fence/gate, carport, canopy, dirty kitchen, laundry area
-4. For PLUMBING, list individually:
-   - Water supply: PPR pipe by size and length, gate valves, check valves, PPR accessories, angle valves
-   - Drainage: PVC pipe by diameter and length, PVC accessories per size, catch basins
-   - Fixtures: every fixture type with count (water closet, lavatory, kitchen sink, shower, grease trap, floor drain)
-   - Septic tank: per unit as shown
-   - Miscellaneous: adhesive, tape, clamps — include as line items
-5. For ELECTRICAL, list individually:
-   - Service entrance: main feeder wire size and length, RSC pipe, entrance cap, main box
-   - Panel boards: with breaker count and rating
-   - Branch circuit breakers: list by amperage and pole
-   - Conduit: PVC conduit by size, count from electrical layout
-   - Boxes: junction boxes, pull boxes, utility boxes — count from layout
-   - Wires: by gauge (THHN 2.0mm2, 3.5mm2, 5.5mm2) with estimated lengths in meters
-   - Switches: 1-gang, 2-gang, 3-gang, 3-way — count from layout
-   - Outlets: convenience, ACU, ref, range — count from layout
-   - Lighting: downlights, wall lights, dropped — count from fixture layout
-   - Special: exhaust fans, telephone outlets, cable TV outlets
-   - Miscellaneous: hanger, clamp, tape, PVC cement
-6. For CONSUMABLES AND ACCESSORIES: Always include GI tie wire, common nails, cutting disc/grinding, PVC cement as line items.
-7. OWNER-SUPPLIED items: flag as "owner supply" with P0 cost but include in the list so nothing is forgotten.
-8. For DUPLEX or multi-unit buildings: clearly state if quantities are PER UNIT or TOTAL. State at the top of the summary.
+MANDATORY TAKEOFF STEPS — follow every one:
 
-CONCRETE ELEMENT BREAKDOWN (always use these element names):
-- Footing (specify type: FDN, isolated, combined)
-- Footing Tie Beam
-- Column — GF to 2F
-- Column — 2F to RF
-- Slab on Grade / GF Slab
-- 2nd Floor Slab
-- Roof Slab (if applicable)
-- Beam — 2F Level
-- Roof Beam / RB
-- Stairs
+STEP 1 — CONCRETE (always break by element):
+a) Footings: count from foundation plan, compute L x W x D per type
+b) Footing Tie Beam: from FTB details, L x W x D
+c) Columns GF to 2F: count per schedule, size x height (floor-to-floor)
+d) Columns 2F to RF: same
+e) Slab on Grade: GF floor area x slab thickness (typically 0.10m) PLUS carport, walkways, lanai
+f) 2F Slab: 2F floor area x thickness
+g) Roof Slab (if any): roof slab area x thickness
+h) Beams 2F: from beam schedule, sum all L x W x D per type
+i) Roof Beams: same
+j) Stairs: from stair detail, estimate volume per flight
+k) Wall footing/lintel: from wall footing details
 
-TRADE CATEGORIES (use these exact names):
-1. General Requirements | 2. Earthworks & Site Development | 3. Concrete Works
-4. Reinforcement Steel | 5. Formworks & Scaffolding | 6. Masonry Works
-7. Roofing Works | 8. Ceiling Works | 9. Flooring Works
-10. Doors & Windows | 11. Painting & Skim Coat | 12. Railings & Accessories
-13. Kitchen & Cabinetry | 14. Secondary Structures (Fence, Carport, Canopy)
-15. Plumbing & Sanitary Works | 16. Electrical Works | 17. Contingency & Miscellaneous
+STEP 2 — REBAR (per element, per diameter, in both pcs AND kg):
+For EVERY concrete element above, list rebar by diameter:
+- 16mm main bars: count pcs from schedule x length + 40-dia lap = kg (0.00617 x 256 x total_length)
+- 10mm ties/stirrups: count pcs from schedule x length = kg (0.00617 x 100 x total_length)
+- 10mm slab bars: area / spacing x length = kg
+- 10mm CHB wall bars: 1 vertical bar per 0.80m o.c., horizontal every 3 courses
+ALWAYS include rebar for: FTB, Slab on Grade, columns (ties), beams (stirrups), walls (vertical+horizontal in cells)
 
-Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
+STEP 3 — MASONRY (critical — most commonly undercounted):
+FORMULA: wall_area_m2 / 0.08 x 1.05 = number of 4" CHB (0.20x0.40 face = 0.08m2 each)
+FORMULA: wall_area_m2 / 0.10 x 1.05 = number of 5" or 6" CHB (same face, thicker)
+- Exterior walls: measure all perimeter walls both floors, subtract openings (doors+windows)
+  Typical 2-storey building: exterior area = (building perimeter x total wall height) - door+window openings
+  For a 20x20m building 2 storeys high: perimeter=80m x 6.5m height = 520m2 less ~35% openings = ~338m2
+- Interior partition walls: from floor plans
+- Fence/perimeter walls: from site plan
+- PLASTERING (always follows masonry): wall_area x 2 faces x ₱380-500/m2 (both sides of every wall)
+  Include: exterior plaster, interior plaster, fence plaster — each as its own line
+
+STEP 4 — FORMWORKS & SCAFFOLDING:
+- Column formworks: perimeter x height x number of columns (m2)
+- Beam formworks: (beam width + 2 x beam depth) x total beam length (m2)
+- Slab formworks: slab area (m2)
+- SCAFFOLDING: always include as separate item — estimate facade area x ₱280-380/m2
+  For typical 2-storey building, scaffolding ≈ ₱250,000-₱400,000
+
+STEP 5 — ROOFING:
+- Roofing sheets: roof plan area x 1.10 waste factor, in linear meters
+- Steel trusses: count from truss layout plan
+- C-purlins: count from framing plan
+- Sag rods: count from framing plan
+- Box gutter: measure gutter length
+- Flashings: count ridge, eave, valley flashings
+- Insulation: roof area
+
+STEP 6 — CEILING SYSTEM (all components required):
+a) Double furring: ceiling area x 2 pcs/m2
+b) Wall angle: ceiling perimeter in linear meters, convert to pcs
+c) Carrying channel: ceiling area / 1.2m spacing
+d) Gypsum board 9mm: ceiling area / 2.88m2 per sheet (1.2x2.4m)
+e) PVC spandrel (for eaves/exterior soffits): measure from plans
+
+STEP 7 — FLOORING:
+- Identify tile zones from floor plan: main living (60x60), T&B (30x60), balcony/ext (20x20)
+- Tile adhesive: total tiled area / 4m2 per bag (standard coverage)
+- Grout: 1 bag per 8-10m2
+- Waterproofing: all wet areas (T&B floors + balconies)
+- Stair treads: count from stair detail
+
+STEP 8 — PAINTING (3 separate lines minimum):
+a) Exterior walls: exterior wall area after openings x rate
+b) Interior walls: interior wall area x rate
+c) Ceiling: ceiling area x rate
+d) Skim coat: for EACH painted surface (interior walls, exterior walls, ceiling) as separate lines
+   Note: skim coat area = same as paint area
+
+STEP 9 — ELECTRICAL (all components individually):
+a) Service entrance: main feeder wire size from load schedule x run length (usually 200m for duplex)
+   CRITICAL: 125mm2 THHN costs ₱1,100-1,300/m — always include this
+b) Panel boards: from electrical plans, one per unit
+c) MCB breakers: list by amperage from panel schedule
+d) PVC conduit: count from layout, typically 250-350 pcs for 2-storey duplex
+e) Junction boxes 4x4: count from layout
+f) Utility boxes 2x4: count from layout
+g) THHN wire by gauge: from load schedule — minimum 3 gauges (2mm2, 3.5mm2, 5.5mm2)
+h) Switches: 1-gang, 2-gang, 3-gang, 3-way — count from lighting layout
+i) Convenience outlets: count from power layout
+j) Special outlets: ACU, ref, range, water heater — count from layout
+k) Lighting fixtures: downlights, wall lights, exhaust fans — count from lighting layout
+l) Service entrance labor: always include as lot item ₱180,000-₱220,000 per unit
+
+STEP 10 — PLUMBING (all components individually):
+a) PPR pipe 3/4" (18mm): cold water lines GF+2F in linear meters
+b) PPR pipe 1/2" (12mm): branch lines in linear meters
+c) Gate valves: count from water line layout
+d) Check valves: count from water line layout
+e) PPR accessories (tees, elbows, couplings): estimate 2-3x pipe count
+f) PVC 4" sewer: measure from sewer layout
+g) PVC 3" drain: measure from drain layout
+h) PVC 2" vent: measure from vent layout
+i) PVC accessories per size
+j) Catch basins: count from storm drain layout
+k) Each fixture type separately: WC x count, lavatory x count, kitchen sink x count, shower x count, bathtub x count, floor drain x count
+l) Angle valves, flexible pipes: count per fixture
+m) Grease trap: count from plans
+n) Septic tank: one per unit as shown
+
+STEP 11 — SECONDARY STRUCTURES (always check):
+- Perimeter fence: from site plan — CHB area + plastering + rebar + concrete
+- Gate: tubular steel + hardware
+- Carport slab: area x thickness + rebar
+- Canopy: pre-cast or RC as shown
+- Stair railings: tubular, glass, hardware
+- Balcony railings: from plans
+
+STEP 12 — GENERAL REQUIREMENTS:
+- Mobilization/demobilization: always include
+- Temporary facilities: always include
+
+OWNER-SUPPLIED ITEMS: list with qty=0, totalLow=0, totalHigh=0, isOwnerSupply=true (still include — do not omit)
+
+OUTPUT RULES:
+- Return ONLY valid JSON. No markdown, no backticks, no text before or after.
+- String values max 90 chars. Be concise everywhere.
+- qtyBasis required for ALL concrete, rebar, CHB, tile, and paint items.
+- If output would exceed limits, STOP after Electrical and add note in limitations.
+
+JSON format:
 {
   "summary": {
-    "projectName": "string from title block or null",
-    "projectType": "Residential|Commercial|Industrial|Institutional|Mixed-Use",
-    "projectLocation": "city/province or null",
+    "projectName": "string",
+    "projectType": "string",
+    "projectLocation": "string or null",
     "totalFloorArea": 0,
-    "floorAreaBreakdown": "e.g. Ground Floor 259.20sqm + Second Floor 176.10sqm = 435.30sqm",
+    "floorAreaBreakdown": "string",
     "numberOfStoreys": 0,
     "numberOfUnits": 1,
-    "scopeNote": "e.g. Quantities cover BOTH units of a duplex. or PER UNIT quantities.",
-    "structuralSystem": "Reinforced Concrete Frame|Steel Frame|Masonry|Mixed",
+    "scopeNote": "e.g. Quantities cover BOTH units of a duplex.",
+    "structuralSystem": "string",
     "finishLevel": "Basic|Standard|High-end",
     "overallStatus": "COMPLETE|PARTIAL",
     "totalCostLow": 0,
@@ -3150,27 +3216,26 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
     "totalCostMid": 0,
     "costPerSqmLow": 0,
     "costPerSqmHigh": 0,
-    "notes": "2-3 sentence summary of takeoff methodology and key assumptions",
-    "limitations": ["specific items that could not be quantified from plans — needs field measurement or additional drawings"]
+    "notes": "string",
+    "limitations": ["string"]
   },
   "lineItems": [
     {
       "id": 1,
-      "trade": "exact trade name from list above",
-      "subCategory": "e.g. Footing, Columns GF-2F, Main Feeder, Service Entrance",
-      "itemCode": "DPWH pay item code if applicable or null",
-      "description": "specific item description e.g. Ready-mix concrete for Footings, f'c=20.7MPa",
-      "specification": "e.g. f'c=20.7MPa (3000psi), 40mm aggregate or null",
+      "trade": "string",
+      "subCategory": "string",
+      "description": "string",
+      "specification": "string or null",
       "unit": "m3|m2|kg|pcs|ln.m|set|lot|bag|sheet|roll|m",
       "qty": 0,
-      "qtyBasis": "how this was computed e.g. F1: 16pcs x 1.8m x 1.8m x 0.45m = 23.3m3",
+      "qtyBasis": "computation string or null",
       "unitRateLow": 0,
       "unitRateHigh": 0,
       "totalLow": 0,
       "totalHigh": 0,
       "isOwnerSupply": false,
       "confidence": "HIGH|MEDIUM|LOW",
-      "confidenceNote": "brief note if not HIGH"
+      "confidenceNote": "string or null"
     }
   ],
   "tradeSummary": [
@@ -3310,6 +3375,8 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   const [showMargins, setShowMargins] = useState(false);
   const [busyMsg,     setBusyMsg]     = useState("");
   const [debugInfo,   setDebugInfo]   = useState("");
+  const [markup, setMarkup] = useState({ materials: 0, labor: 0, overhead: 10, contingency: 5 });
+  const [showMarkup, setShowMarkup] = useState(false);
 
   const planRef = useRef(null);
   const bomRef  = useRef(null);
@@ -3365,6 +3432,15 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   const addPlanFiles  = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
   const addBomFiles   = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
   const addBomFiles2  = useCallback(fs => setBomFiles2(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
+
+  const applyMarkup = (base) => {
+    const m = markup;
+    return base
+      * (1 + (m.materials   || 0) / 100)
+      * (1 + (m.labor       || 0) / 100)
+      * (1 + (m.overhead    || 0) / 100)
+      * (1 + (m.contingency || 0) / 100);
+  };
 
   const computeAdjusted = (base) => {
     return base
@@ -3654,9 +3730,12 @@ CRITICAL OUTPUT RULES:
       <Card>
         {/* Mode + Rate toggles */}
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-          <div style={{display:"flex",gap:5}}>
-            {[{v:"generate",l:"✨ Generate BOM"},{v:"single",l:"Review BOM"},{v:"compare",l:"🔄 Compare 2 BOMs"}].map(o=>(
-              <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?STR:T.border}`,background:mode===o.v?"rgba(59,130,246,0.12)":"transparent",color:mode===o.v?STR:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+            {[{v:"single",l:"Review BOM"},{v:"compare",l:"🔄 Compare 2 BOMs"},{v:"generate",l:"✨ Generate BOM",premium:true}].map(o=>(
+              <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?(o.premium?"#a78bfa":STR):T.border}`,background:mode===o.v?(o.premium?"rgba(167,139,250,0.13)":"rgba(59,130,246,0.12)"):"transparent",color:mode===o.v?(o.premium?"#a78bfa":STR):T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
+                {o.l}
+                {o.premium && <span style={{fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:20,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",letterSpacing:"0.5px",boxShadow:"0 1px 6px rgba(124,58,237,0.4)"}}>PREMIUM</span>}
+              </button>
             ))}
           </div>
           <div style={{display:"flex",gap:5,marginLeft:"auto"}}>
@@ -3674,6 +3753,25 @@ CRITICAL OUTPUT RULES:
             {PROJECT_PRESETS.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
+
+        {/* Premium banner for generate mode */}
+        {mode==="generate" && (
+          <div style={{background:"linear-gradient(135deg,rgba(124,58,237,0.12),rgba(167,139,250,0.06))",border:"1.5px solid rgba(167,139,250,0.3)",borderRadius:12,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:14}}>
+            <div style={{fontSize:28,lineHeight:1}}>✨</div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                <span style={{fontWeight:800,fontSize:14,color:"#a78bfa"}}>AI BOM Generator</span>
+                <span style={{fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:20,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",letterSpacing:"0.5px",boxShadow:"0 1px 8px rgba(124,58,237,0.5)"}}>PREMIUM</span>
+              </div>
+              <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>Upload your engineering plans and let AI generate a complete contractor-ready Bill of Materials — concrete, rebar, masonry, MEP, electrical, finishes, and more. No manual counting needed.</div>
+            </div>
+            <div style={{textAlign:"right",minWidth:90}}>
+              <div style={{fontSize:10,color:"#a78bfa",fontWeight:700,marginBottom:2}}>ACCURACY</div>
+              <div style={{fontSize:18,fontWeight:900,color:"#a78bfa"}}>±20–35%</div>
+              <div style={{fontSize:9,color:T.muted}}>parametric</div>
+            </div>
+          </div>
+        )}
 
         {/* Upload zones */}
         <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="compare"?3:mode==="generate"?1:2},1fr)`,gap:12,marginBottom:14}}>
@@ -4127,6 +4225,9 @@ CRITICAL OUTPUT RULES:
         const g = generateResult;
         const s = g.summary || {};
         const fmt = n => "\u20b1" + (+n||0).toLocaleString("en-PH");
+        const mfn = n => { const m=markup; return (+n||0)*(1+(m.materials||0)/100)*(1+(m.labor||0)/100)*(1+(m.overhead||0)/100)*(1+(m.contingency||0)/100); };
+        const mf  = n => fmt(mfn(n));
+        const totalMarkupPct = ((1+(markup.materials||0)/100)*(1+(markup.labor||0)/100)*(1+(markup.overhead||0)/100)*(1+(markup.contingency||0)/100)-1)*100;
         const confColor = c => c==="HIGH" ? "#16a34a" : c==="LOW" ? "#ef4444" : "#d97706";
         return (
           <div style={{marginTop:20}}>
@@ -4153,16 +4254,16 @@ CRITICAL OUTPUT RULES:
                       "<td style=\"padding:7px 10px;text-align:center;font-size:11px;border-bottom:1px solid #f1f5f9\">"+item.unit+"</td>" +
                       "<td style=\"padding:7px 10px;text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9\">"+((+item.qty||0).toLocaleString("en-PH",{maximumFractionDigits:2}))+"</td>" +
                       "<td style=\"padding:7px 10px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #f1f5f9\">"+fmt(item.unitRateLow)+"&ndash;"+fmt(item.unitRateHigh)+"</td>" +
-                      "<td style=\"padding:7px 10px;text-align:right;font-size:11px;border-bottom:1px solid #f1f5f9\">"+fmt(item.totalLow)+"</td>" +
-                      "<td style=\"padding:7px 10px;text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9\">"+fmt(item.totalHigh)+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:right;font-size:11px;border-bottom:1px solid #f1f5f9\">"+mf(item.totalLow)+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9\">"+mf(item.totalHigh)+"</td>" +
                       "<td style=\"padding:7px 10px;text-align:center;border-bottom:1px solid #f1f5f9\"><span style=\"font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:"+cc+"22;color:"+cc+";border:1px solid "+cc+"44\">"+item.confidence+"</span></td>" +
                     "</tr>";
                   }).join("");
                   const trRows = (g.tradeSummary||[]).map(t =>
                     "<tr><td style=\"padding:8px 10px;font-weight:600;color:#0f2444\">"+t.trade+"</td>" +
                     "<td style=\"padding:8px 10px;text-align:center;color:#64748b\">"+t.itemCount+"</td>" +
-                    "<td style=\"padding:8px 10px;text-align:right\">"+fmt(t.totalLow)+"</td>" +
-                    "<td style=\"padding:8px 10px;text-align:right;font-weight:700;color:#0f2444\">"+fmt(t.totalHigh)+"</td>" +
+                    "<td style=\"padding:8px 10px;text-align:right\">"+mf(t.totalLow)+"</td>" +
+                    "<td style=\"padding:8px 10px;text-align:right;font-weight:700;color:#0f2444\">"+mf(t.totalHigh)+"</td>" +
                     "<td style=\"padding:8px 10px;text-align:center;font-weight:700;color:#0696d7\">"+((+t.percentOfTotal||0).toFixed(1))+"%</td></tr>"
                   ).join("");
                   const limitHtml = (s.limitations||[]).map(l => "<div style=\"font-size:11.5px;color:#64748b;padding:3px 0 3px 12px\">&bull; "+l+"</div>").join("");
@@ -4203,8 +4304,8 @@ CRITICAL OUTPUT RULES:
                     "</div>" +
                     "<div class=\"hero\">" +
                       "<div><div style=\"font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px\">Total Estimated Cost</div>" +
-                      "<div class=\"cr\">"+fmt(s.totalCostLow)+" &ndash; "+fmt(s.totalCostHigh)+"</div>" +
-                      "<div class=\"cm\">Midpoint: <strong>"+fmt(s.totalCostMid)+"</strong> &middot; &plusmn;20&ndash;35% parametric accuracy</div></div>" +
+                      "<div class=\"cr\">"+mf(s.totalCostLow)+" &ndash; "+mf(s.totalCostHigh)+"</div>" +
+                      "<div class=\"cm\">Midpoint: <strong>"+mf(s.totalCostMid)+"</strong> &middot; &plusmn;20&ndash;35% parametric accuracy</div></div>" +
                       "<div class=\"csqm\"><div class=\"csv\">"+fmt(s.costPerSqmLow)+" &ndash; "+fmt(s.costPerSqmHigh)+"</div><div class=\"csl\">per square meter</div></div>" +
                     "</div>" +
                     "<h2>Trade Summary</h2>" +
@@ -4212,18 +4313,51 @@ CRITICAL OUTPUT RULES:
                     "<h2>Complete Bill of Materials</h2>" +
                     "<table><thead><tr><th>Trade</th><th>Description</th><th class=\"c\">Unit</th><th class=\"r\">Qty</th><th class=\"r\">Unit Rate</th><th class=\"r\">Total Low</th><th class=\"r\">Total High</th><th class=\"c\">Conf.</th></tr></thead><tbody>"+rows+
                     "<tr style=\"background:#0f2444\"><td colspan=\"5\" style=\"padding:10px;color:#fff;font-weight:800;font-size:13px\">TOTAL ESTIMATED COST</td>" +
-                    "<td style=\"padding:10px;color:#fff;font-weight:700;text-align:right\">"+fmt(s.totalCostLow)+"</td>" +
+                    "<td style=\"padding:10px;color:#fff;font-weight:700;text-align:right\">"+mf(s.totalCostLow)+"</td>" +
                     "<td style=\"padding:10px;color:#fff;font-weight:800;font-size:14px;text-align:right\">"+fmt(s.totalCostHigh)+"</td><td></td></tr>" +
                     "</tbody></table>" +
                     (s.notes ? "<div class=\"nb\"><strong>Notes:</strong> "+s.notes+"</div>" : "") +
                     (s.limitations?.length ? "<h2>Items Requiring Field Verification</h2>"+limitHtml : "") +
                     "</div>" +
-                    "<div class=\"footer\"><span>Generated by Buildify &middot; PH Engineering Suite</span><span>Parametric estimate &plusmn;20&ndash;35% &middot; Not a contract document</span></div>" +
+                    "<div class=\"footer\"><span>Generated by Buildify &middot; PH Engineering Suite</span><span>Parametric estimate &plusmn;20&ndash;35% &middot; Not a contract document"+(totalMarkupPct>0.1?" &middot; Markup "+totalMarkupPct.toFixed(1)+"% applied":"")+"</span></div>" +
                     "</div></body></html>"
                   );
                   w.document.close(); setTimeout(()=>w.print(),600);
                 }} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:9,border:`1.5px solid ${STR}44`,background:`${STR}12`,color:STR,cursor:"pointer",fontSize:12,fontWeight:700}}>
-                  <Icon name="download" size={13}/> Export BOM
+                  <Icon name="download" size={13}/> Export PDF
+                </button>
+                <button onClick={()=>{
+                  // Export clean CSV — base costs only (no markup columns; engineer hides nothing)
+                  const items = g.lineItems||[];
+                  const esc = v => '"'+(String(v||"").replace(/"/g,'""'))+'"';
+                  const rows = [
+                    ["BUILDIFY — Bill of Materials","","","","","","","","","","",""],
+                    [s.projectName||"Project","","","","","","","","","","",""],
+                    [s.projectLocation||"","","","","","","","","","","",""],
+                    ["Floor Area:",s.totalFloorArea+" sqm","Storeys:",s.numberOfStoreys,"Units:",s.numberOfUnits||1,"Finish:",s.finishLevel||"Standard","","","",""],
+                    ["","","","","","","","","","","",""],
+                    ["ID","Trade","Sub-Category","Description","Specification","Unit","Qty","Qty Basis","Unit Rate Low","Unit Rate High","Total Low","Total High","Confidence","Owner Supply"],
+                    ...items.map((it,i)=>[
+                      i+1, it.trade||"", it.subCategory||"", it.description||"", it.specification||"",
+                      it.unit||"", it.qty||0, it.qtyBasis||"",
+                      it.unitRateLow||0, it.unitRateHigh||0,
+                      it.totalLow||0, it.totalHigh||0,
+                      it.confidence||"", it.isOwnerSupply?"Yes":"No"
+                    ]),
+                    ["","","","","","","","","","","","","",""],
+                    ["","","","","","","","","","TOTAL LOW:",s.totalCostLow,"","",""],
+                    ["","","","","","","","","","TOTAL HIGH:","",s.totalCostHigh,"",""],
+                    ["","","","","","","","","","","","","",""],
+                    ["Generated by Buildify · PH Engineering Suite","","","","","","","Not a contract document","","","","","",""],
+                  ];
+                  const csv = rows.map(r=>r.map(esc).join(",")).join("\r\n");
+                  const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = (s.projectName||"BOM").replace(/[^a-z0-9]/gi,"_")+"_BOM.csv";
+                  a.click();
+                }} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:9,border:"1.5px solid rgba(6,180,212,0.4)",background:"rgba(6,180,212,0.08)",color:"#06b6d4",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  <Icon name="table" size={13}/> Export Excel
                 </button>
                 <button onClick={handleNewBOM} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:9,border:"1.5px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>
                   <Icon name="plus" size={13}/> New BOM
@@ -4231,16 +4365,55 @@ CRITICAL OUTPUT RULES:
               </div>
             </div>
 
+            {/* Markup controls */}
+            <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
+              <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
+                  {totalMarkupPct > 0.1 && <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(6,150,215,0.15)",color:STR}}>+{totalMarkupPct.toFixed(1)}% applied</span>}
+                </div>
+                <span style={{color:T.muted,fontSize:13}}>{showMarkup ? "▲" : "▼"}</span>
+              </div>
+              {showMarkup && (
+                <div style={{padding:"0 16px 16px",borderTop:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:12,marginTop:10}}>These multipliers compound on the AI base estimate. Use to account for price escalation, contractor margin, contingency, and VAT.</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {[["materials","Materials / Price Escalation",STR],["labor","Labor Markup","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
+                      <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:9,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <input type="number" min="0" max="100" step="0.5" value={markup[key]}
+                            onChange={e=>setMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                            style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
+                          <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
+                        </div>
+                        <input type="range" min="0" max="50" step="0.5" value={markup[key]}
+                          onChange={e=>setMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                          style={{width:"100%",marginTop:6,accentColor:color}}/>
+                      </div>
+                    ))}
+                  </div>
+                  {totalMarkupPct > 0.1 && (
+                    <div style={{marginTop:12,background:"rgba(6,150,215,0.06)",border:`1px solid ${STR}22`,borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:12,color:T.muted}}>Combined multiplier on base estimate</span>
+                      <span style={{fontSize:15,fontWeight:800,color:STR}}>×{((1+totalMarkupPct/100)).toFixed(3)} &nbsp;(+{totalMarkupPct.toFixed(1)}%)</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Cost summary cards */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
               <div style={{background:`${STR}10`,border:`1.5px solid ${STR}33`,borderRadius:12,padding:"16px 20px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Total Estimated Cost</div>
-                <div style={{fontSize:22,fontWeight:900,color:T.text}}>{fmt(s.totalCostLow)} &ndash; {fmt(s.totalCostHigh)}</div>
-                <div style={{fontSize:11,color:T.muted,marginTop:4}}>Midpoint: <strong style={{color:STR}}>{fmt(s.totalCostMid)}</strong> &nbsp;&middot;&nbsp; {(+s.totalFloorArea||0).toLocaleString()} sqm total</div>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Total Estimated Cost {totalMarkupPct>0.1 && <span style={{color:STR}}>(with markup)</span>}</div>
+                <div style={{fontSize:22,fontWeight:900,color:T.text}}>{mf(s.totalCostLow)} &ndash; {mf(s.totalCostHigh)}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:4}}>Midpoint: <strong style={{color:STR}}>{mf(s.totalCostMid)}</strong> &nbsp;&middot;&nbsp; {(+s.totalFloorArea||0).toLocaleString()} sqm total</div>
+                {totalMarkupPct>0.1 && <div style={{fontSize:10,color:T.muted,marginTop:4}}>Base (no markup): {fmt(s.totalCostLow)} – {fmt(s.totalCostHigh)}</div>}
               </div>
               <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,padding:"16px 20px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Per Square Meter</div>
-                <div style={{fontSize:22,fontWeight:900,color:STR}}>{fmt(s.costPerSqmLow)} &ndash; {fmt(s.costPerSqmHigh)}</div>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Per Square Meter {totalMarkupPct>0.1 && <span style={{color:STR}}>(with markup)</span>}</div>
+                <div style={{fontSize:22,fontWeight:900,color:STR}}>{mf(s.costPerSqmLow)} &ndash; {mf(s.costPerSqmHigh)}</div>
                 <div style={{fontSize:11,color:T.muted,marginTop:4}}>{s.structuralSystem||""} &nbsp;&middot;&nbsp; {s.finishLevel||"Standard"} Finish</div>
               </div>
             </div>
@@ -4270,7 +4443,7 @@ CRITICAL OUTPUT RULES:
                       </div>
                     </div>
                     <div style={{textAlign:"right",minWidth:130}}>
-                      <div style={{fontWeight:700,color:T.text,fontSize:12}}>{fmt(t.totalHigh)}</div>
+                      <div style={{fontWeight:700,color:T.text,fontSize:12}}>{mf(t.totalHigh)}</div>
                       <div style={{fontSize:11,color:T.muted}}>{(+t.percentOfTotal||0).toFixed(1)}% of total</div>
                     </div>
                   </div>
@@ -4305,8 +4478,8 @@ CRITICAL OUTPUT RULES:
                         <td style={{padding:"8px 10px",textAlign:"center",color:T.muted,fontSize:11}}>{item.unit}</td>
                         <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{(+item.qty||0).toLocaleString("en-PH",{maximumFractionDigits:2})}</td>
                         <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11,whiteSpace:"nowrap"}}>{fmt(item.unitRateLow)}&ndash;{fmt(item.unitRateHigh)}</td>
-                        <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11}}>{fmt(item.totalLow)}</td>
-                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{fmt(item.totalHigh)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11}}>{mf(item.totalLow)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{mf(item.totalHigh)}</td>
                         <td style={{padding:"8px 10px",textAlign:"center"}}>
                           <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,
                             background:`${confColor(item.confidence)}18`,color:confColor(item.confidence),
