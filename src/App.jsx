@@ -3180,11 +3180,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
 
   const handleNewBOM = () => {
     setResult(null); setCompareResult(null); setPlanFiles([]); setBomFiles([]); setBomFiles2([]);
-    try {
-      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
-      delete s.bomResult; delete s.compareResult;
-      localStorage.setItem("buildify_session_structural", JSON.stringify(s));
-    } catch {}
+    // Session stays in localStorage so history cards can reopen it
   };
 
   return (
@@ -4112,11 +4108,7 @@ INSTRUCTIONS:
 
   const handleNewEstimate = () => {
     setResult(null); setFiles([]);
-    try {
-      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
-      delete s.estimateResult;
-      localStorage.setItem("buildify_session_structural", JSON.stringify(s));
-    } catch {}
+    // Session stays in localStorage so history cards can reopen it
   };
 
   return (
@@ -5794,7 +5786,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     setTab("checker");
     setBomResult(null);
     setEstimateResult(null);
-    try { localStorage.removeItem("buildify_session_structural"); } catch {}
+    // Note: session stays in localStorage so history cards can still reopen it
   };
 
   return (
@@ -7879,7 +7871,7 @@ function ElecCode({ apiKey, sessionTick=0 }) {
           <button onClick={()=>{
             setCheckerResult(null); setElectricalData(null); setElecResults(null);
             setRunState(null); setCalcStates({}); setMainTab("checker");
-            try { localStorage.removeItem("buildify_session_electrical"); } catch {}
+            // Session stays in localStorage so history cards can reopen it
           }}
             style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,
               border:"1.5px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",
@@ -8131,7 +8123,7 @@ function SaniCode({ apiKey, sessionTick=0 }) {
         {checkerResult && (
           <button onClick={()=>{
             setCheckerResult(null); setTool("checker");
-            try { localStorage.removeItem("buildify_session_sanitary"); } catch {}
+            // Session stays in localStorage so history cards can reopen it
           }}
             style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,
               border:"1.5px solid rgba(6,182,212,0.3)",background:"rgba(6,182,212,0.07)",
