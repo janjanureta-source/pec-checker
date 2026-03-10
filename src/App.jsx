@@ -3022,6 +3022,75 @@ function LoadCombinations({ structuralData }) {
 }
 
 // ─── BOM REVIEW DATA ─────────────────────────────────────────────────────────
+const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines. Generate a complete Bill of Materials and Quantities (BOQ/BOM) from the uploaded engineering plans.
+
+REFERENCES (2025 NCR market rates):
+- Ready-mix concrete: P5,500-7,000/m3 | Steel rebar: P55-65/kg | CHB: P18-22/pc
+- Cement: P270-310/bag | Sand: P1,200-1,800/m3 | Gravel: P1,500-2,200/m3
+- Ceramic tiles: P350-600/sqm | Paint: P180-320/L | THHN wire #12 AWG: P38-55/m
+
+PROCESS:
+1. Read ALL plan pages — floor plans, sections, elevations, schedules, details.
+2. Extract all dimensions, areas, counts visible in the plans.
+3. Compute quantities using proper takeoff methodology:
+   - Concrete volume: L x W x D per element
+   - Rebar weight: 0.00617 x dia2 x total length in kg
+   - CHB walls: wall area / 0.04 m2 per block x 1.05 waste factor
+   - Formworks: exposed concrete surfaces
+   - Floor finishes: net floor area after deducting walls and openings
+4. Assign unit rates from DPWH Blue Book and current NCR market (2025).
+5. Show both low (basic) and high (good quality) rate ranges.
+6. For items not measurable from plans, note the basis and use conservative estimates.
+
+TRADE CATEGORIES (use these exact names):
+1. General Requirements | 2. Earthworks & Site Development | 3. Concrete Works
+4. Reinforcement Steel | 5. Formworks & Scaffolding | 6. Masonry Works
+7. Roofing & Waterproofing | 8. Doors & Windows | 9. Architectural Finishes
+10. Plumbing & Sanitary Works | 11. Electrical Works | 12. Contingency & Miscellaneous
+
+Respond ONLY as valid JSON (no markdown, no backticks):
+{
+  "summary": {
+    "projectName": "string or null",
+    "projectType": "Residential|Commercial|Industrial|Institutional|Mixed-Use",
+    "projectLocation": "city/province or null",
+    "totalFloorArea": 0,
+    "floorAreaBreakdown": "e.g. Ground 259sqm + 2nd Floor 176sqm",
+    "numberOfStoreys": 0,
+    "structuralSystem": "Reinforced Concrete|Steel Frame|Masonry|Mixed",
+    "finishLevel": "Basic|Standard|High-end",
+    "overallStatus": "COMPLETE|PARTIAL",
+    "totalCostLow": 0,
+    "totalCostHigh": 0,
+    "totalCostMid": 0,
+    "costPerSqmLow": 0,
+    "costPerSqmHigh": 0,
+    "notes": "2-3 sentence summary of takeoff methodology and assumptions",
+    "limitations": ["items that could not be quantified from plans"]
+  },
+  "lineItems": [
+    {
+      "id": 1,
+      "trade": "exact trade name from list above",
+      "itemCode": "DPWH pay item code or null",
+      "description": "specific item description",
+      "specification": "material spec or null",
+      "unit": "m3|m2|kg|ln.m|set|lot|pc|bag|sheet",
+      "qty": 0,
+      "qtyBasis": "how this was computed",
+      "unitRateLow": 0,
+      "unitRateHigh": 0,
+      "totalLow": 0,
+      "totalHigh": 0,
+      "confidence": "HIGH|MEDIUM|LOW",
+      "confidenceNote": "brief note if not HIGH"
+    }
+  ],
+  "tradeSummary": [
+    { "trade": "string", "itemCount": 0, "totalLow": 0, "totalHigh": 0, "percentOfTotal": 0 }
+  ]
+}`;
+
 const BOM_SYSTEM_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor with deep expertise in:
 - DPWH Blue Book 2024 (Standard Specifications for Public Works and Highways)
 - DPWH Cost Estimates Guidelines (latest edition)
@@ -3128,12 +3197,13 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
 
 
 
-function BOMReview({ apiKey }) {
+function BOMReview({ apiKey, sessionTick=0 }) {
   const [planFiles,     setPlanFiles]     = useState([]);
   const [bomFiles,      setBomFiles]      = useState([]);
   const [bomFiles2,     setBomFiles2]     = useState([]);
   const [result,        setResult]        = useState(null);
   const [compareResult, setCompareResult] = useState(null);
+  const [generateResult,setGenerateResult]= useState(null);
   const [busy,          setBusy]          = useState(false);
   const [error,         setError]         = useState(null);
   const [dragPlan,      setDragPlan]      = useState(false);
@@ -3159,15 +3229,32 @@ function BOMReview({ apiKey }) {
   const STR = "#0696d7";
   const tick = () => new Promise(r => setTimeout(r, 0));
 
-  // ── Restore last BOM session on mount ──
-  useEffect(() => {
+  // ── Session restore helper ──
+  const _loadBomSession = () => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
       if (!s?.bomResult?.summary) return;
-      setResult(s.bomResult);
-      if (s.compareResult) setCompareResult(s.compareResult);
+      // Detect whether saved result is a generated BOM or a review BOM
+      const isGenerated = !!(s.bomResult.lineItems && !s.bomResult.overallStatus);
+      if (isGenerated) {
+        setGenerateResult(s.bomResult);
+        setMode("generate");
+      } else {
+        setResult(s.bomResult);
+        if (s.compareResult) setCompareResult(s.compareResult);
+        setMode(s._bomMode || "single");
+      }
     } catch {}
-  }, []); // eslint-disable-line
+  };
+
+  // ── Restore on mount ──
+  useEffect(() => { _loadBomSession(); }, []); // eslint-disable-line
+
+  // ── Restore when navigating back (sessionTick) ──
+  useEffect(() => {
+    if (sessionTick === 0) return;
+    _loadBomSession();
+  }, [sessionTick]); // eslint-disable-line
 
   const PROJECT_PRESETS = [
     { value:"duplex_residential",  label:"Duplex / Townhouse Residence" },
@@ -3231,6 +3318,31 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
 
   const run = async () => {
     if (!planFiles.length) { setError("Please upload at least one plan file."); return; }
+
+    // ── GENERATE MODE ────────────────────────────────────────────────────────
+    if (mode === "generate") {
+      setBusy(true); setError(null); setGenerateResult(null);
+      try {
+        const planBlocks = await encodeFiles(planFiles, "PLAN");
+        const userMsg = [...planBlocks, { type:"text", text:`Generate a complete Bill of Materials and Quantities from these engineering plans.
+Project type: ${projectPreset.replace(/_/g," ")}
+Rate basis: ${projectType === "government" ? "DPWH Blue Book / Government rates" : "Private NCR market rates (2025)"}
+Read every plan sheet. Compute quantities for all visible elements. Return only valid JSON.` }];
+        setBusyMsg("📐 AI is reading plans and computing quantities…"); await tick();
+        const data = await callAI({ apiKey, system:BOM_GENERATE_PROMPT, messages:[{ role:"user", content:userMsg }], max_tokens:8000 });
+        const raw  = data.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
+        let parsed; try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
+        setGenerateResult(parsed);
+        addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed?.summary?.projectName||"BOM Generated", meta:{ totalHigh:parsed?.summary?.totalCostHigh, findings:parsed?.lineItems?.length||0, summary:parsed?.summary?.notes||"" } });
+        try {
+          const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+          localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult:parsed, _bomMode:"generate", _savedAt:new Date().toISOString(), _module:"structural", userId:"local" }));
+        } catch {}
+      } catch(e) { setError(e.message || "Generation failed. Please try again."); }
+      finally { setBusy(false); setBusyMsg(""); }
+      return;
+    }
+
     const allBom = [...bomFiles, ...bomFiles2];
     const bad = allBom.find(f => !f.type.startsWith("image/") && f.type !== "application/pdf" && !f.name.match(/\.pdf$/i));
     if (bad) { setError(`"${bad.name}" must be a PDF. In Excel: File → Save As → PDF, then re-upload.`); return; }
@@ -3252,7 +3364,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
       // Direct save — merge with existing structural session
       try {
         const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
-        localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult: parsed1, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
+        localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult: parsed1, _bomMode: mode, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
       } catch(e) { console.warn("Session save failed", e); }
 
       // Comparison BOM
@@ -3394,7 +3506,9 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
   };
 
   const handleNewBOM = () => {
-    setResult(null); setCompareResult(null); setPlanFiles([]); setBomFiles([]); setBomFiles2([]);
+    setResult(null); setCompareResult(null); setGenerateResult(null);
+    setPlanFiles([]); setBomFiles([]); setBomFiles2([]);
+    setError(null);
     // Session stays in localStorage so history cards can reopen it
   };
 
@@ -3419,7 +3533,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
         {/* Mode + Rate toggles */}
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:5}}>
-            {[{v:"single",l:"Single BOM"},{v:"compare",l:"🔄 Compare 2 BOMs"}].map(o=>(
+            {[{v:"generate",l:"✨ Generate BOM"},{v:"single",l:"Review BOM"},{v:"compare",l:"🔄 Compare 2 BOMs"}].map(o=>(
               <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?STR:T.border}`,background:mode===o.v?"rgba(59,130,246,0.12)":"transparent",color:mode===o.v?STR:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
             ))}
           </div>
@@ -3440,7 +3554,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
         </div>
 
         {/* Upload zones */}
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="compare"?3:2},1fr)`,gap:12,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="compare"?3:mode==="generate"?1:2},1fr)`,gap:12,marginBottom:14}}>
           <div style={{display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
               <div style={{fontSize:10,fontWeight:700,color:STR}}>📐 Engineering Plans *</div>
@@ -3448,13 +3562,13 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
             </div>
             <DropZone label="Upload Plans" sublabel="PDF · JPG · PNG" files={planFiles} onAdd={addPlanFiles} onRemove={id=>setPlanFiles(p=>p.filter(f=>f.id!==id))} dragState={dragPlan} setDrag={setDragPlan} inputRef={planRef} icon="📐" accent={STR}/>
           </div>
-          <div style={{display:"flex",flexDirection:"column"}}>
+          {mode !== "generate" && (<div style={{display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
               <div style={{fontSize:10,fontWeight:700,color:"#ff6b2b"}}>{mode==="compare"?"📋 BOM #1 — Original":"📋 Draft BOM"} <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
               <div style={{fontSize:10,color:T.muted}}>💡 Excel → Save As PDF before uploading</div>
             </div>
             <DropZone label={mode==="compare"?"Original BOM (PDF)":"Upload BOM (PDF)"} sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#ff6b2b"/>
-          </div>
+          </div>)}
           {mode==="compare" && (
             <div style={{display:"flex",flexDirection:"column"}}>
               <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
@@ -3466,8 +3580,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
           )}
         </div>
 
-        {/* Margin Controls */}
-        <div style={{marginBottom:14}}>
+        {mode !== "generate" && (<div style={{marginBottom:14}}>
           <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12,transition:"all 0.15s",width:"100%"}}>
             <span>⚙️</span>
             <span>Margin Controls</span>
@@ -3492,12 +3605,18 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
               </div>
             </div>
           )}
-        </div>
+        </div>)}
 
         {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
+        {mode === "generate" && !generateResult && !busy && (
+          <div style={{background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,padding:"12px 16px",marginBottom:12,fontSize:12.5,color:T.muted,lineHeight:1.6}}>
+            <span style={{fontWeight:700,color:STR}}>✨ BOM Generator</span> — Upload your engineering plans and the AI will compute all quantities and produce a complete Bill of Materials from scratch. No existing BOM needed.
+            <div style={{fontSize:11,color:T.muted,marginTop:4}}>Works best with complete floor plans + structural plans + schedules. The more detail in the plans, the more accurate the takeoff.</div>
+          </div>
+        )}
 
         <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#0369a1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
-          {busy ? (busyMsg||"⚙️ Processing…") : mode==="compare" ? "📋 Run BOM Comparison Review" : "📋 Run BOM Review"}
+          {busy ? (busyMsg||"⚙️ Processing…") : mode==="generate" ? "✨ Generate BOM from Plans" : mode==="generate" ? "✨ Generate BOM from Plans" : mode==="compare" ? "📋 Run BOM Comparison Review" : "📋 Run BOM Review"}
         </button>
         {busy && (
           <div style={{marginTop:10,background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:10,padding:"10px 16px",fontSize:12,color:STR,display:"flex",alignItems:"center",gap:10}}>
@@ -3874,156 +3993,221 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
           ))}
         </div>
       )}
+
+      {/* ── GENERATE BOM RESULTS ── */}
+      {generateResult && (() => {
+        const g = generateResult;
+        const s = g.summary || {};
+        const fmt = n => "\u20b1" + (+n||0).toLocaleString("en-PH");
+        const confColor = c => c==="HIGH" ? "#16a34a" : c==="LOW" ? "#ef4444" : "#d97706";
+        return (
+          <div style={{marginTop:20}}>
+
+            {/* Header row */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:16,color:T.text}}>Generated Bill of Materials</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:2}}>
+                  {s.projectName||"Project"} &nbsp;&middot;&nbsp; {g.lineItems?.length||0} line items &nbsp;&middot;&nbsp; {g.tradeSummary?.length||0} work categories
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{
+                  const rows = (g.lineItems||[]).map((item,i) => {
+                    const bg = i%2===0 ? "#fff" : "#f8fafc";
+                    const cc = confColor(item.confidence);
+                    return "<tr style=\"background:"+bg+"\">" +
+                      "<td style=\"padding:7px 10px;font-size:10px;color:#94a3b8;border-bottom:1px solid #f1f5f9\">"+item.trade+"</td>" +
+                      "<td style=\"padding:7px 10px;border-bottom:1px solid #f1f5f9\"><strong style=\"font-size:12px;color:#0f2444\">"+item.description+"</strong>" +
+                        (item.specification ? "<br><span style=\"font-size:10px;color:#94a3b8\">"+item.specification+"</span>" : "") +
+                        (item.qtyBasis ? "<br><span style=\"font-size:10px;color:#0696d7\">"+item.qtyBasis+"</span>" : "") +
+                      "</td>" +
+                      "<td style=\"padding:7px 10px;text-align:center;font-size:11px;border-bottom:1px solid #f1f5f9\">"+item.unit+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9\">"+((+item.qty||0).toLocaleString("en-PH",{maximumFractionDigits:2}))+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #f1f5f9\">"+fmt(item.unitRateLow)+"&ndash;"+fmt(item.unitRateHigh)+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:right;font-size:11px;border-bottom:1px solid #f1f5f9\">"+fmt(item.totalLow)+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9\">"+fmt(item.totalHigh)+"</td>" +
+                      "<td style=\"padding:7px 10px;text-align:center;border-bottom:1px solid #f1f5f9\"><span style=\"font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:"+cc+"22;color:"+cc+";border:1px solid "+cc+"44\">"+item.confidence+"</span></td>" +
+                    "</tr>";
+                  }).join("");
+                  const trRows = (g.tradeSummary||[]).map(t =>
+                    "<tr><td style=\"padding:8px 10px;font-weight:600;color:#0f2444\">"+t.trade+"</td>" +
+                    "<td style=\"padding:8px 10px;text-align:center;color:#64748b\">"+t.itemCount+"</td>" +
+                    "<td style=\"padding:8px 10px;text-align:right\">"+fmt(t.totalLow)+"</td>" +
+                    "<td style=\"padding:8px 10px;text-align:right;font-weight:700;color:#0f2444\">"+fmt(t.totalHigh)+"</td>" +
+                    "<td style=\"padding:8px 10px;text-align:center;font-weight:700;color:#0696d7\">"+((+t.percentOfTotal||0).toFixed(1))+"%</td></tr>"
+                  ).join("");
+                  const limitHtml = (s.limitations||[]).map(l => "<div style=\"font-size:11.5px;color:#64748b;padding:3px 0 3px 12px\">&bull; "+l+"</div>").join("");
+                  const w = window.open("","_blank");
+                  w.document.write(
+                    "<!DOCTYPE html><html><head><title>BOM &mdash; "+(s.projectName||"Project")+"</title>" +
+                    "<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Inter,sans-serif;background:#f1f5f9;color:#0f172a;font-size:13px}" +
+                    ".page{max-width:1100px;margin:0 auto;background:#fff}" +
+                    ".hdr{background:#0f2444;padding:20px 30px;display:flex;justify-content:space-between;align-items:center}" +
+                    ".brand{font-size:18px;font-weight:900;color:#0696d7}.brand-sub{font-size:11px;color:#94a3b8;margin-top:2px}" +
+                    ".hdr-r{text-align:right;font-size:11px;color:#94a3b8}.hdr-val{font-size:13px;color:#fff;font-weight:700;margin-top:2px}" +
+                    ".content{padding:24px 30px}.title{font-size:20px;font-weight:900;color:#0f2444;margin-bottom:4px}" +
+                    ".sub{font-size:12px;color:#64748b;margin-bottom:18px}" +
+                    ".stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}" +
+                    ".stat{background:#f8fafc;border-radius:8px;padding:11px;text-align:center}" +
+                    ".sv{font-size:17px;font-weight:800;color:#0f2444}.sl{font-size:10px;color:#64748b;margin-top:3px}" +
+                    ".hero{border:2px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}" +
+                    ".cr{font-size:24px;font-weight:900;color:#0f2444}.cm{font-size:11px;color:#64748b;margin-top:3px}" +
+                    ".csqm{background:#e8f4fc;border-radius:8px;padding:11px 16px;text-align:center}.csv{font-size:15px;font-weight:800;color:#0696d7}.csl{font-size:10px;color:#64748b}" +
+                    "h2{font-size:13px;font-weight:800;color:#0f2444;margin:18px 0 8px;padding-bottom:5px;border-bottom:2px solid #e2e8f0}" +
+                    "table{width:100%;border-collapse:collapse}thead th{background:#0f2444;color:#fff;padding:8px 10px;font-size:10px;font-weight:700;text-align:left}" +
+                    ".r{text-align:right}.c{text-align:center}" +
+                    ".nb{background:#fef3c7;border-left:3px solid #d97706;padding:10px 14px;border-radius:0 8px 8px 0;margin-top:12px;font-size:11.5px;color:#92400e;line-height:1.6}" +
+                    ".footer{background:#0f2444;padding:11px 30px;display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-top:20px}" +
+                    "@media print{body{background:#fff}.np{display:none!important}}</style></head><body>" +
+                    "<button class=\"np\" onclick=\"window.print()\" style=\"position:fixed;top:16px;right:16px;padding:9px 18px;background:#0696d7;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700;z-index:999\">\uD83D\uDDA8 Print / Save PDF</button>" +
+                    "<div class=\"page\">" +
+                    "<div class=\"hdr\"><div><div class=\"brand\">BUILDIFY</div><div class=\"brand-sub\">Generated Bill of Materials &middot; PH Engineering Suite</div></div>" +
+                    "<div class=\"hdr-r\"><div>BOM-GEN &middot; "+(new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"}))+"</div><div class=\"hdr-val\">"+(s.projectName||"Project")+"</div></div></div>" +
+                    "<div class=\"content\">" +
+                    "<div class=\"title\">"+(s.projectName||"Bill of Materials")+"</div>" +
+                    "<div class=\"sub\">"+(s.projectType||"")+" &middot; "+(s.projectLocation||"")+" &middot; "+(s.finishLevel||"Standard")+" Finish &middot; "+(s.structuralSystem||"")+"</div>" +
+                    "<div class=\"stats\">" +
+                      "<div class=\"stat\"><div class=\"sv\">"+(+s.totalFloorArea||0).toLocaleString()+" sqm</div><div class=\"sl\">"+(s.floorAreaBreakdown||"Floor Area")+"</div></div>" +
+                      "<div class=\"stat\"><div class=\"sv\">"+(s.numberOfStoreys||"&mdash;")+"</div><div class=\"sl\">Storeys</div></div>" +
+                      "<div class=\"stat\"><div class=\"sv\">"+(g.lineItems?.length||0)+"</div><div class=\"sl\">Line Items</div></div>" +
+                      "<div class=\"stat\"><div class=\"sv\">"+(g.tradeSummary?.length||0)+"</div><div class=\"sl\">Work Categories</div></div>" +
+                    "</div>" +
+                    "<div class=\"hero\">" +
+                      "<div><div style=\"font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px\">Total Estimated Cost</div>" +
+                      "<div class=\"cr\">"+fmt(s.totalCostLow)+" &ndash; "+fmt(s.totalCostHigh)+"</div>" +
+                      "<div class=\"cm\">Midpoint: <strong>"+fmt(s.totalCostMid)+"</strong> &middot; &plusmn;20&ndash;35% parametric accuracy</div></div>" +
+                      "<div class=\"csqm\"><div class=\"csv\">"+fmt(s.costPerSqmLow)+" &ndash; "+fmt(s.costPerSqmHigh)+"</div><div class=\"csl\">per square meter</div></div>" +
+                    "</div>" +
+                    "<h2>Trade Summary</h2>" +
+                    "<table><thead><tr><th>Work Category</th><th class=\"c\">Items</th><th class=\"r\">Low Total</th><th class=\"r\">High Total</th><th class=\"c\">% of Total</th></tr></thead><tbody>"+trRows+"</tbody></table>" +
+                    "<h2>Complete Bill of Materials</h2>" +
+                    "<table><thead><tr><th>Trade</th><th>Description</th><th class=\"c\">Unit</th><th class=\"r\">Qty</th><th class=\"r\">Unit Rate</th><th class=\"r\">Total Low</th><th class=\"r\">Total High</th><th class=\"c\">Conf.</th></tr></thead><tbody>"+rows+
+                    "<tr style=\"background:#0f2444\"><td colspan=\"5\" style=\"padding:10px;color:#fff;font-weight:800;font-size:13px\">TOTAL ESTIMATED COST</td>" +
+                    "<td style=\"padding:10px;color:#fff;font-weight:700;text-align:right\">"+fmt(s.totalCostLow)+"</td>" +
+                    "<td style=\"padding:10px;color:#fff;font-weight:800;font-size:14px;text-align:right\">"+fmt(s.totalCostHigh)+"</td><td></td></tr>" +
+                    "</tbody></table>" +
+                    (s.notes ? "<div class=\"nb\"><strong>Notes:</strong> "+s.notes+"</div>" : "") +
+                    (s.limitations?.length ? "<h2>Items Requiring Field Verification</h2>"+limitHtml : "") +
+                    "</div>" +
+                    "<div class=\"footer\"><span>Generated by Buildify &middot; PH Engineering Suite</span><span>Parametric estimate &plusmn;20&ndash;35% &middot; Not a contract document</span></div>" +
+                    "</div></body></html>"
+                  );
+                  w.document.close(); setTimeout(()=>w.print(),600);
+                }} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:9,border:`1.5px solid ${STR}44`,background:`${STR}12`,color:STR,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  <Icon name="download" size={13}/> Export BOM
+                </button>
+                <button onClick={handleNewBOM} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:9,border:"1.5px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  <Icon name="plus" size={13}/> New BOM
+                </button>
+              </div>
+            </div>
+
+            {/* Cost summary cards */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div style={{background:`${STR}10`,border:`1.5px solid ${STR}33`,borderRadius:12,padding:"16px 20px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Total Estimated Cost</div>
+                <div style={{fontSize:22,fontWeight:900,color:T.text}}>{fmt(s.totalCostLow)} &ndash; {fmt(s.totalCostHigh)}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:4}}>Midpoint: <strong style={{color:STR}}>{fmt(s.totalCostMid)}</strong> &nbsp;&middot;&nbsp; {(+s.totalFloorArea||0).toLocaleString()} sqm total</div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,padding:"16px 20px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Per Square Meter</div>
+                <div style={{fontSize:22,fontWeight:900,color:STR}}>{fmt(s.costPerSqmLow)} &ndash; {fmt(s.costPerSqmHigh)}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:4}}>{s.structuralSystem||""} &nbsp;&middot;&nbsp; {s.finishLevel||"Standard"} Finish</div>
+              </div>
+            </div>
+
+            {s.notes && (
+              <div style={{background:`${STR}08`,border:`1px solid ${STR}22`,borderRadius:10,padding:"11px 16px",marginBottom:14,fontSize:12.5,color:T.muted,lineHeight:1.6}}>{s.notes}</div>
+            )}
+
+            {/* Trade summary bars */}
+            {g.tradeSummary?.length > 0 && (
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Cost by Work Category</div>
+                {g.tradeSummary.map((t,i) => (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.02)",border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 14px",marginBottom:4}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:12,fontWeight:600,color:T.text}}>{t.trade}</span>
+                        <span style={{fontSize:11,color:T.muted}}>{t.itemCount} items</span>
+                      </div>
+                      <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${Math.max(2,+t.percentOfTotal||0)}%`,background:STR,borderRadius:2}}/>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right",minWidth:130}}>
+                      <div style={{fontWeight:700,color:T.text,fontSize:12}}>{fmt(t.totalHigh)}</div>
+                      <div style={{fontSize:11,color:T.muted}}>{(+t.percentOfTotal||0).toFixed(1)}% of total</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Full line items */}
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
+              Complete Bill of Materials &mdash; {g.lineItems?.length||0} Items
+            </div>
+            <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{background:"rgba(6,150,215,0.1)"}}>
+                      {["Trade","Description","Unit","Qty","Unit Rate","Low Total","High Total","Conf."].map(h => (
+                        <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.3px",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(g.lineItems||[]).map((item,i) => (
+                      <tr key={i} style={{background:i%2===0?"rgba(255,255,255,0.01)":"rgba(255,255,255,0.03)",borderBottom:`1px solid ${T.border}`}}>
+                        <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.trade}</td>
+                        <td style={{padding:"8px 10px"}}>
+                          <div style={{fontWeight:600,color:T.text}}>{item.description}</div>
+                          {item.specification && <div style={{fontSize:10,color:T.muted,marginTop:1}}>{item.specification}</div>}
+                          {item.qtyBasis && <div style={{fontSize:10,color:`${STR}99`,marginTop:1}}>{item.qtyBasis}</div>}
+                        </td>
+                        <td style={{padding:"8px 10px",textAlign:"center",color:T.muted,fontSize:11}}>{item.unit}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{(+item.qty||0).toLocaleString("en-PH",{maximumFractionDigits:2})}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11,whiteSpace:"nowrap"}}>{fmt(item.unitRateLow)}&ndash;{fmt(item.unitRateHigh)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11}}>{fmt(item.totalLow)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{fmt(item.totalHigh)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"center"}}>
+                          <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,
+                            background:`${confColor(item.confidence)}18`,color:confColor(item.confidence),
+                            border:`1px solid ${confColor(item.confidence)}40`}}>{item.confidence||"—"}</span>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{background:`${STR}15`,borderTop:`2px solid ${STR}`}}>
+                      <td colSpan={5} style={{padding:"10px 12px",fontWeight:800,color:T.text,fontSize:13}}>TOTAL ESTIMATED COST</td>
+                      <td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,color:T.muted}}>{fmt(s.totalCostLow)}</td>
+                      <td style={{padding:"10px 12px",textAlign:"right",fontWeight:800,color:STR,fontSize:14}}>{fmt(s.totalCostHigh)}</td>
+                      <td/>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Limitations */}
+            {s.limitations?.length > 0 && (
+              <div style={{marginTop:12,background:"rgba(217,119,6,0.07)",border:"1px solid rgba(217,119,6,0.2)",borderRadius:10,padding:"12px 16px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#d97706",marginBottom:8}}>&starf; Items Requiring Field Verification</div>
+                {s.limitations.map((l,i) => (
+                  <div key={i} style={{fontSize:12,color:T.muted,paddingLeft:12,marginBottom:4,lineHeight:1.5}}>&bull; {l}</div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
-
-
-// ─── STRUCTICODE: COST ESTIMATOR ──────────────────────────────────────────────
-const COST_ESTIMATOR_PROMPT = `You are a senior Cost Estimator and Project Manager in the Philippines with deep expertise in:
-- DPWH Blue Book 2024 (Standard Specifications for Public Works)
-- DPWH Unit Cost Reference and PhilGEPS benchmark rates (2024–2025)
-- CIAP (Construction Industry Authority of the Philippines) cost guides
-- PSA construction cost indices — NCR and regional
-- Current NCR labor rates: mason ₱700–900/day, carpenter ₱700–900/day, electrician ₱900–1,100/day, foreman ₱1,200–1,500/day
-- Current NCR material benchmarks (Q1 2025): Ready-mix concrete ₱5,500–7,000/m³, steel rebar ₱55–65/kg, CHB ₱18–22/pc, cement ₱270–310/bag, sand ₱1,200–1,800/m³, gravel ₱1,500–2,200/m³, ceramic tiles ₱350–600/sqm, aluminum windows ₱2,500–4,000/sqm
-
-Your output serves TWO audiences simultaneously:
-1. ENGINEERS AND ARCHITECTS who need technical accuracy and code-compliant scope
-2. REGULAR HOMEOWNERS AND CLIENTS who need plain-language explanations they can act on
-
-REVIEW PROCESS — follow all steps:
-1. Read ALL uploaded plan pages. Note title block, floor plans, sections, schedules, dimensions.
-2. Estimate gross floor area from plans (measure or note if user-provided).
-3. Identify EVERY work trade visible in the plans — structural, MEP, finishes, site work.
-4. Compute quantities where possible (concrete volume, wall area, roof area, fixture count).
-5. Apply trade rates from references above. Show your range (low = basic, high = better quality).
-6. Identify what is NOT shown or excluded from scope — these are risks to flag.
-7. Generate plain-language descriptions so a non-engineer client understands each trade.
-8. Suggest 3–5 specific cost-saving options with realistic savings estimates and quality impact.
-9. Add next steps a client should take after receiving this estimate.
-
-RATE BENCHMARKS (2025 all-in, inclusive of labor + materials unless noted):
-- Basic residential: ₱18,000–₱22,000/sqm
-- Standard residential: ₱23,000–₱30,000/sqm
-- High-end residential: ₱32,000–₱55,000/sqm
-- Basic commercial: ₱22,000–₱28,000/sqm
-- Standard commercial: ₱30,000–₱45,000/sqm
-- High-end commercial: ₱48,000–₱70,000/sqm
-- Warehouse/industrial: ₱14,000–₱20,000/sqm
-- School/institutional: ₱20,000–₱30,000/sqm
-- Renovation (light): 20–40% of new-build rate
-- Renovation (moderate): 40–65% of new-build rate
-- Renovation (heavy/gut): 65–85% of new-build rate
-
-LOCATION ADJUSTMENTS (vs. NCR baseline):
-- Antipolo / Rizal: +3–5% transport premium
-- Cavite / Laguna: +2–4%
-- Cebu City: -5–10% vs NCR
-- Davao / Mindanao: -10–15% vs NCR
-- Remote provinces: +10–20% vs NCR
-
-TRADE CATEGORIES (always use these exact names):
-1. Site Development & Earthworks
-2. Concrete & Structural Works
-3. Masonry & Blockworks
-4. Roofing & Waterproofing
-5. Doors, Windows & Glazing
-6. Architectural Finishes
-7. Plumbing & Sanitary Works
-8. Electrical Works
-9. HVAC & Mechanical
-10. Landscaping & Outdoor Works
-11. Contingency & Miscellaneous
-12. Owner-Supplied Items / Allowances
-
-Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
-{
-  "project": {
-    "name": "string from plan title block or null",
-    "type": "New Construction|Renovation|Addition|Fit-out|Infrastructure|Ad-hoc",
-    "subtype": "Residential|Commercial|Industrial|Institutional|Mixed",
-    "location": "city/province string",
-    "locationPremiumNote": "e.g. Antipolo: +3-5% transport premium applied or null",
-    "finishLevel": "Basic|Standard|High-end",
-    "estimatedGFA": 0,
-    "gfaBreakdown": "e.g. Ground 259sqm + 2nd Floor 176sqm = 435sqm or null",
-    "floors": 1,
-    "scopeSummary": "2–3 sentence plain-language description of what is being built — write as if explaining to a homeowner",
-    "scopeIncluded": ["plain-language list of what is included"],
-    "scopeExcluded": ["plain-language list of what is not included"],
-    "assumptions": ["key assumptions made in this estimate"],
-    "clientNote": "1–2 sentence message to the client explaining what this estimate is and what to do next — warm, professional tone",
-    "validityNote": "Rates valid as of Q1 2025. Escalate by 5–8% per year.",
-    "accuracyNote": "Parametric estimate ±20–35%. A formal Bill of Quantities is needed for contractor tender."
-  },
-  "trades": [
-    {
-      "id": 1,
-      "trade": "exact trade name from list above",
-      "description": "technical scope description for engineers",
-      "plainDescription": "plain-language explanation for homeowners — what this covers in simple terms",
-      "icon": "emoji representing this trade e.g. 🏗 🧱 ⚡ 🔧 🎨 🚪 🏡 🌊",
-      "unit": "sqm|lot|lump sum|m|set|pc",
-      "qty": 0,
-      "rateLow": 0,
-      "rateHigh": 0,
-      "totalLow": 0,
-      "totalHigh": 0,
-      "percentOfTotal": 0,
-      "basis": "brief note on how this was computed — what dimensions or quantities from the plans",
-      "included": true,
-      "isMajor": true
-    }
-  ],
-  "summary": {
-    "constructionCostLow": 0,
-    "constructionCostHigh": 0,
-    "contingencyPct": 10,
-    "contingencyLow": 0,
-    "contingencyHigh": 0,
-    "totalLow": 0,
-    "totalHigh": 0,
-    "costPerSqmLow": 0,
-    "costPerSqmHigh": 0,
-    "marketSqmRangeLow": 0,
-    "marketSqmRangeHigh": 0,
-    "marketSqmNote": "e.g. Standard residential in NCR: ₱23,000–₱30,000/sqm",
-    "midpoint": 0,
-    "professionalFeesPct": 8,
-    "professionalFeesNote": "Based on PRC/PICE fee schedule. Covers Architect, Engineer, and project management.",
-    "professionalFeesLow": 0,
-    "professionalFeesHigh": 0,
-    "vatNote": "VAT (12%) not included. Add ₱X–₱Y if contractor is VAT-registered.",
-    "permitFeeNote": "Building permit fees: estimate ₱X–₱Y separately (based on project type and LGU).",
-    "grandTotalLow": 0,
-    "grandTotalHigh": 0
-  },
-  "valueEngineering": [
-    {
-      "suggestion": "specific actionable suggestion",
-      "plainExplanation": "plain-language explanation of what this means and how to do it",
-      "savingLow": 0,
-      "savingHigh": 0,
-      "qualityImpact": "None|Minimal|Moderate|Significant",
-      "qualityNote": "brief note on what changes or stays the same"
-    }
-  ],
-  "nextSteps": [
-    {
-      "step": 1,
-      "action": "short action title",
-      "detail": "plain-language explanation of what the client should do and why"
-    }
-  ],
-  "marketWarnings": [
-    {
-      "level": "HIGH|MEDIUM|LOW",
-      "item": "item name",
-      "warning": "plain-language warning the client needs to know"
-    }
-  ]
-}`;
 
 function CostEstimator({ apiKey, onResultChange=null }) {
   const [files,       setFiles]       = useState([]);
@@ -6288,7 +6472,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
       </div>
 
       {/* ── BOM Review ── */}
-      {tab==="bom" && <BOMReview apiKey={apiKey}/>}
+      {tab==="bom" && <BOMReview apiKey={apiKey} sessionTick={sessionTick}/>}
 
       {/* ── Cost Estimator ── */}
       {tab==="estimate" && <CostEstimator apiKey={apiKey} onResultChange={setEstimateResult}/>}
