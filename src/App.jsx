@@ -1430,7 +1430,7 @@ function PlanChecker({ apiKey, externalResult=null, onResultChange=null, onDataE
   },[]);
 
   // Sync external result → local state (handles both navigation and session restore)
-  useEffect(()=>{ if(externalResult) { setResult(externalResult); setTab("all"); setOpen({}); } },[externalResult]);
+  useEffect(()=>{ setResult(externalResult||null); if(externalResult){ setTab("all"); setOpen({}); setChecked({}); } },[externalResult]);
 
   const run = async () => {
     if(!files.length) return;
@@ -1895,12 +1895,13 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
   const [extractedData, setExtractedData] = useState(externalExtracted||null);
   const ref = useRef(null);
 
-  // ── Sync when parent restores session data ──────────────────────────────
+  // ── Sync when parent restores OR clears session data ──────────────────
   useEffect(() => {
-    if (externalResult) { setResult(externalResult); setTab("all"); setOpen({}); }
+    setResult(externalResult || null);
+    if (externalResult) { setTab("all"); setOpen({}); setChecked({}); setCorrections(null); }
   }, [externalResult]);
   useEffect(() => {
-    if (externalExtracted) setExtractedData(externalExtracted);
+    setExtractedData(externalExtracted || null);
   }, [externalExtracted]);
 
 
@@ -5699,6 +5700,11 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     setCheckerExtracted(d);
     setStructuralResults(null);
     setRunState(null);
+    // Persist structuralData so session restore can show Intelligence Panel
+    try {
+      const cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+      localStorage.setItem("buildify_session_structural", JSON.stringify({ ...cur, checkerExtracted: d }));
+    } catch {}
   };
 
   const handleRunAll = async () => {
@@ -5709,6 +5715,13 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     const results = runAllComputations(structuralData);
     setStructuralResults(results);
     setRunState({ running: false, summary: results.summary });
+    // Persist structuralResults so session restore shows full computation package
+    try {
+      const cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+      localStorage.setItem("buildify_session_structural", JSON.stringify({
+        ...cur, structuralResults: results, runState: { running: false, summary: results.summary }
+      }));
+    } catch {}
   };
 
   const handleClear = () => {
@@ -7799,6 +7812,11 @@ function ElecCode({ apiKey, sessionTick=0 }) {
     setElectricalData(extracted);
     setElecResults(null);
     setRunState(null);
+    // Persist electricalData so session restore can show Intelligence Panel
+    try {
+      const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+      localStorage.setItem("buildify_session_electrical", JSON.stringify({ ...cur, electricalData: extracted }));
+    } catch {}
   };
 
   const handleRunAll = async () => {
@@ -7808,6 +7826,13 @@ function ElecCode({ apiKey, sessionTick=0 }) {
     const results = runElecComputations(electricalData, calcStates);
     setElecResults(results);
     setRunState({ running: false });
+    // Persist so session restore shows full computation package
+    try {
+      const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+      localStorage.setItem("buildify_session_electrical", JSON.stringify({
+        ...cur, elecResults: results, runState: { running: false }
+      }));
+    } catch {}
   };
 
   const handleClear = () => {
