@@ -255,8 +255,23 @@ Check:
 10. Green Building Code - lighting power density, energy metering
 11. Short circuit capacity - interrupting ratings
 
+ALSO extract all data visible in the plans into the "extracted" field for pre-filling calculators.
+
 Respond ONLY as valid JSON (no markdown, no preamble):
-{"summary":{"projectName":"string","occupancyType":"Residential|Commercial|Industrial|Unknown","fileType":"string","overallStatus":"NON-COMPLIANT|COMPLIANT WITH WARNINGS|COMPLIANT","criticalCount":0,"warningCount":0,"infoCount":0,"analysisNotes":"under 60 words"},"findings":[{"id":1,"severity":"CRITICAL|WARNING|INFO","category":"Wire Sizing|Overcurrent|Grounding|Load Calc|Branch Circuits|Panelboard|Service Entrance|Lighting|FSIC|Green Building|Short Circuit|Other","pecReference":"PEC 2017 Art. X.XX","title":"under 8 words","description":"under 60 words","recommendation":"under 40 words","codeBasis":"under 30 words"}],"checklist":{"wireSizing":true,"overcurrentProtection":true,"grounding":true,"loadCalculation":true,"branchCircuits":true,"panelboard":true,"serviceEntrance":true,"lighting":true,"fsic":true,"greenBuilding":true,"shortCircuit":true}}`;
+{
+  "summary":{"projectName":"string","occupancyType":"Residential|Commercial|Industrial|Unknown","fileType":"string","overallStatus":"NON-COMPLIANT|COMPLIANT WITH WARNINGS|COMPLIANT","criticalCount":0,"warningCount":0,"infoCount":0,"analysisNotes":"under 60 words"},
+  "findings":[{"id":1,"severity":"CRITICAL|WARNING|INFO","category":"Wire Sizing|Overcurrent|Grounding|Load Calc|Branch Circuits|Panelboard|Service Entrance|Lighting|FSIC|Green Building|Short Circuit|Other","pecReference":"PEC 2017 Art. X.XX","title":"under 8 words","description":"under 60 words","recommendation":"under 40 words","codeBasis":"under 30 words"}],
+  "checklist":{"wireSizing":true,"overcurrentProtection":true,"grounding":true,"loadCalculation":true,"branchCircuits":true,"panelboard":true,"serviceEntrance":true,"lighting":true,"fsic":true,"greenBuilding":true,"shortCircuit":true},
+  "extracted":{
+    "system":{"voltage":230,"phases":1,"occupancy":"residential","projectName":"string or null"},
+    "voltageDrop":{"phase":"single|three","voltage":230,"current":20,"length":30,"wireSize":12,"pf":0.9,"material":"copper"},
+    "shortCircuit":{"voltage":230,"phases":1,"xfmrKVA":25,"xfmrZ":4,"cableLen":15,"cableSize":8,"material":"copper"},
+    "loadCalc":{"occupancy":"residential","voltage":230,"loads":[{"name":"string","watts":0,"qty":1}]},
+    "panel":{"panelName":"LP-1","voltage":230,"phases":1,"mainBreaker":100,"busRating":100,"occupancy":"residential","circuits":[{"desc":"string","type":"Lighting|Receptacle|HVAC/AC|Appliance|Motor","poles":1,"va":0,"phase":"A"}]},
+    "conduit":{"conduitType":"RSC/IMC","conduitSize":"3/4\"","conductors":[{"size":"12","qty":3,"type":"THWN"}]},
+    "ampacity":{"wireSize":12,"insulation":"THWN_75","material":"copper","ambient":30,"numWires":3,"loadCurrent":20}
+  }
+}`;
 
 // ─── DATA TABLES ─────────────────────────────────────────────────────────────
 const WIRE_DATA = {
@@ -733,14 +748,34 @@ const CL_LABELS = {
 };
 
 
-function VoltageDropCalc() {
-  const [phase, setPhase]       = useState("single");
-  const [voltage, setVoltage]   = useState(230);
-  const [current, setCurrent]   = useState(20);
-  const [length, setLength]     = useState(30);
-  const [wireSize, setWireSize] = useState(12);
-  const [pf, setPf]             = useState(0.9);
-  const [material, setMaterial] = useState("copper");
+function VoltageDropCalc({ electricalData, calcState, onStateChange }) {
+  const ed = electricalData?.voltageDrop || {};
+  const init = calcState || {};
+  const [phase,    setPhase]    = useState(init.phase    ?? ed.phase    ?? "single");
+  const [voltage,  setVoltage]  = useState(init.voltage  ?? ed.voltage  ?? 230);
+  const [current,  setCurrent]  = useState(init.current  ?? ed.current  ?? 20);
+  const [length,   setLength]   = useState(init.length   ?? ed.length   ?? 30);
+  const [wireSize, setWireSize] = useState(init.wireSize ?? ed.wireSize ?? 12);
+  const [pf,       setPf]       = useState(init.pf       ?? ed.pf       ?? 0.9);
+  const [material, setMaterial] = useState(init.material ?? ed.material ?? "copper");
+  const [fp, setFp] = useState({
+    phase: !!ed.phase, voltage: !!ed.voltage, current: !!ed.current,
+    length: !!ed.length, wireSize: !!ed.wireSize, pf: !!ed.pf,
+  });
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (ed.phase    != null) { setPhase(ed.phase);       setFp(p=>({...p,phase:true})); }
+    if (ed.voltage  != null) { setVoltage(+ed.voltage);  setFp(p=>({...p,voltage:true})); }
+    if (ed.current  != null) { setCurrent(+ed.current);  setFp(p=>({...p,current:true})); }
+    if (ed.length   != null) { setLength(+ed.length);    setFp(p=>({...p,length:true})); }
+    if (ed.wireSize != null) { setWireSize(ed.wireSize); setFp(p=>({...p,wireSize:true})); }
+    if (ed.pf       != null) { setPf(+ed.pf);            setFp(p=>({...p,pf:true})); }
+    if (ed.material != null) { setMaterial(ed.material); }
+  }, [electricalData]);
+  // Persist state upward
+  useEffect(() => {
+    if (onStateChange) onStateChange({ phase, voltage, current, length, wireSize, pf, material });
+  }, [phase, voltage, current, length, wireSize, pf, material]);
 
   // Resistance in mΩ/m (copper vs aluminum)
   const getR = () => {
@@ -775,6 +810,7 @@ function VoltageDropCalc() {
   };
 
   const recSize = recommendWire();
+  const FpBadge = ({field}) => fp[field] ? <span style={{fontSize:8,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)",padding:"0px 4px",borderRadius:3,fontWeight:700,marginLeft:5}}>PLANS</span> : null;
 
   return (
     <div>
@@ -783,7 +819,7 @@ function VoltageDropCalc() {
       </p>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:14, marginBottom:24 }}>
-        <div><Label>Circuit Type</Label>
+        <div><Label>Circuit Type <FpBadge field="phase"/></Label>
           <Select value={phase} onChange={e=>setPhase(e.target.value)}>
             <option value="single">Single Phase (1φ)</option>
             <option value="three">Three Phase (3φ)</option>
@@ -907,15 +943,34 @@ function VoltageDropCalc() {
 }
 
 // ─── SHORT CIRCUIT CALCULATOR ────────────────────────────────────────────────
-function ShortCircuitCalc() {
-  const [voltage, setVoltage]     = useState(230);
-  const [phases, setPhases]       = useState(1);
-  const [xfmrKVA, setXfmrKVA]     = useState(25);
-  const [xfmrZ, setXfmrZ]         = useState(4);
-  const [cableLen, setCableLen]   = useState(15);
-  const [cableSize, setCableSize] = useState(8);
-  const [material, setMaterial]   = useState("copper");
-  const [existingFLA, setExistingFLA] = useState(20);
+function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
+  const ed = electricalData?.shortCircuit || {};
+  const init = calcState || {};
+  const [voltage,     setVoltage]     = useState(init.voltage     ?? ed.voltage     ?? 230);
+  const [phases,      setPhases]      = useState(init.phases      ?? ed.phases      ?? 1);
+  const [xfmrKVA,     setXfmrKVA]     = useState(init.xfmrKVA     ?? ed.xfmrKVA     ?? 25);
+  const [xfmrZ,       setXfmrZ]       = useState(init.xfmrZ       ?? ed.xfmrZ       ?? 4);
+  const [cableLen,    setCableLen]    = useState(init.cableLen    ?? ed.cableLen    ?? 15);
+  const [cableSize,   setCableSize]   = useState(init.cableSize   ?? ed.cableSize   ?? 8);
+  const [material,    setMaterial]    = useState(init.material    ?? ed.material    ?? "copper");
+  const [existingFLA, setExistingFLA] = useState(init.existingFLA ?? 20);
+  const [fp, setFp] = useState({
+    voltage: !!ed.voltage, phases: !!ed.phases, xfmrKVA: !!ed.xfmrKVA,
+    xfmrZ: !!ed.xfmrZ, cableLen: !!ed.cableLen, cableSize: !!ed.cableSize,
+  });
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (ed.voltage   != null) { setVoltage(+ed.voltage);   setFp(p=>({...p,voltage:true})); }
+    if (ed.phases    != null) { setPhases(+ed.phases);     setFp(p=>({...p,phases:true})); }
+    if (ed.xfmrKVA   != null) { setXfmrKVA(+ed.xfmrKVA);  setFp(p=>({...p,xfmrKVA:true})); }
+    if (ed.xfmrZ     != null) { setXfmrZ(+ed.xfmrZ);      setFp(p=>({...p,xfmrZ:true})); }
+    if (ed.cableLen  != null) { setCableLen(+ed.cableLen); setFp(p=>({...p,cableLen:true})); }
+    if (ed.cableSize != null) { setCableSize(ed.cableSize);setFp(p=>({...p,cableSize:true})); }
+    if (ed.material  != null) { setMaterial(ed.material); }
+  }, [electricalData]);
+  useEffect(() => {
+    if (onStateChange) onStateChange({ voltage, phases, xfmrKVA, xfmrZ, cableLen, cableSize, material, existingFLA });
+  }, [voltage, phases, xfmrKVA, xfmrZ, cableLen, cableSize, material, existingFLA]);
 
   const R_cable = material==="aluminum"
     ? (WIRE_DATA[cableSize]?.resistance||0.002061)*1.64
@@ -1064,18 +1119,37 @@ function ShortCircuitCalc() {
 }
 
 // ─── LOAD CALCULATOR ─────────────────────────────────────────────────────────
-function LoadCalc() {
-  const [occupancy, setOccupancy] = useState("residential");
-  const [voltage, setVoltage]     = useState(230);
-  const [showPicker, setShowPicker] = useState(false);
+function LoadCalc({ electricalData, calcState, onStateChange }) {
+  const ed = electricalData?.loadCalc || {};
+  const init = calcState || {};
+  const defaultLoads = [
+    { id:1, name:"LED Bulb (15W)",           watts:15,  pct:100 },
+    { id:2, name:"General Receptacle Outlet",watts:180, pct:100 },
+    { id:3, name:"Split-Type AC 1HP",        watts:900, pct:80  },
+    { id:4, name:"Refrigerator (Medium)",    watts:150, pct:100 },
+    { id:5, name:"LED TV 43\"",              watts:80,  pct:60  },
+  ];
+  const [occupancy,    setOccupancy]    = useState(init.occupancy ?? ed.occupancy ?? "residential");
+  const [voltage,      setVoltage]      = useState(init.voltage   ?? ed.voltage   ?? 230);
+  const [showPicker,   setShowPicker]   = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
-  const [loads, setLoads] = useState([
-    { id:1, name:"LED Bulb (15W)",          watts:15,   pct:100 },
-    { id:2, name:"General Receptacle Outlet", watts:180, pct:100 },
-    { id:3, name:"Split-Type AC 1HP",        watts:900,  pct:80  },
-    { id:4, name:"Refrigerator (Medium)",    watts:150,  pct:100 },
-    { id:5, name:"LED TV 43\"",              watts:80,   pct:60  },
-  ]);
+  const [fp, setFp] = useState({ occupancy: !!ed.occupancy, voltage: !!ed.voltage, loads: !!(ed.loads?.length) });
+  const buildLoads = (raw) => raw.map((l,i) => ({
+    id: i+1, name: l.name||"Custom Load",
+    watts: +(l.watts||0), pct: +(l.qty||l.pct||100),
+  }));
+  const [loads, setLoads] = useState(() =>
+    init.loads ? init.loads : (ed.loads?.length ? buildLoads(ed.loads) : defaultLoads)
+  );
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (ed.occupancy != null) { setOccupancy(ed.occupancy); setFp(p=>({...p,occupancy:true})); }
+    if (ed.voltage   != null) { setVoltage(+ed.voltage);    setFp(p=>({...p,voltage:true})); }
+    if (ed.loads?.length)     { setLoads(buildLoads(ed.loads)); setFp(p=>({...p,loads:true})); }
+  }, [electricalData]);
+  useEffect(() => {
+    if (onStateChange) onStateChange({ occupancy, voltage, loads });
+  }, [occupancy, voltage, loads]);
 
   const remLoad  = id => setLoads(p => p.filter(l => l.id !== id));
   const upd      = (id, f, v) => setLoads(p => p.map(l => l.id === id ? { ...l, [f]: v } : l));
@@ -1377,7 +1451,9 @@ function PlanChecker({ apiKey, externalResult=null, onResultChange=null }) {
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
       setResult(parsed);
-      if(onResultChange) onResultChange(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      if(onResultChange) onResultChange(parsed);
+        if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
+        setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"electrical", module:"electrical", projectName:parsed?.summary?.projectName||"Electrical Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     } catch(e) { setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
@@ -1858,7 +1934,9 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
       } catch { /* extraction failed silently - compliance result still shown */ }
 
       setResult(parsed);
-      if(onResultChange) onResultChange(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      if(onResultChange) onResultChange(parsed);
+        if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
+        setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     } catch(e){ setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
@@ -6302,7 +6380,7 @@ function StormDrainage() {
 // ─── ELECCODE: MAIN ELECTRICAL MODULE ───────────────────────────────────────
 
 // ─── PANEL SCHEDULE BUILDER ──────────────────────────────────────────────────
-function PanelScheduleBuilder() {
+function PanelScheduleBuilder({ electricalData, calcState, onStateChange }) {
   const ACCENT = "#ff6b2b";
   const fmt = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtA = n => (+n||0).toFixed(1);
@@ -6311,13 +6389,39 @@ function PanelScheduleBuilder() {
   const CIRCUIT_TYPES = ["Lighting","Receptacle","HVAC/AC","Appliance","Motor","Spare","Space"];
   const VOLTAGES = [230,240,120,400];
 
-  const [panelName,   setPanelName]   = useState("LP-1");
-  const [panelVolt,   setPanelVolt]   = useState(230);
-  const [panelPhase,  setPanelPhase]  = useState("1");
-  const [mainBreaker, setMainBreaker] = useState(100);
-  const [busRating,   setBusRating]   = useState(100);
-  const [occupancy,   setOccupancy]   = useState("residential");
+  const ed   = electricalData?.panel || {};
+  const init = calcState || {};
+  const [panelName,   setPanelName]   = useState(init.panelName   ?? ed.panelName   ?? "LP-1");
+  const [panelVolt,   setPanelVolt]   = useState(init.panelVolt   ?? ed.voltage     ?? 230);
+  const [panelPhase,  setPanelPhase]  = useState(init.panelPhase  ?? (ed.phases===3?"3":"1"));
+  const [mainBreaker, setMainBreaker] = useState(init.mainBreaker ?? ed.mainBreaker ?? 100);
+  const [busRating,   setBusRating]   = useState(init.busRating   ?? ed.busRating   ?? 100);
+  const [occupancy,   setOccupancy]   = useState(init.occupancy   ?? ed.occupancy   ?? "residential");
   const [showExport,  setShowExport]  = useState(false);
+  const [fp, setFp] = useState({
+    panelName: !!ed.panelName, voltage: !!ed.voltage, phases: !!ed.phases,
+    mainBreaker: !!ed.mainBreaker, busRating: !!ed.busRating, circuits: !!(ed.circuits?.length),
+  });
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (ed.panelName   != null) { setPanelName(ed.panelName);                   setFp(p=>({...p,panelName:true})); }
+    if (ed.voltage     != null) { setPanelVolt(+ed.voltage);                    setFp(p=>({...p,voltage:true})); }
+    if (ed.phases      != null) { setPanelPhase(ed.phases===3?"3":"1");         setFp(p=>({...p,phases:true})); }
+    if (ed.mainBreaker != null) { setMainBreaker(+ed.mainBreaker);              setFp(p=>({...p,mainBreaker:true})); }
+    if (ed.busRating   != null) { setBusRating(+ed.busRating);                  setFp(p=>({...p,busRating:true})); }
+    if (ed.circuits?.length)    {
+      setCircuits(ed.circuits.map((c,i)=>({
+        id:i+1, num:i*2+1, phase:c.phase||PHASES[i%3]||"A",
+        desc:c.desc||"", type:c.type||"Lighting",
+        poles:c.poles||1, va:c.va||0, amps:(c.va||0)/(ed.voltage||230),
+        breaker:20, wire:"12", notes:"",
+      })));
+      setFp(p=>({...p,circuits:true}));
+    }
+  }, [electricalData]);
+  useEffect(() => {
+    if (onStateChange) onStateChange({ panelName, panelVolt, panelPhase, mainBreaker, busRating, occupancy, circuits });
+  }, [panelName, panelVolt, panelPhase, mainBreaker, busRating, occupancy]);
 
   const makeCircuit = (id, phase="A") => ({
     id, num: id*2-1, phase,
@@ -6580,8 +6684,10 @@ function PanelScheduleBuilder() {
 }
 
 // ─── CONDUIT FILL CALCULATOR ─────────────────────────────────────────────────
-function ConduitFillCalc() {
+function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
   const ACCENT = "#ff6b2b";
+  const ed   = electricalData?.conduit || {};
+  const init = calcState || {};
 
   // PEC 2017 Art. 3.50 — Conduit trade sizes with internal area (mm²)
   const CONDUIT_DATA = {
@@ -6627,11 +6733,28 @@ function ConduitFillCalc() {
     250: 225.81, 300: 264.52, 350: 298.45, 400: 345.35, 500: 411.55,
   };
 
-  const [conduitType, setConduitType] = useState("RSC/IMC");
-  const [conduitSize, setConduitSize] = useState("3/4\"");
-  const [conductors,  setConductors]  = useState([
-    { id:1, size:"12", qty:3, type:"THWN" },
-  ]);
+  const [conduitType, setConduitType] = useState(init.conduitType ?? ed.conduitType ?? "RSC/IMC");
+  const [conduitSize, setConduitSize] = useState(init.conduitSize ?? ed.conduitSize ?? "3/4\"");
+  const [conductors,  setConductors]  = useState(() => {
+    if (init.conductors) return init.conductors;
+    if (ed.conductors?.length) return ed.conductors.map((c,i)=>({id:i+1, size:String(c.size||"12"), qty:+(c.qty||1), type:c.type||"THWN"}));
+    return [{ id:1, size:"12", qty:3, type:"THWN" }];
+  });
+  const [fp, setFp] = useState({
+    conduitType: !!ed.conduitType, conduitSize: !!ed.conduitSize, conductors: !!(ed.conductors?.length),
+  });
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (ed.conduitType != null) { setConduitType(ed.conduitType); setFp(p=>({...p,conduitType:true})); }
+    if (ed.conduitSize != null) { setConduitSize(ed.conduitSize); setFp(p=>({...p,conduitSize:true})); }
+    if (ed.conductors?.length)  {
+      setConductors(ed.conductors.map((c,i)=>({id:i+1,size:String(c.size||"12"),qty:+(c.qty||1),type:c.type||"THWN"})));
+      setFp(p=>({...p,conductors:true}));
+    }
+  }, [electricalData]);
+  useEffect(() => {
+    if (onStateChange) onStateChange({ conduitType, conduitSize, conductors });
+  }, [conduitType, conduitSize, conductors]);
 
   const addConductor = () => setConductors(p=>[...p,{id:Date.now(),size:"12",qty:1,type:"THWN"}]);
   const remConductor = id => setConductors(p=>p.filter(c=>c.id!==id));
@@ -6822,8 +6945,10 @@ function ConduitFillCalc() {
 }
 
 // ─── WIRE AMPACITY DERATING ───────────────────────────────────────────────────
-function AmpacityDerating() {
+function AmpacityDerating({ electricalData, calcState, onStateChange }) {
   const ACCENT = "#ff6b2b";
+  const ed   = electricalData?.ampacity || {};
+  const init = calcState || {};
 
   // Base ampacity tables per PEC 2017 Table 3.10 (THWN 75°C Cu in conduit)
   // Already in WIRE_DATA but we need separate insulation tables
@@ -6872,12 +6997,28 @@ function AmpacityDerating() {
     { key:"XHHW_90", label:"XHHW (90°C)", maxTemp:90  },
   ];
 
-  const [wireSize,    setWireSize]    = useState(12);
-  const [insulation,  setInsulation]  = useState("THWN_75");
-  const [ambient,     setAmbient]     = useState(30);
-  const [numWires,    setNumWires]    = useState(3);
-  const [material,    setMaterial]    = useState("copper");
-  const [loadCurrent, setLoadCurrent] = useState(20);
+  const [wireSize,    setWireSize]    = useState(init.wireSize    ?? ed.wireSize    ?? 12);
+  const [insulation,  setInsulation]  = useState(init.insulation  ?? ed.insulation  ?? "THWN_75");
+  const [ambient,     setAmbient]     = useState(init.ambient     ?? ed.ambient     ?? 30);
+  const [numWires,    setNumWires]    = useState(init.numWires    ?? ed.numWires    ?? 3);
+  const [material,    setMaterial]    = useState(init.material    ?? ed.material    ?? "copper");
+  const [loadCurrent, setLoadCurrent] = useState(init.loadCurrent ?? ed.loadCurrent ?? 20);
+  const [fp, setFp] = useState({
+    wireSize: !!ed.wireSize, insulation: !!ed.insulation, ambient: ed.ambient != null,
+    numWires: ed.numWires != null, loadCurrent: ed.loadCurrent != null,
+  });
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (ed.wireSize    != null) { setWireSize(ed.wireSize);          setFp(p=>({...p,wireSize:true})); }
+    if (ed.insulation  != null) { setInsulation(ed.insulation);      setFp(p=>({...p,insulation:true})); }
+    if (ed.ambient     != null) { setAmbient(+ed.ambient);           setFp(p=>({...p,ambient:true})); }
+    if (ed.numWires    != null) { setNumWires(+ed.numWires);         setFp(p=>({...p,numWires:true})); }
+    if (ed.material    != null) { setMaterial(ed.material); }
+    if (ed.loadCurrent != null) { setLoadCurrent(+ed.loadCurrent);   setFp(p=>({...p,loadCurrent:true})); }
+  }, [electricalData]);
+  useEffect(() => {
+    if (onStateChange) onStateChange({ wireSize, insulation, ambient, numWires, material, loadCurrent });
+  }, [wireSize, insulation, ambient, numWires, material, loadCurrent]);
 
   const insTempKey  = Object.keys(TEMP_FACTORS).find(k=>k===insulation) || "THWN_75";
   const tempFactors = TEMP_FACTORS[insTempKey] || {};
@@ -7050,153 +7191,670 @@ function AmpacityDerating() {
 }
 
 
-function ElecCode({ apiKey }) {
-  const ACCENT = "#ff6b2b";
-  const ACCENT_DIM = "rgba(255,107,43,0.1)";
-  const ACCENT_BORDER = "rgba(255,107,43,0.25)";
 
-  const MAIN_TABS = [
-    { key:"checker", icon:"checker", label:"AI Plan Checker" },
-    { key:"tools",   icon:"electrical", label:"Calculators" },
+// ─── RUN ELECTRICAL COMPUTATIONS ─────────────────────────────────────────────
+function runElecComputations(electricalData, calcStates) {
+  const ed  = electricalData || {};
+  const cs  = calcStates    || {};
+  const items = [];
+  const ACCENT = "#ff6b2b";
+
+  // ── Voltage Drop check ──
+  const vd = cs.vdrop || {};
+  if (vd.voltage != null && vd.current != null && vd.length != null && vd.wireSize != null) {
+    const R_base = WIRE_DATA[vd.wireSize]?.resistance || WIRE_DATA[12].resistance;
+    const R = vd.material === "aluminum" ? R_base * 1.64 : R_base;
+    const X = 0.0492;
+    const pf = +(vd.pf || 0.9);
+    const angle = Math.acos(pf);
+    const mult  = vd.phase === "three" ? Math.sqrt(3) : 2;
+    const drop  = mult * vd.current * vd.length * (R * pf + X * Math.sin(angle)) / 1000;
+    const pct   = (drop / vd.voltage) * 100;
+    items.push({ tool:"vdrop", id:"Voltage Drop", value:`${pct.toFixed(2)}%`,
+      detail:`${drop.toFixed(2)}V drop on #${vd.wireSize} AWG, ${vd.current}A, ${vd.length}m`,
+      status: pct <= 3 ? "PASS" : pct <= 5 ? "WARNING" : "FAIL",
+      numeric: pct, limit: 3, unit:"%" });
+  }
+
+  // ── Short Circuit check ──
+  const sc = cs.fault || {};
+  if (sc.voltage != null && sc.xfmrKVA != null && sc.xfmrZ != null) {
+    const Zxfmr  = (sc.xfmrZ / 100) * ((sc.voltage * sc.voltage) / (sc.xfmrKVA * 1000));
+    const R_cab  = (sc.material === "aluminum"
+      ? (WIRE_DATA[sc.cableSize]?.resistance || 0.002061) * 1.64
+      : WIRE_DATA[sc.cableSize]?.resistance || 0.002061) * (sc.cableLen || 15) * 2;
+    const Ztot   = Math.sqrt((Zxfmr * 0.05 + R_cab) ** 2 + (Zxfmr * 0.95) ** 2);
+    const Isc    = sc.voltage / (Math.sqrt(sc.phases === 3 ? 3 : 1) * Ztot);
+    const fla    = sc.existingFLA || 20;
+    const ratio  = Isc / fla;
+    items.push({ tool:"fault", id:"Short Circuit", value:`${(Isc/1000).toFixed(2)} kA`,
+      detail:`Isc=${(Isc/1000).toFixed(2)}kA, ratio=${ratio.toFixed(1)}× FLA`,
+      status: ratio > 1 ? "PASS" : "FAIL",
+      numeric: Isc, limit: null });
+  }
+
+  // ── Load Calc check ──
+  const lc = cs.load || {};
+  if (lc.loads?.length && lc.voltage) {
+    const totalW  = lc.loads.reduce((s,l)=>s+(+(l.watts)||0)*(+(l.pct||100)/100),0);
+    const demandF = lc.occupancy === "residential"
+      ? (totalW <= 3000 ? 1 : (3000 + (Math.min(totalW,120000)-3000)*0.35) / totalW)
+      : (totalW <= 10000 ? 1 : (10000 + (totalW-10000)*0.5) / totalW);
+    const demandW = totalW * demandF;
+    const amps    = demandW / (+(lc.voltage) || 230);
+    items.push({ tool:"load", id:"Load Calculation", value:`${(demandW/1000).toFixed(2)} kVA`,
+      detail:`${lc.loads.length} loads, demand=${(demandW/1000).toFixed(2)}kW, ${amps.toFixed(1)}A`,
+      status: "COMPUTED", numeric: demandW });
+  }
+
+  // ── Panel Schedule check ──
+  const ps = cs.panel || {};
+  if (ps.circuits?.length) {
+    const totalVA   = ps.circuits.reduce((s,c)=>s+(+(c.va)||0),0);
+    const demandVA  = ps.occupancy === "residential"
+      ? (totalVA<=3000 ? totalVA : 3000 + (Math.min(totalVA,120000)-3000)*0.35 + Math.max(0,totalVA-120000)*0.25)
+      : (totalVA<=10000 ? totalVA : 10000 + (totalVA-10000)*0.5);
+    const amps   = demandVA / (+(ps.panelVolt) || 230);
+    const reqMain = Math.ceil(amps * 1.25 / 5) * 5;
+    const mb     = +(ps.mainBreaker) || 100;
+    const ok     = reqMain <= mb;
+    items.push({ tool:"panel", id:"Panel Schedule", value:`${(totalVA/1000).toFixed(2)} kVA`,
+      detail:`${ps.circuits.length} circuits, main=${mb}A, required=${reqMain}A`,
+      status: ok ? "PASS" : "FAIL", numeric: totalVA });
+  }
+
+  // ── Conduit Fill check ──
+  const cf = cs.conduit || {};
+  if (cf.conductors?.length) {
+    const COND_AREAS = { 14:8.97,12:11.68,10:16.77,8:24.26,6:37.16,4:52.84,3:62.77,2:73.16,1:95.03,
+      "1/0":113.10,"2/0":133.77,"3/0":158.06,"4/0":192.52,250:225.81,300:264.52,350:298.45,400:345.35,500:411.55 };
+    const COND_TABLE = {
+      "RSC/IMC":{"1/2\"":{a:122.71},"3/4\"":{a:201.06},"1\"":{a:338.16},"1-1/4\"":{a:573.76},"1-1/2\"":{a:747.13},"2\"":{a:1194.59},"2-1/2\"":{a:1937.09},"3\"":{a:2848.06},"4\"":{a:5013.27}},
+      "EMT":{"1/2\"":{a:90.97},"3/4\"":{a:163.87},"1\"":{a:283.53},"1-1/4\"":{a:484.54},"1-1/2\"":{a:637.94},"2\"":{a:1017.87},"2-1/2\"":{a:1649.55},"3\"":{a:2430.19},"4\"":{a:4268.22}},
+      "PVC (Schedule 40)":{"1/2\"":{a:122.71},"3/4\"":{a:201.06},"1\"":{a:338.16},"1-1/4\"":{a:573.76},"1-1/2\"":{a:747.13},"2\"":{a:1194.59},"3\"":{a:2848.06},"4\"":{a:5013.27}},
+    };
+    const totalWires = cf.conductors.reduce((s,c)=>s+(+(c.qty)||1),0);
+    const totalArea  = cf.conductors.reduce((s,c)=>s+(COND_AREAS[c.size]||0)*(+(c.qty)||1),0);
+    const condArea   = COND_TABLE[cf.conduitType]?.[cf.conduitSize]?.a || 0;
+    const fillPct    = condArea > 0 ? (totalArea / condArea * 100) : 0;
+    const limit      = totalWires === 1 ? 53 : totalWires === 2 ? 31 : 40;
+    items.push({ tool:"conduit", id:"Conduit Fill", value:`${fillPct.toFixed(1)}%`,
+      detail:`${totalWires} wires in ${cf.conduitSize} ${cf.conduitType}, limit ${limit}%`,
+      status: fillPct <= limit ? "PASS" : "FAIL",
+      numeric: fillPct, limit });
+  }
+
+  // ── Ampacity Derating check ──
+  const amp = cs.ampacity || {};
+  if (amp.wireSize != null && amp.insulation != null) {
+    const BASE = {
+      14:{TW_60:15,THWN_75:20,XHHW_90:25},12:{TW_60:20,THWN_75:25,XHHW_90:30},10:{TW_60:30,THWN_75:35,XHHW_90:40},
+      8:{TW_60:40,THWN_75:50,XHHW_90:55},6:{TW_60:55,THWN_75:65,XHHW_90:75},4:{TW_60:70,THWN_75:85,XHHW_90:95},
+      3:{TW_60:85,THWN_75:100,XHHW_90:110},2:{TW_60:95,THWN_75:115,XHHW_90:130},1:{TW_60:110,THWN_75:130,XHHW_90:145},
+      "1/0":{TW_60:125,THWN_75:150,XHHW_90:170},"2/0":{TW_60:145,THWN_75:175,XHHW_90:195},
+      "3/0":{TW_60:165,THWN_75:200,XHHW_90:225},"4/0":{TW_60:195,THWN_75:230,XHHW_90:260},
+    };
+    const TF = { TW_60:{21:1.08,26:1.00,31:0.91,36:0.82,41:0.71,46:0.58,51:0.41},
+      THWN_75:{21:1.05,26:1.00,31:0.94,36:0.88,41:0.82,46:0.75,51:0.67,56:0.58,61:0.33},
+      XHHW_90:{21:1.04,26:1.00,31:0.96,36:0.91,41:0.87,46:0.82,51:0.76,56:0.71,61:0.65,66:0.58,71:0.50} };
+    const FF = {1:1,2:1,3:1,4:0.8,5:0.8,6:0.8,7:0.7,8:0.7,9:0.7};
+    const ins = amp.insulation || "THWN_75";
+    const tfs = TF[ins] || TF["THWN_75"];
+    const keys = Object.keys(tfs).map(Number).sort((a,b)=>a-b);
+    let best = keys[0]; for (const k of keys) { if (k <= (amp.ambient||30)) best = k; }
+    const tf = tfs[best] || 1;
+    const ff = (amp.numWires||3) >= 10 ? 0.7 : (amp.numWires||3) >= 7 ? 0.7 : (amp.numWires||3) >= 4 ? 0.8 : 1.0;
+    const baseA  = (BASE[amp.wireSize]?.[ins] || 0) * (amp.material === "aluminum" ? 0.84 : 1);
+    const derated = baseA * tf * ff;
+    const loadA   = +(amp.loadCurrent) || 0;
+    items.push({ tool:"ampacity", id:"Ampacity Derating", value:`${derated.toFixed(1)} A`,
+      detail:`#${amp.wireSize} AWG ${ins}, derated=${derated.toFixed(1)}A, load=${loadA}A`,
+      status: derated >= loadA && loadA > 0 ? "PASS" : derated >= loadA ? "COMPUTED" : "FAIL",
+      numeric: derated });
+  }
+
+  const passCount = items.filter(i=>i.status==="PASS").length;
+  const failCount = items.filter(i=>i.status==="FAIL").length;
+  const warnCount = items.filter(i=>i.status==="WARNING").length;
+
+  return { items, summary: { passCount, failCount, warnCount, totalRun: items.length } };
+}
+
+// ─── ELEC INTELLIGENCE PANEL ─────────────────────────────────────────────────
+function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll, onNavigate }) {
+  const [expanded, setExpanded] = useState(false);
+  const ACCENT = "#ff6b2b";
+
+  const sys = data?.system || {};
+  const vd  = data?.voltageDrop || {};
+  const sc  = data?.shortCircuit || {};
+  const lc  = data?.loadCalc || {};
+  const ps  = data?.panel || {};
+  const cf  = data?.conduit || {};
+  const amp = data?.ampacity || {};
+
+  const readiness = [
+    { key:"vdrop",    label:"Voltage Drop",   ok: !!(vd.voltage && vd.current && vd.wireSize), detail: vd.wireSize ? `#${vd.wireSize} AWG, ${vd.current}A` : "" },
+    { key:"fault",    label:"Short Circuit",  ok: !!(sc.voltage && sc.xfmrKVA),               detail: sc.xfmrKVA ? `${sc.xfmrKVA}kVA xfmr` : "" },
+    { key:"load",     label:"Load Calc",      ok: !!(lc.loads?.length),                        detail: lc.loads?.length ? `${lc.loads.length} loads` : "" },
+    { key:"panel",    label:"Panel Schedule", ok: !!(ps.circuits?.length || ps.mainBreaker),   detail: ps.circuits?.length ? `${ps.circuits.length} circuits` : ps.mainBreaker ? `${ps.mainBreaker}A main` : "" },
+    { key:"conduit",  label:"Conduit Fill",   ok: !!(cf.conductors?.length),                   detail: cf.conductors?.length ? `${cf.conductors.length} conductor(s)` : "" },
+    { key:"ampacity", label:"Ampacity",        ok: !!(amp.wireSize && amp.loadCurrent),         detail: amp.wireSize ? `#${amp.wireSize} AWG, ${amp.loadCurrent}A` : "" },
   ];
+
+  const readyCount = readiness.filter(r=>r.ok).length;
+
+  const getItemStatus = (key) => {
+    if (!elecResults) return null;
+    const item = elecResults.items.find(i=>i.tool===key);
+    if (!item) return null;
+    return item.status === "PASS" || item.status === "COMPUTED" ? "pass"
+         : item.status === "FAIL" ? "fail"
+         : item.status === "WARNING" ? "warn" : null;
+  };
+  const statusColor = { pass:"#22c55e", fail:"#ef4444", warn:"#f59e0b", computed:"#0696d7" };
+
+  return (
+    <div style={{marginBottom:20,background:`linear-gradient(135deg,rgba(255,107,43,0.05),rgba(255,107,43,0.02))`,
+      border:`1.5px solid rgba(255,107,43,0.2)`,borderRadius:14,overflow:"hidden"}}>
+
+      {/* Header row */}
+      <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",cursor:"pointer"}}
+        onClick={()=>setExpanded(p=>!p)}>
+        <div style={{width:32,height:32,borderRadius:9,background:"linear-gradient(135deg,#ff6b2b,#e85520)",
+          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <Icon name="electrical" size={17} color="#fff"/>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:800,fontSize:14,color:T.text}}>
+            {sys.projectName || "Electrical Project"}
+          </div>
+          <div style={{fontSize:11,color:T.muted,marginTop:1}}>
+            {sys.voltage}V · {sys.phases===3?"3φ":"1φ"} · {sys.occupancy || "residential"}
+          </div>
+        </div>
+        {/* Readiness pills */}
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:11,color:T.muted}}>{readyCount}/{readiness.length} calculators populated</span>
+          <div style={{display:"flex",gap:4}}>
+            {readiness.map(r=>{
+              const st = getItemStatus(r.key);
+              const color = st ? statusColor[st] : r.ok ? "#22c55e" : T.border;
+              return (
+                <div key={r.key} title={r.label+(r.detail?` — ${r.detail}`:"")}
+                  style={{width:10,height:10,borderRadius:"50%",background:color,
+                    boxShadow:r.ok?`0 0 5px ${color}40`:"none",transition:"all 0.2s"}}/>
+              );
+            })}
+          </div>
+          {elecResults && (
+            <div style={{display:"flex",gap:6}}>
+              {elecResults.summary.passCount>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"rgba(34,197,94,0.12)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.2)"}}>✓ {elecResults.summary.passCount} Pass</span>}
+              {elecResults.summary.failCount>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"rgba(239,68,68,0.12)",color:"#ef4444",border:"1px solid rgba(239,68,68,0.2)"}}>✗ {elecResults.summary.failCount} Fail</span>}
+              {elecResults.summary.warnCount>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"rgba(245,158,11,0.12)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.2)"}}> ⚠ {elecResults.summary.warnCount} Warn</span>}
+            </div>
+          )}
+        </div>
+        {/* Run All + Clear */}
+        <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+          <button onClick={onRunAll} disabled={readyCount===0||runState?.running}
+            style={{padding:"7px 14px",borderRadius:8,border:"none",
+              background:readyCount>0?`linear-gradient(135deg,${ACCENT},#e85520)`:"rgba(255,107,43,0.2)",
+              color:readyCount>0?"#fff":"rgba(255,107,43,0.4)",cursor:readyCount>0?"pointer":"not-allowed",
+              fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6,transition:"all 0.15s"}}>
+            {runState?.running ? "⟳ Running…" : "▶ Run All Checks"}
+          </button>
+          <button onClick={onClear}
+            style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",
+              color:T.muted,cursor:"pointer",fontSize:12}}>✕</button>
+        </div>
+        <span style={{color:T.muted,fontSize:12,flexShrink:0}}>{expanded?"▲":"▼"}</span>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div style={{padding:"0 18px 16px",borderTop:`1px solid rgba(255,107,43,0.12)`}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8,marginTop:14}}>
+            {readiness.map(r=>{
+              const st = getItemStatus(r.key);
+              const color = st ? statusColor[st] : r.ok ? "#22c55e" : T.muted;
+              const item  = elecResults?.items.find(i=>i.tool===r.key);
+              return (
+                <button key={r.key} onClick={()=>onNavigate(r.key)}
+                  style={{background:T.dim,border:`1px solid ${r.ok?"rgba(34,197,94,0.2)":T.border}`,
+                    borderRadius:9,padding:"10px 12px",textAlign:"left",cursor:"pointer",transition:"all 0.15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=r.ok?"rgba(34,197,94,0.2)":T.border;}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:11,fontWeight:700,color:T.text}}>{r.label}</span>
+                    {r.ok && !st && <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 4px #22c55e"}}/>}
+                    {st && <span style={{fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:5,
+                      background:st==="pass"?"rgba(34,197,94,0.12)":st==="fail"?"rgba(239,68,68,0.12)":"rgba(245,158,11,0.12)",
+                      color:st==="pass"?"#22c55e":st==="fail"?"#ef4444":"#f59e0b"}}>
+                      {st==="pass"?"✓ PASS":st==="fail"?"✗ FAIL":"⚠ WARN"}
+                    </span>}
+                    {!r.ok && !st && <span style={{fontSize:9,color:T.muted}}>No data</span>}
+                  </div>
+                  <div style={{fontSize:10,color:T.muted}}>{item ? item.detail : r.detail || "—"}</div>
+                  {item?.value && <div style={{fontSize:13,fontWeight:800,color,fontFamily:"monospace",marginTop:3}}>{item.value}</div>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ELEC COMPUTATION SUMMARY ─────────────────────────────────────────────────
+function ElecComputationSummary({ results, data, onNavigate }) {
+  if (!results) return null;
+  const ACCENT = "#ff6b2b";
+
+  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", WARNING:"#f59e0b", COMPUTED:"#0696d7", ERROR:"#f59e0b" };
+  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", WARNING:"rgba(245,158,11,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)" };
+  const toolLabel   = { vdrop:"Voltage Drop", fault:"Short Circuit", load:"Load Calc", panel:"Panel Schedule", conduit:"Conduit Fill", ampacity:"Ampacity Derating" };
+  const toolCode    = { vdrop:"PEC Art. 2.30", fault:"PEC Art. 2.40", load:"PEC Art. 2.20", panel:"PEC Art. 2.20", conduit:"PEC Art. 3.50", ampacity:"PEC Table 3.10" };
+  const toolIcon    = { vdrop:"vdrop", fault:"fault", load:"load", panel:"panel", conduit:"conduit", ampacity:"ampacity" };
+
+  const { passCount, failCount, warnCount, totalRun } = results.summary;
+  const projName = data?.system?.projectName || "Electrical Project";
+
+  const exportReport = () => {
+    const w    = window.open("","_blank");
+    const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+    const rows = results.items.map(item=>`
+      <tr>
+        <td><b>${toolLabel[item.tool]||item.tool}</b></td>
+        <td style="font-family:monospace;font-size:12px">${item.id}</td>
+        <td style="font-family:monospace;font-weight:700">${item.value||"—"}</td>
+        <td style="font-size:11px;color:#64748b">${item.detail||"—"}</td>
+        <td style="color:${statusColor[item.status]||"#64748b"};font-weight:800;text-align:center">${item.status}</td>
+      </tr>`).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title>Electrical Computation Report — ${projName}</title>
+    <style>body{font-family:Arial,sans-serif;margin:32px;color:#111;font-size:13px}
+    h1{color:#c2410c;margin:0 0 4px;font-size:20px}h2{color:#c2410c;margin:20px 0 8px;font-size:15px}
+    table{border-collapse:collapse;width:100%}
+    th{background:#c2410c;color:#fff;padding:8px 10px;font-size:11px;text-align:left;border:1px solid #ccc}
+    td{padding:7px 10px;border:1px solid #ddd;vertical-align:middle}
+    tr:nth-child(even)td{background:#fafafa}
+    .kv{display:inline-block;margin-right:18px;font-size:12px}.kv b{color:#c2410c}
+    .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-right:6px}
+    .pass{background:#dcfce7;color:#16a34a}.fail{background:#fee2e2;color:#dc2626}.warn{background:#fef3c7;color:#d97706}
+    @media print{button{display:none}}</style></head><body>
+    <button onclick="window.print()" style="float:right;padding:6px 16px;background:#c2410c;color:#fff;border:none;border-radius:5px;cursor:pointer">🖨️ Print</button>
+    <h1>ELECTRICAL COMPUTATION REPORT</h1>
+    <p style="margin:4px 0 16px;color:#64748b;font-size:12px">Project: <b>${projName}</b> · Generated: ${date} · Buildify PEC Checker</p>
+    <div style="margin-bottom:16px">
+      <span class="badge pass">✓ ${passCount} Pass</span>
+      <span class="badge fail">✗ ${failCount} Fail</span>
+      <span class="badge warn">⚠ ${warnCount} Warnings</span>
+      <span class="kv" style="margin-left:12px"><b>Total Checks:</b> ${totalRun}</span>
+    </div>
+    <h2>Computation Results</h2>
+    <table><thead><tr><th>Calculator</th><th>Check</th><th>Result</th><th>Details</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <p style="margin-top:24px;font-size:10px;color:#9ca3af">PRELIMINARY — verify with licensed PEE · PEC 2017 · Buildify</p>
+    </body></html>`);
+    w.document.close(); setTimeout(()=>w.print(),300);
+  };
+
+  return (
+    <div style={{marginBottom:20,background:T.card,border:`1px solid ${T.border}`,borderRadius:14,overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:14,color:T.text}}>Electrical Computation Summary</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:1}}>{projName} · {totalRun} checks run</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"rgba(34,197,94,0.1)",color:"#22c55e"}}>✓ {passCount} Pass</span>
+          <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"rgba(239,68,68,0.1)",color:"#ef4444"}}>✗ {failCount} Fail</span>
+          {warnCount>0 && <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"rgba(245,158,11,0.1)",color:"#f59e0b"}}>⚠ {warnCount} Warn</span>}
+          <button onClick={exportReport}
+            style={{padding:"6px 14px",borderRadius:8,border:"none",background:`linear-gradient(135deg,${ACCENT},#e85520)`,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+            <Icon name="download" size={13} color="#fff"/> Export Report
+          </button>
+        </div>
+      </div>
+      {/* Results grid */}
+      <div style={{padding:"14px 18px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+        {results.items.map(item=>{
+          const sc = statusColor[item.status] || T.muted;
+          const sb = statusBg[item.status] || "transparent";
+          return (
+            <button key={item.tool} onClick={()=>onNavigate(item.tool)}
+              style={{background:sb,border:`1.5px solid ${sc}40`,borderRadius:10,padding:"12px 14px",
+                textAlign:"left",cursor:"pointer",transition:"all 0.15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=sc;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=`${sc}40`;}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:7}}>
+                  <Icon name={toolIcon[item.tool]||"loads"} size={14} color={sc}/>
+                  <span style={{fontWeight:800,fontSize:12,color:T.text}}>{toolLabel[item.tool]||item.tool}</span>
+                </div>
+                <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:6,
+                  background:sb,color:sc,border:`1px solid ${sc}40`}}>{item.status}</span>
+              </div>
+              <div style={{fontSize:20,fontWeight:900,color:sc,fontFamily:"monospace",lineHeight:1,marginBottom:4}}>{item.value}</div>
+              <div style={{fontSize:11,color:T.muted}}>{item.detail}</div>
+              <div style={{fontSize:10,color:`${ACCENT}80`,marginTop:4}}>{toolCode[item.tool]}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ElecCode({ apiKey }) {
+  const ACCENT     = "#ff6b2b";
+  const ACCENT_DIM = "rgba(255,107,43,0.1)";
+
+  // ── All state lives here — never lost on tab switch ──
+  const [checkerResult,  setCheckerResult]  = useState(null);
+  const [electricalData, setElectricalData] = useState(null);
+  const [elecResults,    setElecResults]    = useState(null);
+  const [runState,       setRunState]       = useState(null);
+
+  // ── Sticky calculator states ──
+  const [calcStates, setCalcStates] = useState({});
+  const updateCalcState = (key, state) => setCalcStates(p => ({ ...p, [key]: state }));
+
+  // ── Navigation ──
+  const [mainTab,  setMainTab]  = useState("checker");
+  const [calcTool, setCalcTool] = useState(null);
 
   const CALC_TOOLS = [
-    { key:"vdrop",    icon:"vdrop",     label:"Voltage Drop",       code:"PEC Art. 2.30" },
-    { key:"fault",    icon:"fault",     label:"Short Circuit",      code:"PEC Art. 2.40" },
-    { key:"load",     icon:"load",      label:"Load Calculator",    code:"PEC Art. 2.20" },
-    { key:"panel",    icon:"panel",     label:"Panel Schedule",     code:"PEC Art. 2.20" },
-    { key:"conduit",  icon:"conduit",   label:"Conduit Fill",       code:"PEC Art. 3.50" },
-    { key:"ampacity", icon:"ampacity",  label:"Ampacity Derating",  code:"PEC Table 3.10" },
+    { key:"vdrop",    icon:"vdrop",     label:"Voltage Drop",      code:"PEC Art. 2.30" },
+    { key:"fault",    icon:"fault",     label:"Short Circuit",     code:"PEC Art. 2.40" },
+    { key:"load",     icon:"load",      label:"Load Calculator",   code:"PEC Art. 2.20" },
+    { key:"panel",    icon:"panel",     label:"Panel Schedule",    code:"PEC Art. 2.20" },
+    { key:"conduit",  icon:"conduit",   label:"Conduit Fill",      code:"PEC Art. 3.50" },
+    { key:"ampacity", icon:"ampacity",  label:"Ampacity Derating", code:"PEC Table 3.10" },
   ];
 
-  const [mainTab,  setMainTab]  = useState("checker");
-  const [calcTool, setCalcTool] = useState(null);  // null = show tool picker
+  const handleDataExtracted = (extracted) => {
+    setElectricalData(extracted);
+    setElecResults(null);
+    setRunState(null);
+  };
+
+  const handleRunAll = async () => {
+    setRunState({ running: true });
+    setElecResults(null);
+    await new Promise(r => setTimeout(r, 80));
+    const results = runElecComputations(electricalData, calcStates);
+    setElecResults(results);
+    setRunState({ running: false });
+  };
+
+  const handleClear = () => {
+    setCheckerResult(null);
+    setElectricalData(null);
+    setElecResults(null);
+    setRunState(null);
+    setCalcStates({});
+    setCalcTool(null);
+  };
+
+  const hasData = (key) => {
+    if (!electricalData) return false;
+    if (key==="vdrop")    return !!(electricalData.voltageDrop?.voltage && electricalData.voltageDrop?.current);
+    if (key==="fault")    return !!(electricalData.shortCircuit?.voltage && electricalData.shortCircuit?.xfmrKVA);
+    if (key==="load")     return !!(electricalData.loadCalc?.loads?.length);
+    if (key==="panel")    return !!(electricalData.panel?.circuits?.length || electricalData.panel?.mainBreaker);
+    if (key==="conduit")  return !!(electricalData.conduit?.conductors?.length);
+    if (key==="ampacity") return !!(electricalData.ampacity?.wireSize);
+    return false;
+  };
+
+  const getCalcStatus = (key) => {
+    if (!elecResults) return null;
+    const item = elecResults.items.find(i => i.tool === key);
+    if (!item) return null;
+    if (item.status === "PASS" || item.status === "COMPUTED") return "pass";
+    if (item.status === "FAIL") return "fail";
+    if (item.status === "WARNING") return "warn";
+    return null;
+  };
+
+  const SubToolStatus = ({ toolKey }) => {
+    const st = getCalcStatus(toolKey);
+    const hasDat = hasData(toolKey);
+    if (st) {
+      const cfg = {
+        pass:["rgba(34,197,94,0.12)","#22c55e","rgba(34,197,94,0.25)","\u2713 PASS"],
+        fail:["rgba(239,68,68,0.12)","#ef4444","rgba(239,68,68,0.25)","\u2717 FAIL"],
+        warn:["rgba(245,158,11,0.12)","#f59e0b","rgba(245,158,11,0.25)","\u26a0 WARN"],
+      }[st];
+      return <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:7,background:cfg[0],color:cfg[1],border:`1px solid ${cfg[2]}`}}>{cfg[3]}</span>;
+    }
+    if (hasDat) return <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 4px #22c55e",marginLeft:3}}/>;
+    return <span style={{width:6,height:6,borderRadius:"50%",background:T.muted,display:"inline-block",opacity:0.3,marginLeft:3}}/>;
+  };
 
   return (
     <div>
       {/* Module header */}
-      <div style={{ marginBottom:20 }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#ff6b2b,#e85520)",
-              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Icon name="electrical" size={20} color="#fff"/>
-            </div>
-            <div>
-              <div style={{ fontWeight:900, fontSize:20, color:T.text, letterSpacing:"-0.5px" }}>Electrical</div>
-              <div style={{ fontSize:11, color:T.muted, marginTop:1 }}>PEC 2017 · RA 9514 (FSIC) · Philippine Green Building Code</div>
-            </div>
-          </div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#ff6b2b,#e85520)",
+          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <Icon name="electrical" size={20} color="#fff"/>
         </div>
+        <div>
+          <div style={{fontWeight:900,fontSize:20,color:T.text,letterSpacing:"-0.5px"}}>Electrical</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:1}}>PEC 2017 · RA 9514 (FSIC) · Philippine Green Building Code</div>
+        </div>
+      </div>
 
-        {/* Main tabs */}
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {MAIN_TABS.map(t => {
-            const active = mainTab === t.key;
-            return (
-              <button key={t.key} onClick={() => { setMainTab(t.key); if(t.key==="tools") setCalcTool(null); }}
-                style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 18px",
-                  borderRadius:9, border:`1.5px solid ${active ? "#ff6b2b" : T.border}`,
-                  background: active ? "rgba(255,107,43,0.1)" : "transparent",
-                  color: active ? "#ff6b2b" : T.muted,
-                  cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.15s" }}>
-                <Icon name={t.icon} size={14} color={active ? "#ff6b2b" : T.muted}/>
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Main tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
+        {[
+          { key:"checker", icon:"checker",    label:"AI Plan Checker" },
+          { key:"tools",   icon:"electrical", label:"Calculators" },
+        ].map(t => {
+          const active = mainTab === t.key;
+          return (
+            <button key={t.key} onClick={()=>setMainTab(t.key)}
+              style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
+                border:`1.5px solid ${active?ACCENT:T.border}`,
+                background:active?ACCENT_DIM:"transparent",
+                color:active?ACCENT:T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
+              <Icon name={t.icon} size={14} color={active?ACCENT:T.muted}/>
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── AI PLAN CHECKER TAB ── */}
       {mainTab === "checker" && (
-        <Card>
-          <PlanChecker apiKey={apiKey}/>
-        </Card>
-      )}
-
-      {/* ── CALCULATORS TAB ── */}
-      {mainTab === "tools" && (
-        <>
-          {/* Tool picker (no tool selected) */}
-          {!calcTool && (
-            <div>
-              <div style={{ fontSize:12, color:T.muted, marginBottom:16, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>
-                Select a Calculator
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14 }}>
+        <div>
+          {electricalData && (
+            <ElecIntelligencePanel
+              data={electricalData}
+              onClear={handleClear}
+              runState={runState}
+              elecResults={elecResults}
+              onRunAll={handleRunAll}
+              onNavigate={(key)=>{ setMainTab("tools"); setCalcTool(key); }}
+            />
+          )}
+          {elecResults && (
+            <ElecComputationSummary
+              results={elecResults}
+              data={electricalData}
+              onNavigate={(key)=>{ setMainTab("tools"); setCalcTool(key); }}
+            />
+          )}
+          <Card>
+            <PlanChecker
+              apiKey={apiKey}
+              externalResult={checkerResult}
+              onResultChange={setCheckerResult}
+              onDataExtracted={handleDataExtracted}
+            />
+          </Card>
+          {checkerResult && (
+            <div style={{marginTop:16,padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Calculator</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {CALC_TOOLS.map(t => (
-                  <button key={t.key} onClick={() => setCalcTool(t.key)}
-                    style={{ background:T.card, border:`1.5px solid ${T.border}`, borderRadius:14,
-                      padding:"20px 20px", cursor:"pointer", textAlign:"left", transition:"all 0.15s",
-                      display:"flex", flexDirection:"column", gap:10 }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.background = ACCENT_DIM; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.card; }}>
-                    <div style={{ width:40, height:40, borderRadius:10, background:"rgba(255,107,43,0.1)",
-                      display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <Icon name={t.icon} size={20} color={ACCENT}/>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight:800, fontSize:15, color:T.text }}>{t.label}</div>
-                      <div style={{ fontSize:11, color:T.muted, marginTop:3 }}>{t.code}</div>
-                    </div>
-                    <div style={{ fontSize:12, color:ACCENT, fontWeight:700 }}>Open →</div>
+                  <button key={t.key} onClick={()=>{ setMainTab("tools"); setCalcTool(t.key); }}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"7px 13px",borderRadius:8,
+                      border:`1.5px solid ${hasData(t.key)?"rgba(34,197,94,0.35)":T.border}`,
+                      background:hasData(t.key)?"rgba(34,197,94,0.06)":"transparent",
+                      color:hasData(t.key)?"#22c55e":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                    <Icon name={t.icon} size={13} color={hasData(t.key)?"#22c55e":T.muted}/>
+                    {t.label}
+                    {hasData(t.key) && <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",padding:"1px 4px",borderRadius:3,fontWeight:800}}>DATA</span>}
                   </button>
                 ))}
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* Active tool */}
+      {/* ── CALCULATORS TAB ── */}
+      {mainTab === "tools" && (
+        <div>
+          {electricalData && (
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"10px 16px",
+              background:T.card,borderRadius:10,border:`1px solid ${T.border}`,flexWrap:"wrap"}}>
+              <button onClick={()=>{ setMainTab("checker"); }}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:"transparent",
+                  border:`1px solid ${T.border}`,borderRadius:7,color:ACCENT,cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+                ← Plan Analysis
+              </button>
+              <div style={{width:1,height:20,background:T.border}}/>
+              <Icon name="electrical" size={14} color={ACCENT}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:800,color:T.text}}>{electricalData.system?.projectName||"Electrical Project"}</div>
+                <div style={{fontSize:11,color:T.muted}}>{electricalData.system?.voltage}V · {electricalData.system?.occupancy}</div>
+              </div>
+              {elecResults && (
+                <div style={{display:"flex",gap:8}}>
+                  {elecResults.summary.passCount>0 && <span style={{fontSize:11,fontWeight:700,color:"#22c55e"}}>✓ {elecResults.summary.passCount} Pass</span>}
+                  {elecResults.summary.failCount>0 && <span style={{fontSize:11,fontWeight:700,color:"#ef4444"}}>✗ {elecResults.summary.failCount} Fail</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!calcTool && (
+            <div>
+              <div style={{fontSize:12,color:T.muted,marginBottom:16,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Select a Calculator</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
+                {CALC_TOOLS.map(t => {
+                  const populated = hasData(t.key);
+                  const st = getCalcStatus(t.key);
+                  return (
+                    <button key={t.key} onClick={()=>setCalcTool(t.key)}
+                      style={{background:T.card,border:`1.5px solid ${populated?"rgba(34,197,94,0.3)":T.border}`,
+                        borderRadius:14,padding:"20px",cursor:"pointer",textAlign:"left",transition:"all 0.15s",
+                        display:"flex",flexDirection:"column",gap:10,position:"relative"}}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.background=ACCENT_DIM;}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor=populated?"rgba(34,197,94,0.3)":T.border;e.currentTarget.style.background=T.card;}}>
+                      {st && (
+                        <div style={{position:"absolute",top:10,right:10}}>
+                          <span style={{fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:6,
+                            background:st==="pass"?"rgba(34,197,94,0.12)":st==="fail"?"rgba(239,68,68,0.12)":"rgba(245,158,11,0.12)",
+                            color:st==="pass"?"#22c55e":st==="fail"?"#ef4444":"#f59e0b"}}>
+                            {st==="pass"?"✓ PASS":st==="fail"?"✗ FAIL":"⚠ WARN"}
+                          </span>
+                        </div>
+                      )}
+                      {populated && !st && (
+                        <div style={{position:"absolute",top:10,right:10}}>
+                          <span style={{fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:6,background:"rgba(34,197,94,0.12)",color:"#22c55e"}}>DATA</span>
+                        </div>
+                      )}
+                      <div style={{width:40,height:40,borderRadius:10,background:"rgba(255,107,43,0.1)",
+                        display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        <Icon name={t.icon} size={20} color={ACCENT}/>
+                      </div>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:15,color:T.text}}>{t.label}</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:3}}>{t.code}</div>
+                      </div>
+                      <div style={{fontSize:12,color:ACCENT,fontWeight:700}}>Open →</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {calcTool && (
-            <>
-              {/* Breadcrumb */}
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-                <button onClick={() => setCalcTool(null)}
-                  style={{ background:"transparent", border:"none", color:T.muted, cursor:"pointer",
-                    fontSize:13, padding:0, display:"flex", alignItems:"center", gap:4 }}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+                <button onClick={()=>setCalcTool(null)}
+                  style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",
+                    fontSize:13,padding:0,display:"flex",alignItems:"center",gap:4}}>
                   ← Calculators
                 </button>
-                <span style={{ color:T.border }}>›</span>
-                <span style={{ fontSize:13, fontWeight:700, color:ACCENT }}>
+                <span style={{color:T.border}}>›</span>
+                <span style={{fontSize:13,fontWeight:700,color:ACCENT}}>
                   {CALC_TOOLS.find(t=>t.key===calcTool)?.label}
                 </span>
-                <span style={{ marginLeft:"auto", fontSize:11, color:T.muted, background:T.dim,
-                  padding:"3px 10px", borderRadius:6 }}>
+                {hasData(calcTool) && (
+                  <span style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#22c55e",fontWeight:700}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block"}}/>
+                    Pre-filled from plans
+                  </span>
+                )}
+                <span style={{marginLeft:"auto",fontSize:11,color:T.muted,background:T.dim,padding:"3px 10px",borderRadius:6}}>
                   {CALC_TOOLS.find(t=>t.key===calcTool)?.code}
                 </span>
               </div>
 
-              {/* Tool strip */}
-              <div style={{ display:"flex", gap:6, marginBottom:20, overflowX:"auto", paddingBottom:4 }}>
+              <div style={{display:"flex",gap:5,marginBottom:20,overflowX:"auto",paddingBottom:4}}>
                 {CALC_TOOLS.map(t => (
-                  <button key={t.key} onClick={() => setCalcTool(t.key)}
-                    style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px",
-                      borderRadius:8, border:`1.5px solid ${calcTool===t.key ? ACCENT : T.border}`,
-                      background: calcTool===t.key ? ACCENT_DIM : "transparent",
-                      color: calcTool===t.key ? ACCENT : T.muted,
-                      cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap", transition:"all 0.15s" }}>
-                    <Icon name={t.icon} size={13} color={calcTool===t.key ? ACCENT : T.muted}/>
+                  <button key={t.key} onClick={()=>setCalcTool(t.key)}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
+                      border:`1.5px solid ${calcTool===t.key?ACCENT:T.border}`,
+                      background:calcTool===t.key?ACCENT_DIM:"transparent",
+                      color:calcTool===t.key?ACCENT:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,
+                      whiteSpace:"nowrap",transition:"all 0.15s"}}>
+                    <Icon name={t.icon} size={12} color={calcTool===t.key?ACCENT:T.muted}/>
                     {t.label}
+                    <SubToolStatus toolKey={t.key}/>
                   </button>
                 ))}
               </div>
 
               <Card>
-                {calcTool === "vdrop"    && <VoltageDropCalc/>}
-                {calcTool === "fault"    && <ShortCircuitCalc/>}
-                {calcTool === "load"     && <LoadCalc/>}
-                {calcTool === "panel"    && <PanelScheduleBuilder/>}
-                {calcTool === "conduit"  && <ConduitFillCalc/>}
-                {calcTool === "ampacity" && <AmpacityDerating/>}
+                <div style={{display:calcTool==="vdrop"?"block":"none"}}>
+                  <VoltageDropCalc    electricalData={electricalData} calcState={calcStates.vdrop}    onStateChange={s=>updateCalcState("vdrop",s)}/>
+                </div>
+                <div style={{display:calcTool==="fault"?"block":"none"}}>
+                  <ShortCircuitCalc  electricalData={electricalData} calcState={calcStates.fault}    onStateChange={s=>updateCalcState("fault",s)}/>
+                </div>
+                <div style={{display:calcTool==="load"?"block":"none"}}>
+                  <LoadCalc          electricalData={electricalData} calcState={calcStates.load}     onStateChange={s=>updateCalcState("load",s)}/>
+                </div>
+                <div style={{display:calcTool==="panel"?"block":"none"}}>
+                  <PanelScheduleBuilder electricalData={electricalData} calcState={calcStates.panel} onStateChange={s=>updateCalcState("panel",s)}/>
+                </div>
+                <div style={{display:calcTool==="conduit"?"block":"none"}}>
+                  <ConduitFillCalc   electricalData={electricalData} calcState={calcStates.conduit}  onStateChange={s=>updateCalcState("conduit",s)}/>
+                </div>
+                <div style={{display:calcTool==="ampacity"?"block":"none"}}>
+                  <AmpacityDerating  electricalData={electricalData} calcState={calcStates.ampacity} onStateChange={s=>updateCalcState("ampacity",s)}/>
+                </div>
               </Card>
-            </>
+            </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
 }
+
+
 
 
 function SaniCode({ apiKey }) {
