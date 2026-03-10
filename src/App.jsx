@@ -1733,6 +1733,61 @@ const OCCUPANCY_I = {
 const CONCRETE_GRADES = { "f'c 17.2 (2500 psi)":17.2, "f'c 20.7 (3000 psi)":20.7, "f'c 24.1 (3500 psi)":24.1, "f'c 27.6 (4000 psi)":27.6, "f'c 34.5 (5000 psi)":34.5 };
 const REBAR_GRADES    = { "Grade 40 (276 MPa)":276, "Grade 60 (414 MPa)":414, "Grade 75 (517 MPa)":517 };
 
+// Philippine standard deformed bar sizes (ASTM A615 / PNS 49)
+const PH_BAR_SIZES = [
+  { dia:10, area:78.54,  label:"10mm",  weight:0.617 },
+  { dia:12, area:113.10, label:"12mm",  weight:0.888 },
+  { dia:16, area:201.06, label:"16mm",  weight:1.578 },
+  { dia:20, area:314.16, label:"20mm",  weight:2.466 },
+  { dia:25, area:490.87, label:"25mm",  weight:3.853 },
+  { dia:28, area:615.75, label:"28mm",  weight:4.834 },
+  { dia:32, area:804.25, label:"32mm",  weight:6.313 },
+  { dia:36, area:1017.9, label:"36mm",  weight:7.990 },
+];
+
+// Pick the optimal bar: fewest bars that meet As_req with standard sizes, min 2 bars
+const selectBars = (As_req, sectionWidth) => {
+  // Try each bar size, pick smallest dia where n_bars is practical
+  for (const bar of PH_BAR_SIZES) {
+    const n = Math.ceil(As_req / bar.area);
+    if (n < 2) continue;
+    // Check spacing: width - 2*cover(40) - 2*stirrup(10) - n*dia >= (n-1)*25mm min clear
+    const clearSpace = (sectionWidth - 80 - 20 - n*bar.dia);
+    if (n <= 2 || clearSpace >= (n-1)*25) {
+      return { bar, n: Math.max(n,2), As_prov: Math.max(n,2)*bar.area };
+    }
+  }
+  // Fallback: largest bar
+  const bar = PH_BAR_SIZES[PH_BAR_SIZES.length-1];
+  const n = Math.ceil(As_req/bar.area);
+  return { bar, n: Math.max(n,2), As_prov: Math.max(n,2)*bar.area };
+};
+
+// For slabs/footings: select bar size for given As_req per meter width, return spacing
+const selectSlabBars = (As_req_per_m) => {
+  for (const bar of PH_BAR_SIZES) {
+    const spacing = Math.floor((bar.area / As_req_per_m) * 1000 / 25) * 25; // round down to 25mm
+    if (spacing >= 150 && spacing <= 300) {
+      return { bar, spacing: Math.min(spacing, 300), As_prov: bar.area / spacing * 1000 };
+    }
+  }
+  // Dense: use 10mm @ 150
+  const bar = PH_BAR_SIZES[0];
+  return { bar, spacing:150, As_prov: bar.area/0.150 };
+};
+
+// Stirrup recommendation based on Vs_req
+const selectStirrups = (Vs_req, b, d, fy, fc) => {
+  if (Vs_req <= 0) return { dia:10, spacing: Math.min(d/2, 300), note:"Min. stirrups (Av_min)" };
+  const Av_req = Vs_req*1000 / (fy * d/1000 * 0.85); // mm² per mm length → for two legs
+  const s_for_10 = 2*78.54 / Av_req;
+  const s_for_12 = 2*113.1 / Av_req;
+  if (s_for_10 >= 75)  return { dia:10, spacing: Math.max(Math.min(Math.floor(s_for_10/25)*25, Math.floor(d/2/25)*25, 300), 75), note:"" };
+  if (s_for_12 >= 75)  return { dia:12, spacing: Math.max(Math.min(Math.floor(s_for_12/25)*25, Math.floor(d/2/25)*25, 300), 75), note:"" };
+  return { dia:12, spacing:75, note:"High shear — verify with full design" };
+};
+
+
 // ─── STRUCTICODE: AI PLAN CHECKER ────────────────────────────────────────────
 // ── "From Plans" badge shown on pre-filled fields ────────────────────────────
 const FromPlansBadge = () => (
@@ -4267,7 +4322,7 @@ INSTRUCTIONS:
 
 function runAllComputations(sd) {
   if (!sd) return null;
-  const results = { timestamp: new Date().toISOString(), items: [] };
+  const results = { timestamp: new Date().toISOString(), items: [], memberData: {} };
 
   const fc = sd.materials?.fc || 27.6;
   const fy = sd.materials?.fy || 414;
@@ -4278,120 +4333,137 @@ function runAllComputations(sd) {
     const soil = sd.seismic?.soilTypeLabel || "SD - Stiff Soil";
     const occ  = sd.seismic?.occupancyCategory || "I - Standard";
     const W    = sd.seismic?.seismicWeight || 5000;
-    const T    = sd.seismic?.naturalPeriod || 0.3;
+    const Tper = sd.seismic?.naturalPeriod || 0.3;
     const R    = sd.seismic?.responseFactor || 8.5;
     const Zv   = PH_SEISMIC_ZONES[zone]?.Z || 0.4;
-    const soilKey = Object.keys(SOIL_TYPES).find(k => k.startsWith(soil.split(" ")[0])) || "SD - Stiff Soil";
+    const soilKey = Object.keys(SOIL_TYPES).find(k=>k.startsWith(soil.split(" ")[0])) || "SD - Stiff Soil";
     const {Fa, Fv} = SOIL_TYPES[soilKey] || {Fa:1.2,Fv:1.7};
     const I    = OCCUPANCY_I[occ] || 1.0;
     const Ca   = 0.4*Fa*Zv;
     const Cv   = 0.4*Fv*Zv*1.5;
     const Ts   = Cv/(2.5*Ca);
-    const Sa   = T <= 0.2*Ts ? Ca*(0.6*(T/(0.2*Ts))+0.4) : T <= Ts ? 2.5*Ca : Cv/T;
+    const Sa   = Tper <= 0.2*Ts ? Ca*(0.6*(Tper/(0.2*Ts))+0.4) : Tper <= Ts ? 2.5*Ca : Cv/Tper;
     const Vmin = 0.11*Ca*I*W;
     const Vmax = 2.5*Ca*I*W/R;
     const V    = Math.max(Vmin, Math.min(Sa*I*W/R, Vmax));
-    results.seismic = { zone, W, V: +V.toFixed(1), Cs: +(V/W*100).toFixed(2), status: "COMPUTED" };
+    results.seismic = { zone, soil, occ, W, V:+V.toFixed(1), Cs:+(V/W*100).toFixed(2), Ca, Cv, I, R, status:"COMPUTED" };
     results.items.push({ tool:"seismic", id:"Seismic Base Shear", value:`V = ${V.toFixed(1)} kN`, Cs:`${(V/W*100).toFixed(2)}%`, status:"COMPUTED" });
-  } catch(e) { results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error: e.message }); }
+  } catch(e) { results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error:e.message }); }
 
   // ── 2. BEAMS ──
   const beams = (sd.beams?.length ? sd.beams : [{ id:"B1", span:5.5, width:300, depth:500, Mu:150, Vu:120 }]);
+  results.memberData.beams = [];
   beams.forEach(bm => {
     try {
-      const b = bm.width || 300, d = bm.depth || 500;
-      const Mu = bm.Mu || 150, Vu = bm.Vu || 120;
+      const b=bm.width||300, d=bm.depth||500, span=bm.span||5.5;
+      const Mu=bm.Mu||150, Vu=bm.Vu||120;
       const phi_b=0.90, phi_v=0.85;
-      const Rn = (Mu*1000)/(phi_b*(b/1000)*(d/1000)*(d/1000)*1e6);
-      const rho_req = (0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc)));
-      const rho_max = 0.75*0.85*0.85*(fc/fy)*(600/(600+fy));
+      const beta1 = fc>=28 ? Math.max(0.65, 0.85-0.05*(fc-28)/7) : 0.85;
+      const Rn  = (Mu*1e3)/(phi_b*(b/1000)*(d/1000)*(d/1000)*1e6);
+      const rho_req = (0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
+      const rho_min = Math.max(0.25*Math.sqrt(fc)/fy, 1.4/fy);
+      const rho_max = 0.75*0.85*beta1*(fc/fy)*(600/(600+fy));
+      const rho_use = Math.max(rho_req, rho_min);
+      const As_req  = rho_use*b*d;
       const Vc = (1/6)*Math.sqrt(fc)*b*d/1000;
-      const status_flex = rho_req <= rho_max ? "PASS" : "FAIL";
-      const status_shear = Vc >= Vu/phi_v ? "PASS" : "NEEDS STIRRUPS";
-      const overallStatus = status_flex === "PASS" && status_shear !== "FAIL" ? "PASS" : "FAIL";
-      const As_req = Math.max((0.85*fc/fy)*(1-Math.sqrt(1-(2*Rn)/(0.85*fc))), 1.4/fy) * b * d;
-      results.items.push({ tool:"beam", id: bm.id||"B?", value:`As=${As_req.toFixed(0)}mm²`, detail:`Flex:${status_flex} Shear:${status_shear}`, status: overallStatus });
-    } catch(e) { results.items.push({ tool:"beam", id: bm.id||"B?", status:"ERROR", error:e.message }); }
+      const Vs_req = Math.max(0, Vu/phi_v - Vc);
+      const status_flex  = rho_req<=rho_max ? "PASS" : "FAIL";
+      const status_shear = Vc*phi_v>=Vu ? "Vc adequate" : "Stirrups required";
+      const overallStatus = (status_flex==="PASS" && status_shear!=="FAIL") ? "PASS" : "FAIL";
+      const memberRec = { id:bm.id||"B?", b, d, span, fc, fy, Mu, Vu, Rn, rho_req, rho_min, rho_max, rho_use, As_req, Vc, Vs_req, status_flex, status_shear, status:overallStatus };
+      results.memberData.beams.push(memberRec);
+      results.items.push({ tool:"beam", id:bm.id||"B?", value:`As=${As_req.toFixed(0)}mm²`, detail:`Flex:${status_flex} Shear:${status_shear}`, status:overallStatus, memberRec });
+    } catch(e) { results.items.push({ tool:"beam", id:bm.id||"B?", status:"ERROR", error:e.message }); }
   });
 
   // ── 3. COLUMNS ──
   const cols = (sd.columns?.length ? sd.columns : [{ id:"C1", width:400, height:400, Pu:1500, Mu:80, type:"tied" }]);
+  results.memberData.columns = [];
   cols.forEach(col => {
     try {
-      const b = col.width||400, h = col.height||400;
-      const Pu = col.Pu||1500, Mu = col.Mu||80;
-      const phi = col.type==="spiral" ? 0.75 : 0.65;
-      const Ag = b*h;
-      const rho_min=0.01, rho_max=0.08;
-      const Pn_req = Pu*1000/phi;
-      const Ast_req = Math.max((Pn_req/0.80 - 0.85*fc*Ag)/(fy - 0.85*fc), rho_min*Ag);
-      const rho_req = Ast_req/Ag;
-      const phiPn = phi*0.80*(0.85*fc*(Ag-Ast_req)+fy*Ast_req)/1000;
-      const status = (rho_req<=rho_max && rho_req>=rho_min && phiPn>=Pu) ? "PASS" : "FAIL";
-      results.items.push({ tool:"column", id: col.id||"C?", value:`Ast=${Ast_req.toFixed(0)}mm²`, detail:`ρ=${(rho_req*100).toFixed(2)}% φPn=${phiPn.toFixed(0)}kN`, status });
-    } catch(e) { results.items.push({ tool:"column", id: col.id||"C?", status:"ERROR", error:e.message }); }
+      const b=col.width||400, h=col.height||400;
+      const Pu=col.Pu||1500, Mu=col.Mu||80;
+      const phi=col.type==="spiral"?0.75:0.65, Ag=b*h;
+      const Pn_req=Pu*1000/phi;
+      const Ast_req=Math.max((Pn_req/0.80-0.85*fc*Ag)/(fy-0.85*fc),0.01*Ag);
+      const rho_req=Ast_req/Ag;
+      const phiPn=phi*0.80*(0.85*fc*(Ag-Ast_req)+fy*Ast_req)/1000;
+      const status=(rho_req<=0.08&&rho_req>=0.01&&phiPn>=Pu)?"PASS":"FAIL";
+      const memberRec = { id:col.id||"C?", b, h, fc, fy, Pu, Mu, Ag, Ast_req, rho_req, phiPn, phi, type:col.type||"tied", status };
+      results.memberData.columns.push(memberRec);
+      results.items.push({ tool:"column", id:col.id||"C?", value:`Ast=${Ast_req.toFixed(0)}mm²`, detail:`ρ=${(rho_req*100).toFixed(2)}% φPn=${phiPn.toFixed(0)}kN`, status, memberRec });
+    } catch(e) { results.items.push({ tool:"column", id:col.id||"C?", status:"ERROR", error:e.message }); }
   });
 
   // ── 4. FOOTINGS ──
   const footings = (sd.footings?.length ? sd.footings : [{ id:"F1", columnLoad:800, soilBearing:150, depth:1.5 }]);
+  results.memberData.footings = [];
   footings.forEach(ft => {
     try {
       const P=ft.columnLoad||800, qa=ft.soilBearing||150, Df=ft.depth||1.5;
-      const qnet = qa - 23.5*Df;
-      const B = Math.ceil(Math.sqrt(P/qnet)*10)/10;
-      const d = Math.max(B*1000/5, 250);
-      const c = (B-0.4)/2;
-      const Mu_ft = (1.2*P/(B*B))*B*c*c/2;
-      const Rn = (Mu_ft*1e6)/(0.90*(B*1000)*d*d);
-      const rho = (0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
-      const As = Math.max(rho,0.0018)*B*1000*d;
-      const status = qnet > 0 ? "PASS" : "FAIL";
-      results.items.push({ tool:"footing", id:ft.id||"F?", value:`B=${B.toFixed(2)}m × ${B.toFixed(2)}m`, detail:`As=${As.toFixed(0)}mm²/m d=${d.toFixed(0)}mm`, status });
+      const qnet=qa-23.5*Df;
+      if(qnet<=0){results.items.push({tool:"footing",id:ft.id||"F?",status:"FAIL",error:"Net bearing ≤ 0"});return;}
+      const B=Math.ceil(Math.sqrt(P/qnet)*10)/10;
+      const d=Math.max(B*1000/5,250);
+      const c=(B-0.4)/2;
+      const qu=1.2*P/(B*B);
+      const Mu_ft=qu*B*c*c/2;
+      const Rn=(Mu_ft*1e6)/(0.90*(B*1000)*d*d);
+      const rho=(0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
+      const rho_use=Math.max(rho,0.0018);
+      const As=rho_use*B*1000*d;
+      const memberRec = { id:ft.id||"F?", P, qa, Df, fc, fy, qnet, B, d, qu, Mu_ft, rho_use, As, status:"PASS" };
+      results.memberData.footings.push(memberRec);
+      results.items.push({ tool:"footing", id:ft.id||"F?", value:`B=${B.toFixed(2)}m×${B.toFixed(2)}m`, detail:`As=${As.toFixed(0)}mm²/m d=${d.toFixed(0)}mm`, status:"PASS", memberRec });
     } catch(e) { results.items.push({ tool:"footing", id:ft.id||"F?", status:"ERROR", error:e.message }); }
   });
 
   // ── 5. SLABS ──
   const slabs = (sd.slabs?.length ? sd.slabs : [{ id:"S1", span:4.0, type:"one-way", DL:3.0, LL:2.4 }]);
+  results.memberData.slabs = [];
   slabs.forEach(sl => {
     try {
       const L=sl.span||4.0, wDL=sl.DL||sd.loads?.floorDL||3.0, wLL=sl.LL||sd.loads?.floorLL||2.4;
-      const wu = 1.2*wDL+1.6*wLL;
-      const h_min = L*1000/20;
-      const h = Math.max(Math.ceil(h_min/10)*10, 100);
-      const d = h-25;
-      const Mu = wu*L*L/8;
-      const Rn = (Mu*1e6)/(0.90*1000*d*d);
-      const rho = (0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
-      const As = Math.max(rho,0.0018)*1000*d;
-      results.items.push({ tool:"slab", id:sl.id||"S?", value:`h=${h}mm As=${As.toFixed(0)}mm²/m`, detail:`wu=${wu.toFixed(2)}kPa Mu=${Mu.toFixed(1)}kN·m/m`, status:"PASS" });
+      const wu=1.2*wDL+1.6*wLL;
+      const h_min=L*1000/20;
+      const h=Math.max(Math.ceil(h_min/10)*10,100);
+      const d=h-25;
+      const Mu=wu*L*L/8;
+      const Rn=(Mu*1e6)/(0.90*1000*d*d);
+      const rho=(0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
+      const rho_use=Math.max(rho,0.0018);
+      const As=rho_use*1000*d;
+      const memberRec = { id:sl.id||"S?", L, wDL, wLL, fc, fy, wu, h, d, Mu, rho_use, As, status:"PASS" };
+      results.memberData.slabs.push(memberRec);
+      results.items.push({ tool:"slab", id:sl.id||"S?", value:`h=${h}mm As=${As.toFixed(0)}mm²/m`, detail:`wu=${wu.toFixed(2)}kPa Mu=${Mu.toFixed(1)}kN·m/m`, status:"PASS", memberRec });
     } catch(e) { results.items.push({ tool:"slab", id:sl.id||"S?", status:"ERROR", error:e.message }); }
   });
 
   // ── 6. LOAD COMBINATIONS ──
   try {
-    const flDL = sd.loads?.floorDL||3.0, flLL = sd.loads?.floorLL||2.4;
+    const flDL=sd.loads?.floorDL||3.0, flLL=sd.loads?.floorLL||2.4;
     const D=flDL*50, L=flLL*50, E=results.seismic?.V||60;
-    const combos = [
-      {name:"1.4D", val:1.4*D},
-      {name:"1.2D+1.6L", val:1.2*D+1.6*L},
-      {name:"1.2D+1.0E+1.0L", val:1.2*D+E+L},
-      {name:"0.9D+1.0E", val:0.9*D+E},
+    const combos=[
+      {name:"1.4D",             val:+(1.4*D).toFixed(1)},
+      {name:"1.2D+1.6L",        val:+(1.2*D+1.6*L).toFixed(1)},
+      {name:"1.2D+1.0E+1.0L",   val:+(1.2*D+E+L).toFixed(1)},
+      {name:"0.9D+1.0E",        val:+(0.9*D+E).toFixed(1)},
     ];
-    const maxCombo = combos.reduce((a,b)=>a.val>b.val?a:b);
-    results.loadCombos = combos;
-    results.items.push({ tool:"loads", id:"Load Combinations", value:`Max: ${maxCombo.name}`, detail:`${maxCombo.val.toFixed(1)} kN/m²`, status:"COMPUTED" });
+    const maxCombo=combos.reduce((a,b)=>a.val>b.val?a:b);
+    results.loadCombos=combos;
+    results.items.push({ tool:"loads", id:"Load Combinations", value:`Max: ${maxCombo.name}`, detail:`${maxCombo.val} kN/m²`, status:"COMPUTED" });
   } catch(e) { results.items.push({ tool:"loads", id:"Load Combinations", status:"ERROR", error:e.message }); }
 
   results.summary = {
-    total: results.items.length,
-    pass:  results.items.filter(i=>i.status==="PASS").length,
-    fail:  results.items.filter(i=>i.status==="FAIL").length,
+    total:    results.items.length,
+    pass:     results.items.filter(i=>i.status==="PASS").length,
+    fail:     results.items.filter(i=>i.status==="FAIL").length,
     computed: results.items.filter(i=>i.status==="COMPUTED").length,
-    error: results.items.filter(i=>i.status==="ERROR").length,
+    error:    results.items.filter(i=>i.status==="ERROR").length,
   };
-
   return results;
 }
+
 
 // ─── STRUCTURAL INTELLIGENCE PANEL (redesigned) ──────────────────────────────
 function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runState, structuralResults, onNavigate }) {
@@ -4652,44 +4724,224 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 
 
 // ─── STRUCTURAL COMPUTATION SUMMARY ──────────────────────────────────────────
-function StructuralComputationSummary({ results, onNavigate }) {
+function StructuralComputationSummary({ results, data, onNavigate }) {
   if (!results) return null;
 
   const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", COMPUTED:"#0696d7", ERROR:"#f59e0b" };
   const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)" };
   const toolLabel   = { seismic:"Seismic", beam:"Beam", column:"Column", footing:"Footing", slab:"Slab", loads:"Load Combos" };
 
-  const exportReport = () => {
-    const w = window.open("","_blank");
+  const fc  = data?.materials?.fc || "—";
+  const fy  = data?.materials?.fy || "—";
+  const projName = data?.building?.name || "Structural Project";
+  const md  = results.memberData || {};
+
+  const exportFullReport = () => {
+    const w    = window.open("","_blank");
     const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
-    const rows = results.items.map(item=>`
+
+    // ── member rows
+    const memberRows = results.items.map(item=>`
       <tr>
-        <td>${toolLabel[item.tool]||item.tool}</td>
-        <td><strong>${item.id}</strong></td>
-        <td>${item.value||"-"}</td>
-        <td>${item.detail||"-"}</td>
-        <td style="color:${statusColor[item.status]};font-weight:700">${item.status}</td>
+        <td><b>${toolLabel[item.tool]||item.tool}</b></td>
+        <td style="font-family:monospace;font-weight:700">${item.id}</td>
+        <td style="font-family:monospace">${item.value||"—"}</td>
+        <td style="font-size:11px;color:#64748b">${item.detail||"—"}</td>
+        <td style="color:${statusColor[item.status]||"#64748b"};font-weight:800;text-align:center">${item.status}</td>
       </tr>`).join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>Structural Computation Package</title>
-      <style>body{font-family:Arial,sans-serif;margin:40px;font-size:13px}
-      table{border-collapse:collapse;width:100%}th{background:#1e293b;color:#fff;padding:9px}
-      td{border:1px solid #e2e8f0;padding:8px 10px}h1{color:#0696d7}
-      .pass{color:#16a34a}.fail{color:#dc2626}.sum{display:flex;gap:20;margin:16px 0}
-      .sum-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 20px;text-align:center}
-      @media print{button{display:none}}</style></head><body>
-      <h1>Structural Computation Package</h1>
-      <p style="color:#64748b">NSCP 2015 · ${date} · Buildify by Jon Ureta</p>
-      <div class="sum">
-        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#22c55e">${results.summary.pass}</div><div>PASS</div></div>
-        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#ef4444">${results.summary.fail}</div><div>FAIL</div></div>
-        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#0696d7">${results.summary.computed}</div><div>COMPUTED</div></div>
-        <div class="sum-card"><div style="font-size:28px;font-weight:900;color:#64748b">${results.summary.total}</div><div>TOTAL</div></div>
+
+    // ── load combos
+    const combosHtml = (results.loadCombos||[]).map(c=>
+      `<tr><td>${c.name}</td><td style="font-weight:700;font-family:monospace">${c.val} kN/m²</td></tr>`
+    ).join("");
+
+    // ── rebar schedule tables
+    const beamRows = (md.beams||[]).map(bm=>{
+      const mainBar = selectBars(bm.As_req, bm.b);
+      const stirrup = selectStirrups(bm.Vs_req, bm.b, bm.d, Number(fy)||414, Number(fc)||27.6);
+      return `<tr>
+        <td><b>${bm.id}</b></td><td>${bm.b}×${bm.d}</td><td>${bm.span||"—"}</td>
+        <td>${bm.As_req.toFixed(0)}</td>
+        <td style="color:#0284c7;font-weight:700">${mainBar.n}-Ø${mainBar.bar.dia}</td>
+        <td>${mainBar.As_prov.toFixed(0)}</td>
+        <td>Ø${stirrup.dia}@${stirrup.spacing}mm</td>
+        <td style="color:${bm.status==="PASS"?"#16a34a":"#dc2626"};font-weight:700">${bm.status}</td>
+      </tr>`;
+    }).join("");
+
+    const colRows = (md.columns||[]).map(col=>{
+      const mainBar = selectBars(col.Ast_req, Math.min(col.b,col.h));
+      const tieSpacing = Math.floor(Math.min(16*mainBar.bar.dia, 480, Math.min(col.b,col.h))/25)*25;
+      return `<tr>
+        <td><b>${col.id}</b></td><td>${col.b}×${col.h}</td><td>${col.type==="spiral"?"Spiral":"Tied"}</td>
+        <td>${col.Ast_req.toFixed(0)}</td>
+        <td style="color:#0284c7;font-weight:700">${mainBar.n}-Ø${mainBar.bar.dia}</td>
+        <td>${mainBar.As_prov.toFixed(0)}</td>
+        <td>Ø10@${tieSpacing}mm</td>
+        <td>${(col.rho_req*100).toFixed(2)}%</td>
+        <td style="color:${col.status==="PASS"?"#16a34a":"#dc2626"};font-weight:700">${col.status}</td>
+      </tr>`;
+    }).join("");
+
+    const ftRows = (md.footings||[]).map(ft=>{
+      const bar = selectSlabBars(ft.As/ft.B);
+      return `<tr>
+        <td><b>${ft.id}</b></td><td>${ft.B.toFixed(2)}×${ft.B.toFixed(2)}m</td>
+        <td>${ft.d.toFixed(0)}</td><td>${ft.qa}</td>
+        <td>${(ft.As/ft.B).toFixed(0)}</td>
+        <td style="color:#0284c7;font-weight:700">Ø${bar.bar.dia}@${bar.spacing}mm (EW)</td>
+      </tr>`;
+    }).join("");
+
+    const slabRows = (md.slabs||[]).map(sl=>{
+      const bar = selectSlabBars(sl.As);
+      const tmp = selectSlabBars(sl.As*0.0018/(sl.rho_use||0.002));
+      return `<tr>
+        <td><b>${sl.id}</b></td><td>${sl.L}m</td><td>${sl.h}mm</td>
+        <td>${sl.wu.toFixed(2)}</td><td>${sl.Mu.toFixed(1)}</td>
+        <td>${sl.As.toFixed(0)}</td>
+        <td style="color:#0284c7;font-weight:700">Ø${bar.bar.dia}@${bar.spacing}mm</td>
+        <td>Ø${tmp.bar.dia}@${tmp.spacing}mm</td>
+      </tr>`;
+    }).join("");
+
+    const seismic = results.seismic || {};
+
+    w.document.write(`<!DOCTYPE html><html><head>
+      <title>Structural Summary Report — ${projName}</title>
+      <style>
+        *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0;font-size:12px;color:#1e293b}
+        .cover{background:linear-gradient(135deg,#0f1624,#0a1628);color:#fff;padding:50px;min-height:200px;page-break-after:always}
+        .cover h1{font-size:28px;font-weight:900;color:#0696d7;margin:0 0 8px;letter-spacing:-0.5px}
+        .cover p{margin:4px 0;color:#94a3b8;font-size:12px}
+        .badge{display:inline-block;background:rgba(6,150,215,0.25);color:#60c6f7;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-right:6px;margin-top:8px}
+        .content{padding:30px 50px}
+        h2{font-size:15px;font-weight:800;color:#0f172a;border-bottom:3px solid #0696d7;padding-bottom:6px;margin:28px 0 12px}
+        h3{font-size:12px;font-weight:700;color:#334155;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.5px}
+        table{border-collapse:collapse;width:100%;margin-bottom:12px;font-size:11px}
+        th{background:#1e293b;color:#e2e8f0;padding:7px 9px;text-align:left;font-weight:700;font-size:11px}
+        td{border:1px solid #e2e8f0;padding:6px 9px;vertical-align:middle}
+        tr:nth-child(even) td{background:#f8fafc}
+        .kpi{display:flex;gap:16px;margin:12px 0;flex-wrap:wrap}
+        .kpi-card{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 18px;min-width:120px;text-align:center}
+        .kpi-val{font-size:26px;font-weight:900;color:#0284c7}
+        .kpi-lbl{font-size:10px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+        .kpi-pass .kpi-val{color:#16a34a}.kpi-fail .kpi-val{color:#dc2626}.kpi-comp .kpi-val{color:#0284c7}
+        .nscp{background:#f0f9ff;border-left:3px solid #0696d7;padding:8px 12px;font-size:11px;color:#0369a1;margin:8px 0;border-radius:0 4px 4px 0}
+        .warn{background:#fff7ed;border-left:3px solid #f59e0b;padding:8px 12px;font-size:11px;color:#92400e;margin:8px 0;border-radius:0 4px 4px 0}
+        .footer{margin-top:40px;padding:18px 50px;background:#f1f5f9;border-top:2px solid #e2e8f0;font-size:10px;color:#94a3b8;line-height:1.6}
+        .sig-block{display:flex;gap:40px;margin-top:30px}
+        .sig{border-top:1px solid #94a3b8;padding-top:8px;min-width:200px;font-size:11px;color:#64748b}
+        @media print{.no-print{display:none}@page{margin:15mm 20mm;size:A4 portrait}}
+      </style>
+    </head><body>
+
+    <div class="cover">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:10px;color:#64748b;letter-spacing:2px;margin-bottom:10px">BUILDIFY · STRUCTURAL MODULE</div>
+          <h1>Structural Summary Report</h1>
+          <p style="font-size:15px;color:#e2e8f0;font-weight:600;margin:4px 0 16px">${projName}</p>
+          <div>
+            <span class="badge">NSCP 2015</span>
+            <span class="badge">f'c = ${fc} MPa</span>
+            <span class="badge">fy = ${fy} MPa</span>
+            ${seismic.zone ? `<span class="badge">${seismic.zone}</span>` : ""}
+            ${data?.building?.floors ? `<span class="badge">${data.building.floors} Floors</span>` : ""}
+          </div>
+        </div>
+        <div style="text-align:right;color:#64748b;font-size:11px">
+          <div style="font-size:12px;color:#94a3b8">${date}</div>
+          <div style="margin-top:4px">Prepared by: Buildify</div>
+          <div style="margin-top:16px;color:#ef4444;font-size:10px;font-weight:700;border:1px solid #ef4444;padding:4px 8px;border-radius:4px">PRELIMINARY — NOT FOR CONSTRUCTION</div>
+        </div>
       </div>
-      <h2>Computation Results</h2>
-      <table><tr><th>Tool</th><th>Member ID</th><th>Result</th><th>Detail</th><th>Status</th></tr>${rows}</table>
-      <p style="margin-top:24px;font-size:11px;color:#9ca3af">⚠️ AI-assisted computation. All results must be verified by a licensed PSCE before use in construction documents.</p>
-      </body></html>`);
-    w.document.close(); setTimeout(()=>w.print(),400);
+    </div>
+
+    <div class="content">
+
+      <!-- SUMMARY SCORECARD -->
+      <h2>1. Computation Summary</h2>
+      <div class="kpi">
+        <div class="kpi-card kpi-pass"><div class="kpi-val">${results.summary.pass}</div><div class="kpi-lbl">PASS</div></div>
+        <div class="kpi-card kpi-fail"><div class="kpi-val">${results.summary.fail}</div><div class="kpi-lbl">FAIL</div></div>
+        <div class="kpi-card kpi-comp"><div class="kpi-val">${results.summary.computed}</div><div class="kpi-lbl">COMPUTED</div></div>
+        <div class="kpi-card"><div class="kpi-val">${results.summary.total}</div><div class="kpi-lbl">TOTAL CHECKS</div></div>
+      </div>
+      <table><thead><tr><th>Category</th><th>Member ID</th><th>Result</th><th>Detail</th><th style="text-align:center">Status</th></tr></thead><tbody>
+        ${memberRows}
+      </tbody></table>
+
+      <!-- SEISMIC -->
+      ${seismic.V ? `
+      <h2>2. Seismic Design (NSCP 2015 Sec. 208)</h2>
+      <div class="nscp">Method: Equivalent Static Force Procedure · NSCP 2015 Section 208</div>
+      <table><thead><tr><th>Parameter</th><th>Value</th><th>Parameter</th><th>Value</th></tr></thead><tbody>
+        <tr><td>Seismic Zone</td><td><b>${seismic.zone}</b></td><td>Seismic Weight W</td><td><b>${seismic.W} kN</b></td></tr>
+        <tr><td>Soil Type</td><td>${seismic.soil||"—"}</td><td>Base Shear V</td><td><b style="color:#0284c7">${seismic.V} kN</b></td></tr>
+        <tr><td>Occupancy Category</td><td>${seismic.occ||"—"}</td><td>Seismic Coefficient Cs</td><td>${seismic.Cs}%</td></tr>
+        <tr><td>I (Importance Factor)</td><td>${seismic.I||"—"}</td><td>R (Response Factor)</td><td>${seismic.R||"—"}</td></tr>
+        <tr><td>Ca</td><td>${seismic.Ca?.toFixed(4)||"—"}</td><td>Cv</td><td>${seismic.Cv?.toFixed(4)||"—"}</td></tr>
+      </tbody></table>` : ""}
+
+      <!-- LOAD COMBINATIONS -->
+      ${combosHtml ? `
+      <h2>3. Load Combinations (NSCP 2015 Sec. 203)</h2>
+      <div class="nscp">Per NSCP 2015 Section 203 — factored load combinations for RC design</div>
+      <table style="max-width:400px"><thead><tr><th>Combination</th><th>Value (kN/m²)</th></tr></thead><tbody>
+        ${combosHtml}
+      </tbody></table>` : ""}
+
+      <!-- BEAM SCHEDULE -->
+      ${beamRows ? `
+      <h2>4. Beam Rebar Schedule (NSCP 2015 Sec. 406)</h2>
+      <div class="nscp">Cover = 40mm · Stirrups: deformed bars · Spacing per NSCP Sec. 406.4</div>
+      <table><thead><tr><th>Mark</th><th>b×d (mm)</th><th>Span (m)</th><th>As req (mm²)</th><th>Bottom Bars</th><th>As prov (mm²)</th><th>Stirrups</th><th style="text-align:center">Status</th></tr></thead><tbody>
+        ${beamRows}
+      </tbody></table>
+      <div class="warn">Top bars: provide min. 2-Ø10 or as required by moment diagram. Verify development lengths per Sec. 412.</div>` : ""}
+
+      <!-- COLUMN SCHEDULE -->
+      ${colRows ? `
+      <h2>5. Column Rebar Schedule (NSCP 2015 Sec. 410)</h2>
+      <div class="nscp">Short column, axial + bending · φ = 0.65 tied, 0.75 spiral · ρ: 1% to 8%</div>
+      <table><thead><tr><th>Mark</th><th>b×h (mm)</th><th>Type</th><th>Ast req (mm²)</th><th>Long. Bars</th><th>As prov (mm²)</th><th>Ties</th><th>ρ (%)</th><th style="text-align:center">Status</th></tr></thead><tbody>
+        ${colRows}
+      </tbody></table>` : ""}
+
+      <!-- FOOTING SCHEDULE -->
+      ${ftRows ? `
+      <h2>6. Footing Schedule (NSCP 2015 Sec. 415)</h2>
+      <div class="nscp">Square isolated footing · ρ_min = 0.0018 · Bars placed EW (bottom mat)</div>
+      <table><thead><tr><th>Mark</th><th>Plan Size</th><th>d (mm)</th><th>qa (kPa)</th><th>As req (mm²/m)</th><th>Bottom Bars (EW)</th></tr></thead><tbody>
+        ${ftRows}
+      </tbody></table>
+      <div class="warn">Verify punching shear (two-way action) and wide-beam shear at d from column face. Dowel bars: min. 4-Ø of column bars.</div>` : ""}
+
+      <!-- SLAB SCHEDULE -->
+      ${slabRows ? `
+      <h2>7. Slab Schedule (NSCP 2015 Sec. 409)</h2>
+      <div class="nscp">One-way slab · ρ_temp = 0.0018 · Temperature bars perpendicular to span</div>
+      <table><thead><tr><th>Mark</th><th>Span (m)</th><th>h (mm)</th><th>wu (kPa)</th><th>Mu (kN·m/m)</th><th>As req (mm²/m)</th><th>Main Bars</th><th>Temp. Bars</th></tr></thead><tbody>
+        ${slabRows}
+      </tbody></table>` : ""}
+
+      <!-- SIGNATURE BLOCK -->
+      <h2>8. Engineer's Certification</h2>
+      <div class="warn">This report is generated by Buildify AI-assisted structural tools using simplified NSCP 2015 procedures. It is a <strong>PRELIMINARY DESIGN</strong> only. All computations, bar sizes, and spacings must be independently verified and signed and sealed by a licensed Professional Civil/Structural Engineer (PSCE) registered with PRC before being used in permit applications, contract documents, or construction.</div>
+      <div class="sig-block">
+        <div class="sig"><div style="margin-bottom:40px">Reviewed by:</div><div>________________________</div><div>Professional Civil/Structural Engineer</div><div>PRC License No.: ____________</div><div>Date: ______________________</div></div>
+        <div class="sig"><div style="margin-bottom:40px">Noted by:</div><div>________________________</div><div>Project Owner / Representative</div><div>Date: ______________________</div></div>
+      </div>
+
+    </div>
+    <div class="footer">
+      <strong>⚠ PRELIMINARY — NOT FOR CONSTRUCTION.</strong> Buildify Structural Module · NSCP 2015 · Generated: ${date}<br/>
+      Bar sizes per ASTM A615 / PNS 49. Methods: Equivalent Static Force (Sec. 208), USD flexure &amp; shear (Sec. 406, 410, 415, 409). All values require PSCE verification.
+    </div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),600);
   };
 
   return (
@@ -4697,9 +4949,9 @@ function StructuralComputationSummary({ results, onNavigate }) {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontWeight:800,fontSize:15,color:T.text}}>Structural Computation Package</div>
-          <div style={{fontSize:11,color:T.muted,marginTop:2}}>NSCP 2015 · {new Date().toLocaleDateString("en-PH")}</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>NSCP 2015 · {new Date().toLocaleDateString("en-PH")} · {(data?.materials?.fc ? `f'c=${data.materials.fc}MPa · fy=${data.materials.fy}MPa` : "")}</div>
         </div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             {[
               {label:`${results.summary.pass} PASS`, color:"#22c55e", bg:"rgba(34,197,94,0.1)"},
@@ -4709,16 +4961,17 @@ function StructuralComputationSummary({ results, onNavigate }) {
               <span key={s.label} style={{fontSize:11,fontWeight:700,color:s.color,background:s.bg,padding:"4px 10px",borderRadius:6}}>{s.label}</span>
             ))}
           </div>
-          <button onClick={exportReport} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",background:"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:"#fff",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>
-            <Icon name="download" size={13} color="#fff"/> Export PDF
+          <button onClick={exportFullReport}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:"#fff",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>
+            <Icon name="download" size={13} color="#fff"/> Export Full Report
           </button>
         </div>
       </div>
 
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {results.items.map((item,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:statusBg[item.status]||T.dim,borderRadius:9,border:`1px solid ${statusColor[item.status]}33`}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:statusColor[item.status],flexShrink:0}}/>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:statusBg[item.status]||T.dim,borderRadius:9,border:`1px solid ${statusColor[item.status]||T.border}33`}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:statusColor[item.status]||T.muted,flexShrink:0}}/>
             <div style={{width:80,flexShrink:0}}>
               <span style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase"}}>{toolLabel[item.tool]||item.tool}</span>
             </div>
@@ -4726,22 +4979,485 @@ function StructuralComputationSummary({ results, onNavigate }) {
               <span style={{fontSize:12,fontWeight:700,color:T.text,fontFamily:"monospace"}}>{item.id}</span>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <span style={{fontSize:12,color:T.text,fontWeight:600}}>{item.value||"-"}</span>
+              <span style={{fontSize:12,color:T.text,fontWeight:600}}>{item.value||"—"}</span>
               {item.detail && <span style={{fontSize:11,color:T.muted,marginLeft:8}}>{item.detail}</span>}
               {item.error  && <span style={{fontSize:11,color:"#f59e0b",marginLeft:8}}>⚠ {item.error}</span>}
             </div>
             <span style={{fontSize:11,fontWeight:800,color:statusColor[item.status],background:statusBg[item.status],padding:"3px 10px",borderRadius:5,flexShrink:0}}>{item.status}</span>
-            <button onClick={()=>onNavigate(item.tool)} style={{fontSize:10,color:"#0696d7",background:"rgba(6,150,215,0.1)",border:"1px solid rgba(6,150,215,0.25)",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700,flexShrink:0}}>Open →</button>
+            {onNavigate && item.tool !== "loads" && (
+              <button onClick={()=>onNavigate(item.tool)}
+                style={{fontSize:10,color:"#0696d7",background:"rgba(6,150,215,0.1)",border:"1px solid rgba(6,150,215,0.25)",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700,flexShrink:0}}>Open →</button>
+            )}
           </div>
         ))}
       </div>
 
       <div style={{marginTop:14,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
-        ⚠️ All computations use simplified NSCP 2015 methods. Results are for preliminary design only. Full detailed analysis by a licensed PSCE is required before construction.
+        ⚠️ All computations use simplified NSCP 2015 methods. Results are for preliminary design only. Full detailed analysis and stamping by a licensed PSCE is required before construction.
       </div>
     </div>
   );
 }
+
+
+function RebarSchedule({ structuralData, structuralResults }) {
+  const sd  = structuralData;
+  const res = structuralResults;
+  const [view, setView] = useState("beams"); // beams|columns|footings|slabs
+
+  if (!res || !sd) {
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16,textAlign:"center"}}>
+        <Icon name="report" size={48} color={T.muted}/>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Computations Yet</div>
+        <div style={{fontSize:13,color:T.muted,maxWidth:340,lineHeight:1.7}}>
+          Run <strong style={{color:"#0696d7"}}>Run All Computations</strong> inside the AI Plan Checker first.<br/>
+          The rebar schedule is generated from those results.
+        </div>
+      </div>
+    );
+  }
+
+  const fc = sd.materials?.fc || 27.6;
+  const fy = sd.materials?.fy || 414;
+  const md = res.memberData || {};
+
+  // ── BEAM SCHEDULE ──
+  const beamRows = (md.beams||[]).map(bm => {
+    const mainBar   = selectBars(bm.As_req, bm.b);
+    const topBar    = selectBars(Math.max(bm.As_req*0.33, 2*PH_BAR_SIZES[1].area), bm.b);
+    const stirrup   = selectStirrups(bm.Vs_req, bm.b, bm.d, fy, fc);
+    const coverH    = bm.d + 25 + 10 + mainBar.bar.dia/2; // total depth approx
+    return { ...bm, mainBar, topBar, stirrup, totalDepth: Math.round(coverH/10)*10 + 50 };
+  });
+
+  // ── COLUMN SCHEDULE ──
+  const colRows = (md.columns||[]).map(col => {
+    const mainBar = selectBars(col.Ast_req, Math.min(col.b, col.h));
+    // Ties: NSCP 408.3 — s ≤ 16db, 48 tie-dia, least dim of section
+    const tieBar  = { dia:10 };
+    const tieSpacing = Math.min(16*mainBar.bar.dia, 48*tieBar.dia, Math.min(col.b,col.h));
+    return { ...col, mainBar, tieBar, tieSpacing: Math.floor(tieSpacing/25)*25 };
+  });
+
+  // ── FOOTING SCHEDULE ──
+  const ftRows = (md.footings||[]).map(ft => {
+    const bar = selectSlabBars(ft.As / ft.B);
+    return { ...ft, bar };
+  });
+
+  // ── SLAB SCHEDULE ──
+  const slabRows = (md.slabs||[]).map(sl => {
+    const bar = selectSlabBars(sl.As);
+    const tempBar = selectSlabBars(sl.As * 0.0018 / (sl.rho_use || 0.0018));
+    return { ...sl, bar, tempBar };
+  });
+
+  const TABS = [
+    { key:"beams",    label:"Beams",    count:beamRows.length },
+    { key:"columns",  label:"Columns",  count:colRows.length },
+    { key:"footings", label:"Footings", count:ftRows.length },
+    { key:"slabs",    label:"Slabs",    count:slabRows.length },
+  ];
+
+  const BarTag = ({dia, n, label}) => (
+    <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:"#0696d7",background:"rgba(6,150,215,0.1)",padding:"2px 8px",borderRadius:4}}>
+      {n ? `${n}-Ø${dia}` : `Ø${dia}`}{label?` @ ${label}mm`:""}
+    </span>
+  );
+
+  const exportSchedule = () => {
+    const w = window.open("","_blank");
+    const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+    const projName = sd.building?.name || "Project";
+
+    const beamTable = `<table><thead><tr>
+      <th>Mark</th><th>b×d (mm)</th><th>Span (m)</th>
+      <th>As req (mm²)</th><th>Top Bars</th><th>Bot. Bars</th><th>As prov (mm²)</th>
+      <th>Stirrups</th><th>Remarks</th></tr></thead><tbody>
+      ${beamRows.map(r=>`<tr>
+        <td><b>${r.id}</b></td>
+        <td>${r.b}×${r.d}</td>
+        <td>${(r.span||"—")}</td>
+        <td>${r.As_req.toFixed(0)}</td>
+        <td>${r.topBar.n}-Ø${r.topBar.bar.dia}</td>
+        <td>${r.mainBar.n}-Ø${r.mainBar.bar.dia}</td>
+        <td style="color:#0284c7;font-weight:700">${r.mainBar.As_prov.toFixed(0)}</td>
+        <td>Ø${r.stirrup.dia}@${r.stirrup.spacing}mm</td>
+        <td style="font-size:11px;color:#64748b">${r.status_flex==="PASS"?"OK":"CHECK"} flex · ${r.status_shear}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+
+    const colTable = `<table><thead><tr>
+      <th>Mark</th><th>b×h (mm)</th><th>Type</th>
+      <th>Ast req (mm²)</th><th>Main Bars</th><th>As prov (mm²)</th>
+      <th>ρ (%)</th><th>Ties</th><th>φPn (kN)</th></tr></thead><tbody>
+      ${colRows.map(r=>`<tr>
+        <td><b>${r.id}</b></td>
+        <td>${r.b}×${r.h}</td>
+        <td>${r.type==="spiral"?"Spiral":"Tied"}</td>
+        <td>${r.Ast_req.toFixed(0)}</td>
+        <td>${r.mainBar.n}-Ø${r.mainBar.bar.dia}</td>
+        <td style="color:#0284c7;font-weight:700">${r.mainBar.As_prov.toFixed(0)}</td>
+        <td>${(r.rho_req*100).toFixed(2)}%</td>
+        <td>Ø${r.tieBar.dia}@${r.tieSpacing}mm</td>
+        <td>${r.phiPn.toFixed(0)}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+
+    const ftTable = `<table><thead><tr>
+      <th>Mark</th><th>Size (m)</th><th>Depth d (mm)</th>
+      <th>As req (mm²/m)</th><th>Bars (Bot. EW)</th><th>Spacing</th><th>As prov (mm²/m)</th>
+      <th>qa (kPa)</th></tr></thead><tbody>
+      ${ftRows.map(r=>`<tr>
+        <td><b>${r.id}</b></td>
+        <td>${r.B.toFixed(2)}×${r.B.toFixed(2)}</td>
+        <td>${r.d.toFixed(0)}</td>
+        <td>${(r.As/r.B).toFixed(0)}</td>
+        <td>Ø${r.bar.bar.dia}</td>
+        <td>${r.bar.spacing}mm c/c</td>
+        <td style="color:#0284c7;font-weight:700">${r.bar.As_prov.toFixed(0)}</td>
+        <td>${r.qa}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+
+    const slabTable = `<table><thead><tr>
+      <th>Mark</th><th>Span (m)</th><th>h (mm)</th><th>d (mm)</th>
+      <th>wu (kPa)</th><th>Mu (kN·m/m)</th>
+      <th>As req (mm²/m)</th><th>Main Bars</th><th>Temp. Bars</th></tr></thead><tbody>
+      ${slabRows.map(r=>`<tr>
+        <td><b>${r.id}</b></td>
+        <td>${r.L}</td>
+        <td>${r.h}</td>
+        <td>${r.d}</td>
+        <td>${r.wu.toFixed(2)}</td>
+        <td>${r.Mu.toFixed(1)}</td>
+        <td>${r.As.toFixed(0)}</td>
+        <td style="color:#0284c7;font-weight:700">Ø${r.bar.bar.dia}@${r.bar.spacing}mm</td>
+        <td>Ø${r.tempBar.bar.dia}@${r.tempBar.spacing}mm</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+
+    w.document.write(`<!DOCTYPE html><html><head>
+      <title>Rebar Schedule — ${projName}</title>
+      <style>
+        *{box-sizing:border-box}
+        body{font-family:Arial,sans-serif;margin:0;padding:0;font-size:12px;color:#1e293b}
+        .cover{background:#0f1624;color:#fff;padding:40px 50px;min-height:160px}
+        .cover h1{font-size:24px;font-weight:900;color:#0696d7;margin:0 0 6px}
+        .cover p{margin:4px 0;color:#94a3b8;font-size:12px}
+        .badge{display:inline-block;background:rgba(6,150,215,0.2);color:#60c6f7;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-right:8px}
+        .content{padding:24px 40px}
+        h2{font-size:15px;font-weight:800;color:#0f172a;border-bottom:2px solid #0696d7;padding-bottom:6px;margin-top:28px}
+        h3{font-size:12px;font-weight:700;color:#475569;margin:14px 0 6px}
+        table{border-collapse:collapse;width:100%;margin-bottom:12px;font-size:11px}
+        th{background:#1e293b;color:#e2e8f0;padding:7px 8px;text-align:left;font-weight:700}
+        td{border:1px solid #e2e8f0;padding:6px 8px;vertical-align:top}
+        tr:nth-child(even) td{background:#f8fafc}
+        .nscp{background:#f0f9ff;border-left:3px solid #0696d7;padding:8px 12px;font-size:11px;color:#0369a1;margin:8px 0}
+        .warn{background:#fff7ed;border-left:3px solid #f59e0b;padding:8px 12px;font-size:11px;color:#92400e;margin:8px 0}
+        .footer{margin-top:30px;padding:16px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8}
+        @media print{.no-print{display:none}@page{margin:15mm 20mm}}
+      </style>
+    </head><body>
+      <div class="cover">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:11px;color:#64748b;margin-bottom:6px;letter-spacing:1px">BUILDIFY · STRUCTURAL MODULE</div>
+            <h1>Rebar Schedule</h1>
+            <p>${projName}</p>
+            <p style="margin-top:10px">
+              <span class="badge">NSCP 2015</span>
+              <span class="badge">f'c = ${fc} MPa</span>
+              <span class="badge">fy = ${fy} MPa</span>
+            </p>
+          </div>
+          <div style="text-align:right;color:#64748b;font-size:11px">
+            <div>${date}</div>
+            <div style="margin-top:4px">Prepared by: Buildify</div>
+            <div style="margin-top:4px;color:#ef4444;font-size:10px">PRELIMINARY — NOT FOR CONSTRUCTION</div>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+
+        <h2>1. Beam Rebar Schedule</h2>
+        <div class="nscp">NSCP 2015 Sec. 406 · ACI 318-14 · Cover: 40mm clear · Stirrups: Ø10 or Ø12 deformed</div>
+        ${beamTable}
+        <div class="warn">Top bars: min. 1/3 of bottom steel or as required by moment diagram. Provide development length per NSCP Sec. 412.</div>
+
+        <h2>2. Column Rebar Schedule</h2>
+        <div class="nscp">NSCP 2015 Sec. 410 · Tie spacing: min of 16db, 48 tie-dia, least column dim</div>
+        ${colTable}
+
+        <h2>3. Footing Rebar Schedule</h2>
+        <div class="nscp">NSCP 2015 Sec. 415 · ρ_min = 0.0018 · Bars placed EW (both directions, bottom mat)</div>
+        ${ftTable}
+        <div class="warn">Development length of dowels from column into footing: ℓd ≥ 300mm per NSCP Sec. 412.</div>
+
+        <h2>4. Slab Rebar Schedule</h2>
+        <div class="nscp">NSCP 2015 Sec. 409 · ρ_temp = 0.0018 for temperature & shrinkage bars · Ø10 or Ø12 top bars perpendicular to span</div>
+        ${slabTable}
+
+      </div>
+      <div class="footer">
+        <strong>⚠ PRELIMINARY DESIGN — FOR REVIEW ONLY.</strong> This rebar schedule was generated by Buildify using simplified NSCP 2015 methods. Bar sizes, counts, and spacing must be verified and stamped by a licensed Professional Civil/Structural Engineer (PSCE) before use in contract documents or construction. Buildify and its developers accept no liability for the use of these outputs.
+        <div style="margin-top:4px">Generated: ${date} · Buildify Structural Module · NSCP 2015</div>
+      </div>
+    </body></html>`);
+    w.document.close();
+    setTimeout(()=>w.print(),500);
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
+        <div>
+          <div style={{fontSize:18,fontWeight:900,color:T.text,letterSpacing:"-0.5px"}}>Rebar Schedule</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:2}}>
+            NSCP 2015 · f'c = {fc} MPa · fy = {fy} MPa · {sd.building?.name || "Project"}
+          </div>
+        </div>
+        <button onClick={exportSchedule}
+          style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px",background:"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:"#fff",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:13}}>
+          <Icon name="download" size={15} color="#fff"/> Export PDF Schedule
+        </button>
+      </div>
+
+      {/* Scope note */}
+      <div style={{padding:"10px 16px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:8,marginBottom:20,fontSize:12,color:"#0696d7",lineHeight:1.7}}>
+        Bar sizes selected per <strong>ASTM A615 / PNS 49</strong> standard PH deformed bars. Spacing governed by <strong>NSCP 2015</strong> min/max limits and practical constructability.
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:20,borderBottom:`1px solid ${T.border}`,paddingBottom:12}}>
+        {TABS.map(t=>(
+          <button key={t.key} onClick={()=>setView(t.key)}
+            style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${view===t.key?"#0696d7":T.border}`,
+              background:view===t.key?"rgba(6,150,215,0.12)":"transparent",
+              color:view===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
+            {t.label} <span style={{fontSize:10,marginLeft:4,opacity:0.7}}>({t.count})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── BEAMS ── */}
+      {view==="beams" && (
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 406 — Singly Reinforced Beams</div>
+          {beamRows.length === 0 ? (
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No beam data. Run computations first.</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {beamRows.map((bm,i)=>(
+                <div key={i} style={{background:T.card,border:`1px solid ${bm.status==="PASS"?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"}`,borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{bm.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>
+                      {bm.b} × {bm.d} mm
+                    </span>
+                    {bm.span && <span style={{fontSize:11,color:T.muted}}>L = {bm.span}m</span>}
+                    <span style={{fontSize:11,fontWeight:800,padding:"3px 10px",borderRadius:5,
+                      background:bm.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
+                      color:bm.status==="PASS"?"#22c55e":"#ef4444"}}>{bm.status}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+                    {/* Bottom bars */}
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Bottom (Tension) Bars</div>
+                      <BarTag dia={bm.mainBar.bar.dia} n={bm.mainBar.n}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        As req: <strong style={{color:T.text}}>{bm.As_req.toFixed(0)}</strong> mm²<br/>
+                        As prov: <strong style={{color:"#0696d7"}}>{bm.mainBar.As_prov.toFixed(0)}</strong> mm²
+                        {bm.mainBar.As_prov >= bm.As_req
+                          ? <span style={{color:"#22c55e",marginLeft:4}}>✓ OK</span>
+                          : <span style={{color:"#ef4444",marginLeft:4}}>✗ Insufficient</span>}
+                      </div>
+                    </div>
+                    {/* Top bars */}
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Top (Compression) Bars</div>
+                      <BarTag dia={bm.topBar.bar.dia} n={bm.topBar.n}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>Min. 1/3 of bottom steel<br/>per NSCP Sec. 412</div>
+                    </div>
+                    {/* Stirrups */}
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Stirrups (Shear)</div>
+                      <BarTag dia={bm.stirrup.dia} label={bm.stirrup.spacing}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        Vc = {bm.Vc.toFixed(1)} kN · Vs = {bm.Vs_req.toFixed(1)} kN<br/>
+                        {bm.status_shear}
+                        {bm.stirrup.note && <div style={{color:"#f59e0b"}}>{bm.stirrup.note}</div>}
+                      </div>
+                    </div>
+                    {/* Section summary */}
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Design Values</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
+                        ρ req: <strong style={{color:T.text}}>{(bm.rho_req*100).toFixed(4)}%</strong><br/>
+                        ρ min: {(bm.rho_min*100).toFixed(4)}%<br/>
+                        ρ max: {(bm.rho_max*100).toFixed(4)}%<br/>
+                        Flexure: <strong style={{color:bm.status_flex==="PASS"?"#22c55e":"#ef4444"}}>{bm.status_flex}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── COLUMNS ── */}
+      {view==="columns" && (
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 410 — RC Columns</div>
+          {colRows.length === 0 ? (
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No column data. Run computations first.</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {colRows.map((col,i)=>(
+                <div key={i} style={{background:T.card,border:`1px solid ${col.status==="PASS"?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"}`,borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{col.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>{col.b}×{col.h} mm</span>
+                    <span style={{fontSize:11,color:T.muted}}>{col.type==="spiral"?"Spiral":"Tied"}</span>
+                    <span style={{fontSize:11,fontWeight:800,padding:"3px 10px",borderRadius:5,
+                      background:col.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
+                      color:col.status==="PASS"?"#22c55e":"#ef4444"}}>{col.status}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Longitudinal Bars</div>
+                      <BarTag dia={col.mainBar.bar.dia} n={col.mainBar.n}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        Ast req: <strong style={{color:T.text}}>{col.Ast_req.toFixed(0)}</strong> mm²<br/>
+                        Ast prov: <strong style={{color:"#0696d7"}}>{col.mainBar.As_prov.toFixed(0)}</strong> mm²
+                        {col.mainBar.As_prov >= col.Ast_req
+                          ? <span style={{color:"#22c55e",marginLeft:4}}>✓</span>
+                          : <span style={{color:"#ef4444",marginLeft:4}}>✗</span>}
+                      </div>
+                    </div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Lateral Ties</div>
+                      <BarTag dia={col.tieBar.dia} label={col.tieSpacing}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        s ≤ min(16db, 48t, b_min)<br/>= min({16*col.mainBar.bar.dia}, {48*col.tieBar.dia}, {Math.min(col.b,col.h)}) = {col.tieSpacing}mm
+                      </div>
+                    </div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Capacity</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
+                        ρ: <strong style={{color:T.text}}>{(col.rho_req*100).toFixed(2)}%</strong> (min 1%, max 8%)<br/>
+                        φPn: <strong style={{color:"#0696d7"}}>{col.phiPn.toFixed(0)} kN</strong><br/>
+                        Pu: {col.Pu} kN · φ = {col.phi}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FOOTINGS ── */}
+      {view==="footings" && (
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 415 — Isolated Square Footings · ρ_min = 0.0018</div>
+          {ftRows.length === 0 ? (
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No footing data. Run computations first.</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {ftRows.map((ft,i)=>(
+                <div key={i} style={{background:T.card,border:"1px solid rgba(34,197,94,0.25)",borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{ft.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>
+                      {ft.B.toFixed(2)}m × {ft.B.toFixed(2)}m × d={ft.d.toFixed(0)}mm
+                    </span>
+                    <span style={{fontSize:11,color:T.muted}}>qa = {ft.qa} kPa</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Bottom Reinf. (Both Directions)</div>
+                      <BarTag dia={ft.bar.bar.dia} label={ft.bar.spacing}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        As req: <strong style={{color:T.text}}>{(ft.As/ft.B).toFixed(0)}</strong> mm²/m<br/>
+                        As prov: <strong style={{color:"#0696d7"}}>{ft.bar.As_prov.toFixed(0)}</strong> mm²/m
+                      </div>
+                    </div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Design Values</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
+                        qnet: {ft.qnet.toFixed(1)} kPa · qu: {ft.qu.toFixed(2)} kPa<br/>
+                        Mu: {ft.Mu_ft.toFixed(1)} kN·m · ρ: {(ft.rho_use*100).toFixed(4)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── SLABS ── */}
+      {view==="slabs" && (
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 409 — One-Way Slabs · ρ_temp = 0.0018</div>
+          {slabRows.length === 0 ? (
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No slab data. Run computations first.</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {slabRows.map((sl,i)=>(
+                <div key={i} style={{background:T.card,border:"1px solid rgba(34,197,94,0.25)",borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{sl.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>
+                      h={sl.h}mm · d={sl.d}mm · L={sl.L}m
+                    </span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Main Bars (Along Span)</div>
+                      <BarTag dia={sl.bar.bar.dia} label={sl.bar.spacing}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        As req: <strong style={{color:T.text}}>{sl.As.toFixed(0)}</strong> mm²/m<br/>
+                        As prov: <strong style={{color:"#0696d7"}}>{sl.bar.As_prov.toFixed(0)}</strong> mm²/m
+                      </div>
+                    </div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Temp. & Shrinkage Bars</div>
+                      <BarTag dia={sl.tempBar.bar.dia} label={sl.tempBar.spacing}/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        Perpendicular to span<br/>ρ_temp = 0.0018
+                      </div>
+                    </div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Loading</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
+                        DL: {sl.wDL} kPa · LL: {sl.wLL} kPa<br/>
+                        wu: {sl.wu.toFixed(2)} kPa · Mu: {sl.Mu.toFixed(1)} kN·m/m
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Disclaimer */}
+      <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
+        ⚠️ Bar sizes selected per NSCP 2015 / ASTM A615 / PNS 49 standard PH deformed bars. Verify development lengths (Sec. 412), lap splices, hooks, and seismic detailing (Sec. 421) per full design. All schedules must be stamped by a licensed PSCE before construction.
+      </div>
+    </div>
+  );
+}
+
 
 function StructiCode({ apiKey, initialTool }) {
   // ── Top-level 3 tools ──
@@ -4787,12 +5503,13 @@ function StructiCode({ apiKey, initialTool }) {
 
   // Sub-tool definitions
   const SUB_TOOLS = [
-    { key:"seismic", icon:"seismic", label:"Seismic Load",      code:"NSCP Sec. 208" },
-    { key:"beam",    icon:"beam",    label:"Beam Design",        code:"NSCP Sec. 406" },
-    { key:"column",  icon:"column",  label:"Column Design",      code:"NSCP Sec. 410" },
-    { key:"footing", icon:"footing", label:"Footing Design",     code:"NSCP Sec. 415" },
-    { key:"slab",    icon:"slab",    label:"Slab Design",        code:"NSCP Sec. 409" },
-    { key:"loads",   icon:"loads",   label:"Load Combinations",  code:"NSCP Sec. 203" },
+    { key:"seismic", icon:"seismic", label:"Seismic Load",       code:"NSCP Sec. 208" },
+    { key:"beam",    icon:"beam",    label:"Beam Design",         code:"NSCP Sec. 406" },
+    { key:"column",  icon:"column",  label:"Column Design",       code:"NSCP Sec. 410" },
+    { key:"footing", icon:"footing", label:"Footing Design",      code:"NSCP Sec. 415" },
+    { key:"slab",    icon:"slab",    label:"Slab Design",         code:"NSCP Sec. 409" },
+    { key:"loads",   icon:"loads",   label:"Load Combinations",   code:"NSCP Sec. 203" },
+    { key:"rebar",   icon:"report",  label:"Rebar Schedule",      code:"NSCP / PNS 49", noDataCheck:true },
   ];
 
   // Which sub-tools have extracted data
@@ -4804,6 +5521,7 @@ function StructiCode({ apiKey, initialTool }) {
     if (key==="footing") return !!(structuralData.footings?.length);
     if (key==="slab")    return !!(structuralData.slabs?.length&&structuralData.materials?.fc);
     if (key==="loads")   return !!(structuralData.loads?.floorDL);
+    if (key==="rebar")   return !!(structuralResults); // rebar needs computed results
     return false;
   };
 
@@ -4885,6 +5603,7 @@ function StructiCode({ apiKey, initialTool }) {
             {structuralResults && (
               <StructuralComputationSummary
                 results={structuralResults}
+                data={structuralData}
                 onNavigate={(key)=>setSubTool(key)}
               />
             )}
@@ -4957,6 +5676,7 @@ function StructiCode({ apiKey, initialTool }) {
               {subTool==="footing" && <FootingDesign  structuralData={structuralData}/>}
               {subTool==="slab"    && <SlabDesign     structuralData={structuralData}/>}
               {subTool==="loads"   && <LoadCombinations structuralData={structuralData}/>}
+              {subTool==="rebar"   && <RebarSchedule  structuralData={structuralData} structuralResults={structuralResults}/>}
             </div>
           )}
 
