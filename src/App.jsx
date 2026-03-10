@@ -3598,7 +3598,7 @@ CRITICAL OUTPUT RULES:
   const excessItems  = result?.excessItems   || [];
   const markup       = result?.markupAssessment;
   const aiBase       = result?.summary?.aiAdjustedEstimate || 0;
-  const adjustedTotal= computeAdjusted(aiBase);
+  const adjustedTotal= bomMfn(aiBase);
   const bomTotal     = result?.summary?.bomTotalEstimate || 0;
   const tradeScores  = result?.costBreakdown || {};  // keyed by trade, value is PHP amount
   const risk         = result?.summary?.contractorRisk;
@@ -3611,8 +3611,14 @@ CRITICAL OUTPUT RULES:
     const riskColor = RISK_COL_MAP[overallStatus] || "#64748b";
     const ITEM_STATUS_COL = { "OK":"#22c55e","OVER":"#f59e0b","UNDER":"#ef4444","MISSING":"#ef4444","EXCESS":"#94a3b8" };
     const SEV_COL = { "CRITICAL":"#ef4444","WARNING":"#f59e0b" };
-    const mRows = Object.entries(marginsState).map(([k,m]) =>
-      `<tr><td>${m.label}</td><td style="text-align:right">${m.pct}%</td><td style="text-align:right">${fmt(aiBase*(m.pct/100))}</td></tr>`).join("");
+    const mRows = [
+      ["Materials / Escalation", bomMarkup.materials],
+      ["Labor Markup",           bomMarkup.labor],
+      ["Overhead & Profit",      bomMarkup.overhead],
+      ["Contingency",            bomMarkup.contingency],
+    ].map(([label,pct]) =>
+      `<tr><td>${label}</td><td style="text-align:right;padding-left:16px;width:50px">${pct}%</td><td style="text-align:right;width:130px;font-family:monospace">${fmt(aiBase*(pct/100))}</td></tr>`
+    ).join("");
     const liRows = lineItems.map(li => {
       const costStatus = (li.unitCostBom && li.unitCostMarket)
         ? (li.unitCostBom > li.unitCostMarket*1.1 ? "HIGH" : li.unitCostBom < li.unitCostMarket*0.9 ? "LOW" : "OK")
@@ -3663,11 +3669,11 @@ CRITICAL OUTPUT RULES:
     ${result.summary.bomDateWarning ? `<p style="color:#d97706;background:#fef3c7;padding:8px 12px;border-radius:4px;margin-bottom:8px">📅 ${result.summary.bomDateWarning}</p>` : ""}
     ${result.priceEscalationWarning ? `<p style="color:#dc2626;background:#fee2e2;padding:8px 12px;border-radius:4px;margin-bottom:8px">📈 ${result.priceEscalationWarning}</p>` : ""}
     <h2>Cost Summary with Margins</h2>
-    <table style="width:360px"><tr><th>Item</th><th style="text-align:right">Amount</th></tr>
-    <tr><td>BOM Submitted Total</td><td style="text-align:right">${fmt(bomTotal)}</td></tr>
-    <tr><td>AI Validated Base</td><td style="text-align:right">${fmt(aiBase)}</td></tr>
+    <table style="width:420px"><tr><th>Item</th><th style="text-align:right;width:50px">%</th><th style="text-align:right;width:130px">Amount</th></tr>
+    <tr><td>BOM Submitted Total</td><td></td><td style="text-align:right;font-family:monospace">${fmt(bomTotal)}</td></tr>
+    <tr><td>AI Validated Base</td><td></td><td style="text-align:right;font-family:monospace">${fmt(aiBase)}</td></tr>
     ${mRows}
-    <tr class="total-row"><td>ADJUSTED TOTAL (with margins)</td><td style="text-align:right">${fmt(adjustedTotal)}</td></tr></table>
+    <tr class="total-row"><td colspan="2">ADJUSTED TOTAL (with margins)</td><td style="text-align:right;font-family:monospace">${fmt(adjustedTotal)}</td></tr></table>
     ${tradeRows ? `<h2>Cost Breakdown by Trade</h2><table style="width:400px"><tr><th>Trade</th><th style="text-align:right">Amount (PHP)</th></tr>${tradeRows}</table>` : ""}
     <h2>Markup Assessment</h2>
     <p>Observed: <strong>${markup?.observedMarkup||"—"}%</strong> &nbsp;·&nbsp; Recommended: <strong>${markup?.recommendedMarkup||"—"}%</strong> &nbsp;·&nbsp; Flag: <strong>${markup?.flag||"—"}</strong></p>
