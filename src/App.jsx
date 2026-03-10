@@ -3820,6 +3820,47 @@ CRITICAL OUTPUT RULES:
           </div>
         )}
 
+        {/* ── Markup & Contingency — set before running ── */}
+        {mode !== "generate" && (
+          <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
+            <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",cursor:"pointer",userSelect:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:12,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
+                <span style={{fontSize:10,color:T.muted}}>(applied to Adjusted Total in report)</span>
+                {bomTotalMarkupPct > 0.1 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:20,background:"rgba(6,150,215,0.12)",color:STR}}>+{bomTotalMarkupPct.toFixed(1)}%</span>}
+              </div>
+              <span style={{color:T.muted,fontSize:12}}>{showMarkup ? "▲" : "▼"}</span>
+            </div>
+            {showMarkup && (
+              <div style={{padding:"0 14px 14px",borderTop:`1px solid ${T.border}`}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:10,marginTop:8}}>Set before running the review. Applies to the Adjusted Total only — BOM Submitted and AI Base are never changed.</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                  {[["materials","Materials",STR],["labor","Labor","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
+                    <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px"}}>
+                      <div style={{fontSize:9,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:6}}>{label}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
+                          onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                          style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"5px 7px",color:T.text,fontSize:14,fontWeight:700,textAlign:"right",outline:"none"}}/>
+                        <span style={{fontSize:12,color:T.muted,fontWeight:700}}>%</span>
+                      </div>
+                      <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
+                        onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                        style={{width:"100%",marginTop:5,accentColor:color}}/>
+                    </div>
+                  ))}
+                </div>
+                {bomTotalMarkupPct > 0.1 && (
+                  <div style={{marginTop:10,background:"rgba(6,150,215,0.05)",border:`1px solid ${STR}22`,borderRadius:7,padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:11,color:T.muted}}>Combined multiplier on base estimate</span>
+                    <span style={{fontSize:13,fontWeight:800,color:STR}}>×{(1+bomTotalMarkupPct/100).toFixed(3)} (+{bomTotalMarkupPct.toFixed(1)}%)</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#0369a1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
           {busy ? (busyMsg||"⚙️ Processing…") : mode==="generate" ? "✨ Generate BOM from Plans" : mode==="generate" ? "✨ Generate BOM from Plans" : mode==="compare" ? "📋 Run BOM Comparison Review" : "📋 Run BOM Review"}
         </button>
@@ -3835,47 +3876,6 @@ CRITICAL OUTPUT RULES:
       {/* ── RESULTS ── */}
       {result && (
         <div style={{animation:"fadeIn 0.35s ease"}}>
-
-          {/* ── Markup & Contingency panel ── */}
-          {(result || (mode==="generate" && generateResult)) && (
-            <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
-              <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
-                  {bomTotalMarkupPct > 0.1 && <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(6,150,215,0.15)",color:STR}}>+{bomTotalMarkupPct.toFixed(1)}% applied</span>}
-                </div>
-                <span style={{color:T.muted,fontSize:13}}>{showMarkup ? "▲" : "▼"}</span>
-              </div>
-              {showMarkup && (
-                <div style={{padding:"0 16px 16px",borderTop:`1px solid ${T.border}`}}>
-                  <div style={{fontSize:11,color:T.muted,marginBottom:12,marginTop:10}}>Compounds on the base estimate. Use to account for price escalation, contractor margin, contingency, and VAT.</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                    {[["materials","Materials / Escalation",STR],["labor","Labor Markup","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
-                      <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:9,padding:"12px 14px"}}>
-                        <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
-                            onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                            style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
-                          <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
-                        </div>
-                        <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
-                          onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                          style={{width:"100%",marginTop:6,accentColor:color}}/>
-                      </div>
-                    ))}
-                  </div>
-                  {bomTotalMarkupPct > 0.1 && (
-                    <div style={{marginTop:12,background:"rgba(6,150,215,0.06)",border:`1px solid ${STR}22`,borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontSize:12,color:T.muted}}>Combined multiplier on base estimate</span>
-                      <span style={{fontSize:15,fontWeight:800,color:STR}}>×{(1+bomTotalMarkupPct/100).toFixed(3)} &nbsp;(+{bomTotalMarkupPct.toFixed(1)}%)</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Summary header card */}
           <Card style={{marginBottom:14,background:`${STATUS_COL[result.summary.overallStatus]}08`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
@@ -3894,11 +3894,11 @@ CRITICAL OUTPUT RULES:
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
                   <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
                     <div style={{fontSize:9,color:T.muted,marginBottom:2}}>BOM SUBMITTED</div>
-                    <div style={{fontSize:14,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{bomMf(bomTotal)}</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</div>
                   </div>
                   <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
                     <div style={{fontSize:9,color:T.muted,marginBottom:2}}>AI BASE</div>
-                    <div style={{fontSize:14,fontWeight:800,color:STR,fontFamily:"monospace"}}>{bomMf(aiBase)}</div>
+                    <div style={{fontSize:14,fontWeight:800,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</div>
                   </div>
                 </div>
                 <div style={{background:`${STR}12`,border:`1.5px solid ${STR}44`,borderRadius:9,padding:"11px 14px",textAlign:"right"}}>
@@ -3948,8 +3948,8 @@ CRITICAL OUTPUT RULES:
               <Card>
                 <Label>Cost Components</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{bomMf(bomTotal)}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{bomMf(aiBase)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span></div>
                   <div style={{height:1,background:T.border}}/>
                   {Object.entries(marginsState).map(([k,m])=>m.pct>0?(
                     <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",background:T.dim,borderRadius:7}}><span style={{fontSize:12,color:T.muted}}>{m.label} +{m.pct}%</span><span style={{fontSize:12,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(aiBase*(m.pct/100))}</span></div>
