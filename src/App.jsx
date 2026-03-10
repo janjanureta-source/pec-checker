@@ -3761,8 +3761,8 @@ CRITICAL OUTPUT RULES:
                 </div>
               )}
             </div>
-      </div>
       </>)}
+      </div>
 
       {result && (
         <div style={{display:"flex",justifyContent:"flex-end"}}>
