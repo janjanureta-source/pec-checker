@@ -3309,6 +3309,7 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   });
   const [showMargins, setShowMargins] = useState(false);
   const [busyMsg,     setBusyMsg]     = useState("");
+  const [debugInfo,   setDebugInfo]   = useState("");
 
   const planRef = useRef(null);
   const bomRef  = useRef(null);
@@ -3408,7 +3409,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
 
     // ── GENERATE MODE ────────────────────────────────────────────────────────
     if (mode === "generate") {
-      setBusy(true); setError(null); setGenerateResult(null);
+      setBusy(true); setError(null); setGenerateResult(null); setDebugInfo("");
       try {
         const planBlocks = await encodeFiles(planFiles, "PLAN");
         const userMsg = [...planBlocks, { type:"text", text:`Generate a complete Bill of Materials and Quantities from these engineering plans.
@@ -3423,21 +3424,35 @@ CRITICAL OUTPUT RULES:
 - Every lineItem MUST have: trade, description, unit, qty, unitRateLow, unitRateHigh, totalLow, totalHigh.
 - qtyBasis is required for all concrete and rebar items. Optional for others.` }];
         setBusyMsg("📐 AI is reading plans and computing quantities…"); await tick();
+        setBusyMsg("🤖 Generating BOM — this takes 30–60 seconds for detailed plans…"); await tick();
         const data = await callAI({ apiKey, system:BOM_GENERATE_PROMPT, messages:[{ role:"user", content:userMsg }], max_tokens:16000 });
-        const raw  = data.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
-        // Check for truncation (stop_reason = max_tokens)
+        // Debug: log raw API response to console
+        console.log("[BOM Generate] stop_reason:", data.stop_reason);
+        console.log("[BOM Generate] content blocks:", data.content?.length);
+        console.log("[BOM Generate] error:", data.error);
+        if (data.error) {
+          setDebugInfo(`API error: ${JSON.stringify(data.error)}`);
+          throw new Error(`API error: ${data.error.message || JSON.stringify(data.error)}`);
+        }
+        if (!data.content?.length) throw new Error(`No content returned from API. Response: ${JSON.stringify(data).slice(0,200)}`);
+        const raw  = data.content.map(b => b.text||"").join("").replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
+        console.log("[BOM Generate] raw length:", raw.length, "| first 200:", raw.slice(0,200));
         const stopReason = data.stop_reason;
         let parsed;
         try { parsed = JSON.parse(raw); }
-        catch {
-          // Try repairing truncated JSON
+        catch(parseErr) {
+          console.warn("[BOM Generate] JSON.parse failed:", parseErr.message);
+          console.log("[BOM Generate] Attempting repair...");
           parsed = repairBomJSON(raw);
           if (!parsed) {
             const hint = stopReason === "max_tokens"
-              ? "The response was too long and got cut off. Try uploading fewer plan sheets, or use simpler plans."
-              : `JSON parse error. Raw response starts with: ${raw.slice(0,120)}`;
+              ? "Output too long — try uploading fewer plan sheets (2–3 pages max). Detailed multi-page plans may exceed the token limit."
+              : `Parse failed. stop_reason=${stopReason}. First 200 chars: ${raw.slice(0,200)}`;
+            console.error("[BOM Generate] Unrecoverable:", hint);
+            setDebugInfo(`stop_reason: ${stopReason} | raw[0:300]: ${raw.slice(0,300)}`);
             throw new Error(hint);
           }
+          console.log("[BOM Generate] JSON repaired successfully");
         }
         setGenerateResult(parsed);
         addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed?.summary?.projectName||"BOM Generated", meta:{ totalHigh:parsed?.summary?.totalCostHigh, findings:parsed?.lineItems?.length||0, summary:parsed?.summary?.notes||"" } });
@@ -3615,7 +3630,7 @@ CRITICAL OUTPUT RULES:
   const handleNewBOM = () => {
     setResult(null); setCompareResult(null); setGenerateResult(null);
     setPlanFiles([]); setBomFiles([]); setBomFiles2([]);
-    setError(null);
+    setError(null); setDebugInfo("");
     // Session stays in localStorage so history cards can reopen it
   };
 
@@ -3715,6 +3730,12 @@ CRITICAL OUTPUT RULES:
         </div>)}
 
         {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
+        {error && debugInfo && (
+          <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontFamily:"monospace",fontSize:11,color:"#94a3b8",lineHeight:1.6,wordBreak:"break-all"}}>
+            <div style={{color:"#f59e0b",fontWeight:700,marginBottom:4}}>🔍 Debug info (share with support):</div>
+            {debugInfo}
+          </div>
+        )}
         {mode === "generate" && !generateResult && !busy && (
           <div style={{background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,padding:"12px 16px",marginBottom:12,fontSize:12.5,color:T.muted,lineHeight:1.6}}>
             <span style={{fontWeight:700,color:STR}}>✨ BOM Generator</span> — Upload your engineering plans and the AI will compute all quantities and produce a complete Bill of Materials from scratch. No existing BOM needed.
