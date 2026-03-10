@@ -3022,42 +3022,94 @@ function LoadCombinations({ structuralData }) {
 }
 
 // ─── BOM REVIEW DATA ─────────────────────────────────────────────────────────
-const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines. Generate a complete Bill of Materials and Quantities (BOQ/BOM) from the uploaded engineering plans.
+const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines. Your job is to produce a CONTRACTOR-READY Bill of Materials (BOM/BOQ) from uploaded engineering plans — detailed enough that a contractor can use it directly to procure materials and price labor.
 
-REFERENCES (2025 NCR market rates):
-- Ready-mix concrete: P5,500-7,000/m3 | Steel rebar: P55-65/kg | CHB: P18-22/pc
+REFERENCES (2025 NCR market rates — materials only unless stated):
+- Ready-mix concrete f'c=20.7MPa: P5,500-6,500/m3 | f'c=24MPa: P6,000-7,000/m3 | f'c=28MPa: P6,500-7,500/m3
+- Steel rebar 10mm: P52-58/kg | 12mm: P54-60/kg | 16mm: P56-62/kg | 20mm: P58-65/kg
+- CHB 4": P13-16/pc | CHB 5": P16-19/pc | CHB 6": P18-22/pc
 - Cement: P270-310/bag | Sand: P1,200-1,800/m3 | Gravel: P1,500-2,200/m3
-- Ceramic tiles: P350-600/sqm | Paint: P180-320/L | THHN wire #12 AWG: P38-55/m
+- Marine plywood 3/4": P950-1,200/sht | Ordinary plywood 1/2": P550-700/sht
+- Ceramic tiles 30x30: P280-350/m2 | 30x60: P380-500/m2 | 60x60: P450-650/m2
+- Tile adhesive: P280-320/bag | Tile grout: P120-160/bag
+- Paint latex interior: P85-130/m2 | Exterior: P120-180/m2 | Skim coat: P80-120/m2
+- Gypsum board 9mm: P480-550/sht | Metal furring: P120-160/pc | Wall angle: P55-70/pc
+- THHN wire 2.0mm2: P22-28/m | 3.5mm2: P38-48/m | 5.5mm2: P60-75/m | 14mm2: P130-160/m
+- PVC conduit 1/2": P55-70/pc(10ft) | Junction box 4x4: P38-50/pc | Utility box 2x4: P28-38/pc
+- PPR pipe 18mm: P280-350/6m | 12mm: P180-220/6m
+- PVC pipe 4": P420-520/6m | 3": P280-360/6m | 2": P180-230/6m
+- Roofing GA26 long-span: P320-420/lm | Gutter 16": P750-950/pc | Flashing: P850-1100/pc
+- GI tie wire: P1,300-1,600/bundle | Common nails: P90-110/kg
 
-PROCESS:
-1. Read ALL plan pages — floor plans, sections, elevations, schedules, details.
-2. Extract all dimensions, areas, counts visible in the plans.
-3. Compute quantities using proper takeoff methodology:
-   - Concrete volume: L x W x D per element
-   - Rebar weight: 0.00617 x dia2 x total length in kg
-   - CHB walls: wall area / 0.04 m2 per block x 1.05 waste factor
-   - Formworks: exposed concrete surfaces
-   - Floor finishes: net floor area after deducting walls and openings
-4. Assign unit rates from DPWH Blue Book and current NCR market (2025).
-5. Show both low (basic) and high (good quality) rate ranges.
-6. For items not measurable from plans, note the basis and use conservative estimates.
+PROCESS — follow each step:
+1. READ every plan sheet: architectural, structural, electrical, plumbing, site plan.
+2. For each STRUCTURAL ELEMENT, take off quantities separately:
+   - Concrete: compute volume per element (footing, tie beam, column per floor, beam per floor, slab per floor, stair)
+   - Rebar: count bars by ELEMENT and DIAMETER in both PIECES (pcs) and KG (kg = 0.00617 x dia_mm^2 x length_m). Include 40-dia lap splices.
+   - Formworks: compute exposed surface area per element type
+3. For ARCHITECTURAL, list separately:
+   - Ceiling system: furring (double/single), wall angle, carrying channel, gypsum board (count sheets), spandrel
+   - Flooring: separate by tile size and area (main, T&B, balcony/stair); add tile adhesive (1 bag per 4m2) and waterproofing
+   - Painting: separate interior walls, exterior walls, ceiling; add skim coat as its own line (same areas as paint)
+   - Doors: list by type from door schedule (D1, D2, etc.) with size and count
+   - Windows: list by type from window schedule (W1, W2, etc.)
+   - Railings: stair railing, balcony railing — itemize tubular, glass, hardware
+   - Kitchen/cabinets: include if visible in plans; if not detailed, add as allowance item
+   - Secondary structures: ALWAYS check for fence/gate, carport, canopy, dirty kitchen, laundry area
+4. For PLUMBING, list individually:
+   - Water supply: PPR pipe by size and length, gate valves, check valves, PPR accessories, angle valves
+   - Drainage: PVC pipe by diameter and length, PVC accessories per size, catch basins
+   - Fixtures: every fixture type with count (water closet, lavatory, kitchen sink, shower, grease trap, floor drain)
+   - Septic tank: per unit as shown
+   - Miscellaneous: adhesive, tape, clamps — include as line items
+5. For ELECTRICAL, list individually:
+   - Service entrance: main feeder wire size and length, RSC pipe, entrance cap, main box
+   - Panel boards: with breaker count and rating
+   - Branch circuit breakers: list by amperage and pole
+   - Conduit: PVC conduit by size, count from electrical layout
+   - Boxes: junction boxes, pull boxes, utility boxes — count from layout
+   - Wires: by gauge (THHN 2.0mm2, 3.5mm2, 5.5mm2) with estimated lengths in meters
+   - Switches: 1-gang, 2-gang, 3-gang, 3-way — count from layout
+   - Outlets: convenience, ACU, ref, range — count from layout
+   - Lighting: downlights, wall lights, dropped — count from fixture layout
+   - Special: exhaust fans, telephone outlets, cable TV outlets
+   - Miscellaneous: hanger, clamp, tape, PVC cement
+6. For CONSUMABLES AND ACCESSORIES: Always include GI tie wire, common nails, cutting disc/grinding, PVC cement as line items.
+7. OWNER-SUPPLIED items: flag as "owner supply" with P0 cost but include in the list so nothing is forgotten.
+8. For DUPLEX or multi-unit buildings: clearly state if quantities are PER UNIT or TOTAL. State at the top of the summary.
+
+CONCRETE ELEMENT BREAKDOWN (always use these element names):
+- Footing (specify type: FDN, isolated, combined)
+- Footing Tie Beam
+- Column — GF to 2F
+- Column — 2F to RF
+- Slab on Grade / GF Slab
+- 2nd Floor Slab
+- Roof Slab (if applicable)
+- Beam — 2F Level
+- Roof Beam / RB
+- Stairs
 
 TRADE CATEGORIES (use these exact names):
 1. General Requirements | 2. Earthworks & Site Development | 3. Concrete Works
 4. Reinforcement Steel | 5. Formworks & Scaffolding | 6. Masonry Works
-7. Roofing & Waterproofing | 8. Doors & Windows | 9. Architectural Finishes
-10. Plumbing & Sanitary Works | 11. Electrical Works | 12. Contingency & Miscellaneous
+7. Roofing Works | 8. Ceiling Works | 9. Flooring Works
+10. Doors & Windows | 11. Painting & Skim Coat | 12. Railings & Accessories
+13. Kitchen & Cabinetry | 14. Secondary Structures (Fence, Carport, Canopy)
+15. Plumbing & Sanitary Works | 16. Electrical Works | 17. Contingency & Miscellaneous
 
-Respond ONLY as valid JSON (no markdown, no backticks):
+Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
 {
   "summary": {
-    "projectName": "string or null",
+    "projectName": "string from title block or null",
     "projectType": "Residential|Commercial|Industrial|Institutional|Mixed-Use",
     "projectLocation": "city/province or null",
     "totalFloorArea": 0,
-    "floorAreaBreakdown": "e.g. Ground 259sqm + 2nd Floor 176sqm",
+    "floorAreaBreakdown": "e.g. Ground Floor 259.20sqm + Second Floor 176.10sqm = 435.30sqm",
     "numberOfStoreys": 0,
-    "structuralSystem": "Reinforced Concrete|Steel Frame|Masonry|Mixed",
+    "numberOfUnits": 1,
+    "scopeNote": "e.g. Quantities cover BOTH units of a duplex. or PER UNIT quantities.",
+    "structuralSystem": "Reinforced Concrete Frame|Steel Frame|Masonry|Mixed",
     "finishLevel": "Basic|Standard|High-end",
     "overallStatus": "COMPLETE|PARTIAL",
     "totalCostLow": 0,
@@ -3065,23 +3117,25 @@ Respond ONLY as valid JSON (no markdown, no backticks):
     "totalCostMid": 0,
     "costPerSqmLow": 0,
     "costPerSqmHigh": 0,
-    "notes": "2-3 sentence summary of takeoff methodology and assumptions",
-    "limitations": ["items that could not be quantified from plans"]
+    "notes": "2-3 sentence summary of takeoff methodology and key assumptions",
+    "limitations": ["specific items that could not be quantified from plans — needs field measurement or additional drawings"]
   },
   "lineItems": [
     {
       "id": 1,
       "trade": "exact trade name from list above",
-      "itemCode": "DPWH pay item code or null",
-      "description": "specific item description",
-      "specification": "material spec or null",
-      "unit": "m3|m2|kg|ln.m|set|lot|pc|bag|sheet",
+      "subCategory": "e.g. Footing, Columns GF-2F, Main Feeder, Service Entrance",
+      "itemCode": "DPWH pay item code if applicable or null",
+      "description": "specific item description e.g. Ready-mix concrete for Footings, f'c=20.7MPa",
+      "specification": "e.g. f'c=20.7MPa (3000psi), 40mm aggregate or null",
+      "unit": "m3|m2|kg|pcs|ln.m|set|lot|bag|sheet|roll|m",
       "qty": 0,
-      "qtyBasis": "how this was computed",
+      "qtyBasis": "how this was computed e.g. F1: 16pcs x 1.8m x 1.8m x 0.45m = 23.3m3",
       "unitRateLow": 0,
       "unitRateHigh": 0,
       "totalLow": 0,
       "totalHigh": 0,
+      "isOwnerSupply": false,
       "confidence": "HIGH|MEDIUM|LOW",
       "confidenceNote": "brief note if not HIGH"
     }
@@ -4117,6 +4171,11 @@ Read every plan sheet. Compute quantities for all visible elements. Return only 
               </div>
             </div>
 
+            {s.scopeNote && (
+              <div style={{background:"rgba(217,119,6,0.08)",border:"1px solid rgba(217,119,6,0.2)",borderRadius:10,padding:"10px 16px",marginBottom:10,fontSize:12.5,fontWeight:600,color:"#d97706"}}>
+                ⚠️ {s.scopeNote}
+              </div>
+            )}
             {s.notes && (
               <div style={{background:`${STR}08`,border:`1px solid ${STR}22`,borderRadius:10,padding:"11px 16px",marginBottom:14,fontSize:12.5,color:T.muted,lineHeight:1.6}}>{s.notes}</div>
             )}
@@ -4164,7 +4223,8 @@ Read every plan sheet. Compute quantities for all visible elements. Return only 
                       <tr key={i} style={{background:i%2===0?"rgba(255,255,255,0.01)":"rgba(255,255,255,0.03)",borderBottom:`1px solid ${T.border}`}}>
                         <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.trade}</td>
                         <td style={{padding:"8px 10px"}}>
-                          <div style={{fontWeight:600,color:T.text}}>{item.description}</div>
+                          <div style={{fontWeight:600,color:T.text}}>{item.isOwnerSupply && <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,background:"rgba(100,116,139,0.15)",color:"#94a3b8",marginLeft:6}}>OWNER SUPPLY</span>}{item.description}</div>
+                          {item.subCategory && <div style={{fontSize:10,fontWeight:600,color:`${STR}99`,marginTop:1}}>{item.subCategory}</div>}
                           {item.specification && <div style={{fontSize:10,color:T.muted,marginTop:1}}>{item.specification}</div>}
                           {item.qtyBasis && <div style={{fontSize:10,color:`${STR}99`,marginTop:1}}>{item.qtyBasis}</div>}
                         </td>
