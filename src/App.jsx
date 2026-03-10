@@ -7321,128 +7321,157 @@ function runElecComputations(electricalData, calcStates) {
 }
 
 // ─── ELEC INTELLIGENCE PANEL ─────────────────────────────────────────────────
+// ─── ELEC INTELLIGENCE PANEL ─────────────────────────────────────────────────
 function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll, onNavigate }) {
-  const [expanded, setExpanded] = useState(false);
   const ACCENT = "#ff6b2b";
 
-  const sys = data?.system || {};
-  const vd  = data?.voltageDrop || {};
-  const sc  = data?.shortCircuit || {};
-  const lc  = data?.loadCalc || {};
-  const ps  = data?.panel || {};
-  const cf  = data?.conduit || {};
-  const amp = data?.ampacity || {};
+  const sys = data?.system        || {};
+  const vd  = data?.voltageDrop   || {};
+  const sc  = data?.shortCircuit  || {};
+  const lc  = data?.loadCalc      || {};
+  const ps  = data?.panel         || {};
+  const cf  = data?.conduit       || {};
+  const amp = data?.ampacity      || {};
 
-  const readiness = [
-    { key:"vdrop",    label:"Voltage Drop",   ok: !!(vd.voltage && vd.current && vd.wireSize), detail: vd.wireSize ? `#${vd.wireSize} AWG, ${vd.current}A` : "" },
-    { key:"fault",    label:"Short Circuit",  ok: !!(sc.voltage && sc.xfmrKVA),               detail: sc.xfmrKVA ? `${sc.xfmrKVA}kVA xfmr` : "" },
-    { key:"load",     label:"Load Calc",      ok: !!(lc.loads?.length),                        detail: lc.loads?.length ? `${lc.loads.length} loads` : "" },
-    { key:"panel",    label:"Panel Schedule", ok: !!(ps.circuits?.length || ps.mainBreaker),   detail: ps.circuits?.length ? `${ps.circuits.length} circuits` : ps.mainBreaker ? `${ps.mainBreaker}A main` : "" },
-    { key:"conduit",  label:"Conduit Fill",   ok: !!(cf.conductors?.length),                   detail: cf.conductors?.length ? `${cf.conductors.length} conductor(s)` : "" },
-    { key:"ampacity", label:"Ampacity",        ok: !!(amp.wireSize && amp.loadCurrent),         detail: amp.wireSize ? `#${amp.wireSize} AWG, ${amp.loadCurrent}A` : "" },
+  const READINESS = [
+    { key:"vdrop",    icon:"vdrop",    label:"Voltage Drop",      code:"PEC Art. 2.30",
+      ok: !!(vd.voltage && vd.current && vd.wireSize),
+      detail: vd.wireSize ? `#${vd.wireSize} AWG · ${vd.current}A · ${vd.length}m` : null,
+      missing: !vd.voltage ? "No system voltage found" : !vd.current ? "No load current found" : "No wire size found" },
+    { key:"fault",    icon:"fault",    label:"Short Circuit",     code:"PEC Art. 2.40",
+      ok: !!(sc.voltage && sc.xfmrKVA),
+      detail: sc.xfmrKVA ? `${sc.xfmrKVA}kVA xfmr · ${sc.xfmrZ||4}%Z` : null,
+      missing: !sc.xfmrKVA ? "No transformer kVA found in plans" : "No system voltage" },
+    { key:"load",     icon:"load",     label:"Load Calculator",   code:"PEC Art. 2.20",
+      ok: !!(lc.loads?.length),
+      detail: lc.loads?.length ? `${lc.loads.length} loads · ${lc.occupancy||"residential"}` : null,
+      missing: "No load schedule found in plans" },
+    { key:"panel",    icon:"panel",    label:"Panel Schedule",    code:"PEC Art. 2.20",
+      ok: !!(ps.circuits?.length || ps.mainBreaker),
+      detail: ps.circuits?.length ? `${ps.circuits.length} circuits · ${ps.mainBreaker||"?"}A main` : ps.mainBreaker ? `${ps.mainBreaker}A main breaker` : null,
+      missing: "No panelboard schedule found in plans" },
+    { key:"conduit",  icon:"conduit",  label:"Conduit Fill",      code:"PEC Art. 3.50",
+      ok: !!(cf.conductors?.length),
+      detail: cf.conductors?.length ? `${cf.conductors.reduce((s,c)=>s+(+c.qty||1),0)} conductors in ${cf.conduitSize||"?"} ${cf.conduitType||""}` : null,
+      missing: "No conduit schedule found in plans" },
+    { key:"ampacity", icon:"ampacity", label:"Ampacity Derating", code:"PEC Table 3.10",
+      ok: !!(amp.wireSize && amp.loadCurrent),
+      detail: amp.wireSize ? `#${amp.wireSize} AWG · ${amp.loadCurrent}A load · ${amp.ambient||30}°C` : null,
+      missing: !amp.wireSize ? "No conductor size found" : "No load current found" },
   ];
 
-  const readyCount = readiness.filter(r=>r.ok).length;
+  const readyCount = READINESS.filter(r=>r.ok).length;
 
-  const getItemStatus = (key) => {
-    if (!elecResults) return null;
-    const item = elecResults.items.find(i=>i.tool===key);
-    if (!item) return null;
-    return item.status === "PASS" || item.status === "COMPUTED" ? "pass"
-         : item.status === "FAIL" ? "fail"
-         : item.status === "WARNING" ? "warn" : null;
+  const getResult = (key) => elecResults?.items.find(i => i.tool === key);
+  const statusCfg = {
+    PASS:     { bg:"rgba(34,197,94,0.12)",  color:"#22c55e", border:"rgba(34,197,94,0.3)",  label:"✓ PASS"     },
+    FAIL:     { bg:"rgba(239,68,68,0.12)",  color:"#ef4444", border:"rgba(239,68,68,0.3)",  label:"✗ FAIL"     },
+    WARNING:  { bg:"rgba(245,158,11,0.12)", color:"#f59e0b", border:"rgba(245,158,11,0.3)", label:"⚠ WARNING"  },
+    COMPUTED: { bg:"rgba(6,150,215,0.12)",  color:"#0696d7", border:"rgba(6,150,215,0.3)",  label:"✓ COMPUTED" },
   };
-  const statusColor = { pass:"#22c55e", fail:"#ef4444", warn:"#f59e0b", computed:"#0696d7" };
 
   return (
-    <div style={{marginBottom:20,background:`linear-gradient(135deg,rgba(255,107,43,0.05),rgba(255,107,43,0.02))`,
-      border:`1.5px solid rgba(255,107,43,0.2)`,borderRadius:14,overflow:"hidden"}}>
+    <div style={{marginBottom:16,background:T.card,border:`1.5px solid rgba(255,107,43,0.25)`,borderRadius:14,overflow:"hidden"}}>
 
-      {/* Header row */}
-      <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",cursor:"pointer"}}
-        onClick={()=>setExpanded(p=>!p)}>
+      {/* ── Header ── */}
+      <div style={{padding:"14px 18px",background:"linear-gradient(135deg,rgba(255,107,43,0.07),rgba(255,107,43,0.03))",
+        borderBottom:`1px solid rgba(255,107,43,0.15)`,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div style={{width:32,height:32,borderRadius:9,background:"linear-gradient(135deg,#ff6b2b,#e85520)",
           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <Icon name="electrical" size={17} color="#fff"/>
         </div>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontWeight:800,fontSize:14,color:T.text}}>
-            {sys.projectName || "Electrical Project"}
-          </div>
+          <div style={{fontWeight:800,fontSize:14,color:T.text}}>{sys.projectName||"Electrical Project"}</div>
           <div style={{fontSize:11,color:T.muted,marginTop:1}}>
-            {sys.voltage}V · {sys.phases===3?"3φ":"1φ"} · {sys.occupancy || "residential"}
+            {[sys.voltage&&`${sys.voltage}V`, sys.phases===3?"3φ":"1φ", sys.occupancy].filter(Boolean).join(" · ")}
           </div>
         </div>
-        {/* Readiness pills */}
-        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontSize:11,color:T.muted}}>{readyCount}/{readiness.length} calculators populated</span>
-          <div style={{display:"flex",gap:4}}>
-            {readiness.map(r=>{
-              const st = getItemStatus(r.key);
-              const color = st ? statusColor[st] : r.ok ? "#22c55e" : T.border;
-              return (
-                <div key={r.key} title={r.label+(r.detail?` — ${r.detail}`:"")}
-                  style={{width:10,height:10,borderRadius:"50%",background:color,
-                    boxShadow:r.ok?`0 0 5px ${color}40`:"none",transition:"all 0.2s"}}/>
-              );
-            })}
-          </div>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           {elecResults && (
-            <div style={{display:"flex",gap:6}}>
-              {elecResults.summary.passCount>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"rgba(34,197,94,0.12)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.2)"}}>✓ {elecResults.summary.passCount} Pass</span>}
-              {elecResults.summary.failCount>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"rgba(239,68,68,0.12)",color:"#ef4444",border:"1px solid rgba(239,68,68,0.2)"}}>✗ {elecResults.summary.failCount} Fail</span>}
-              {elecResults.summary.warnCount>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"rgba(245,158,11,0.12)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.2)"}}> ⚠ {elecResults.summary.warnCount} Warn</span>}
-            </div>
+            <>
+              {elecResults.summary.passCount>0 && <span style={{fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:8,background:"rgba(34,197,94,0.12)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)"}}>✓ {elecResults.summary.passCount} Pass</span>}
+              {elecResults.summary.failCount>0 && <span style={{fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:8,background:"rgba(239,68,68,0.12)",color:"#ef4444",border:"1px solid rgba(239,68,68,0.25)"}}>✗ {elecResults.summary.failCount} Fail</span>}
+              {elecResults.summary.warnCount>0 && <span style={{fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:8,background:"rgba(245,158,11,0.12)",color:"#f59e0b",border:"1px solid rgba(245,158,11,0.25)"}}>⚠ {elecResults.summary.warnCount} Warn</span>}
+            </>
           )}
-        </div>
-        {/* Run All + Clear */}
-        <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
           <button onClick={onRunAll} disabled={readyCount===0||runState?.running}
-            style={{padding:"7px 14px",borderRadius:8,border:"none",
-              background:readyCount>0?`linear-gradient(135deg,${ACCENT},#e85520)`:"rgba(255,107,43,0.2)",
-              color:readyCount>0?"#fff":"rgba(255,107,43,0.4)",cursor:readyCount>0?"pointer":"not-allowed",
-              fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6,transition:"all 0.15s"}}>
-            {runState?.running ? "⟳ Running…" : "▶ Run All Checks"}
+            style={{padding:"8px 16px",borderRadius:9,border:"none",
+              background:readyCount>0?`linear-gradient(135deg,${ACCENT},#e85520)`:"rgba(100,116,139,0.2)",
+              color:readyCount>0?"#fff":"#64748b",cursor:readyCount>0?"pointer":"not-allowed",
+              fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+            {runState?.running
+              ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span> Running…</>
+              : `▶ Run All Checks (${readyCount}/${READINESS.length})`}
           </button>
-          <button onClick={onClear}
+          <button onClick={onClear} title="Clear extracted data"
             style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",
-              color:T.muted,cursor:"pointer",fontSize:12}}>✕</button>
+              color:T.muted,cursor:"pointer",fontSize:13}}>✕</button>
         </div>
-        <span style={{color:T.muted,fontSize:12,flexShrink:0}}>{expanded?"▲":"▼"}</span>
       </div>
 
-      {/* Expanded detail */}
-      {expanded && (
-        <div style={{padding:"0 18px 16px",borderTop:`1px solid rgba(255,107,43,0.12)`}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8,marginTop:14}}>
-            {readiness.map(r=>{
-              const st = getItemStatus(r.key);
-              const color = st ? statusColor[st] : r.ok ? "#22c55e" : T.muted;
-              const item  = elecResults?.items.find(i=>i.tool===r.key);
-              return (
-                <button key={r.key} onClick={()=>onNavigate(r.key)}
-                  style={{background:T.dim,border:`1px solid ${r.ok?"rgba(34,197,94,0.2)":T.border}`,
-                    borderRadius:9,padding:"10px 12px",textAlign:"left",cursor:"pointer",transition:"all 0.15s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=r.ok?"rgba(34,197,94,0.2)":T.border;}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:11,fontWeight:700,color:T.text}}>{r.label}</span>
-                    {r.ok && !st && <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 4px #22c55e"}}/>}
-                    {st && <span style={{fontSize:9,fontWeight:800,padding:"1px 5px",borderRadius:5,
-                      background:st==="pass"?"rgba(34,197,94,0.12)":st==="fail"?"rgba(239,68,68,0.12)":"rgba(245,158,11,0.12)",
-                      color:st==="pass"?"#22c55e":st==="fail"?"#ef4444":"#f59e0b"}}>
-                      {st==="pass"?"✓ PASS":st==="fail"?"✗ FAIL":"⚠ WARN"}
-                    </span>}
-                    {!r.ok && !st && <span style={{fontSize:9,color:T.muted}}>No data</span>}
-                  </div>
-                  <div style={{fontSize:10,color:T.muted}}>{item ? item.detail : r.detail || "—"}</div>
-                  {item?.value && <div style={{fontSize:13,fontWeight:800,color,fontFamily:"monospace",marginTop:3}}>{item.value}</div>}
-                </button>
-              );
-            })}
-          </div>
+      {/* ── Calculator status grid — ALWAYS VISIBLE ── */}
+      <div style={{padding:"14px 18px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12}}>
+          Calculator Status — {readyCount} of {READINESS.length} populated from plans
         </div>
-      )}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+          {READINESS.map(r => {
+            const result = getResult(r.key);
+            const hasSt  = !!result;
+            const stCfg  = hasSt ? statusCfg[result.status] : null;
+            const cardBorder = hasSt ? stCfg.border : r.ok ? "rgba(34,197,94,0.3)" : T.border;
+            const cardBg     = hasSt ? stCfg.bg     : r.ok ? "rgba(34,197,94,0.04)" : "transparent";
+            return (
+              <button key={r.key} onClick={()=>onNavigate(r.key)}
+                style={{background:cardBg,border:`1.5px solid ${cardBorder}`,borderRadius:10,
+                  padding:"12px 14px",textAlign:"left",cursor:"pointer",transition:"all 0.15s",width:"100%"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.background="rgba(255,107,43,0.06)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=cardBorder;e.currentTarget.style.background=cardBg;}}>
+
+                {/* Tool name row */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7}}>
+                    <Icon name={r.icon} size={13} color={hasSt?stCfg.color:r.ok?"#22c55e":T.muted}/>
+                    <span style={{fontWeight:800,fontSize:12,color:T.text}}>{r.label}</span>
+                  </div>
+                  {/* Status badge */}
+                  {hasSt ? (
+                    <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:6,
+                      background:stCfg.bg,color:stCfg.color,border:`1px solid ${stCfg.border}`}}>
+                      {stCfg.label}
+                    </span>
+                  ) : r.ok ? (
+                    <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6,
+                      background:"rgba(34,197,94,0.1)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.2)"}}>
+                      📥 DATA READY
+                    </span>
+                  ) : (
+                    <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6,
+                      background:"rgba(100,116,139,0.1)",color:T.muted,border:`1px solid ${T.border}`}}>
+                      ⊘ NO DATA
+                    </span>
+                  )}
+                </div>
+
+                {/* Result value (after run) */}
+                {result?.value && (
+                  <div style={{fontSize:22,fontWeight:900,color:stCfg?.color||T.text,fontFamily:"monospace",lineHeight:1,marginBottom:4}}>
+                    {result.value}
+                  </div>
+                )}
+
+                {/* Detail or missing reason */}
+                <div style={{fontSize:11,color:r.ok?T.muted:"#ef444480",lineHeight:1.4}}>
+                  {result?.detail || (r.ok ? r.detail : `⚠ ${r.missing}`)}
+                </div>
+
+                {/* PEC reference */}
+                <div style={{fontSize:10,color:"rgba(255,107,43,0.5)",marginTop:5,fontWeight:600}}>{r.code}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -7452,94 +7481,130 @@ function ElecComputationSummary({ results, data, onNavigate }) {
   if (!results) return null;
   const ACCENT = "#ff6b2b";
 
-  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", WARNING:"#f59e0b", COMPUTED:"#0696d7", ERROR:"#f59e0b" };
-  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", WARNING:"rgba(245,158,11,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)" };
-  const toolLabel   = { vdrop:"Voltage Drop", fault:"Short Circuit", load:"Load Calc", panel:"Panel Schedule", conduit:"Conduit Fill", ampacity:"Ampacity Derating" };
-  const toolCode    = { vdrop:"PEC Art. 2.30", fault:"PEC Art. 2.40", load:"PEC Art. 2.20", panel:"PEC Art. 2.20", conduit:"PEC Art. 3.50", ampacity:"PEC Table 3.10" };
-  const toolIcon    = { vdrop:"vdrop", fault:"fault", load:"load", panel:"panel", conduit:"conduit", ampacity:"ampacity" };
+  const statusCfg = {
+    PASS:     { bg:"rgba(34,197,94,0.1)",  color:"#22c55e", border:"rgba(34,197,94,0.25)",  label:"✓ PASS"     },
+    FAIL:     { bg:"rgba(239,68,68,0.1)",  color:"#ef4444", border:"rgba(239,68,68,0.25)",  label:"✗ FAIL"     },
+    WARNING:  { bg:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"rgba(245,158,11,0.25)", label:"⚠ WARNING"  },
+    COMPUTED: { bg:"rgba(6,150,215,0.1)",  color:"#0696d7", border:"rgba(6,150,215,0.25)",  label:"✓ COMPUTED" },
+  };
+  const toolLabel = { vdrop:"Voltage Drop", fault:"Short Circuit", load:"Load Calc", panel:"Panel Schedule", conduit:"Conduit Fill", ampacity:"Ampacity Derating" };
+  const toolCode  = { vdrop:"PEC Art. 2.30", fault:"PEC Art. 2.40", load:"PEC Art. 2.20", panel:"PEC Art. 2.20", conduit:"PEC Art. 3.50", ampacity:"PEC Table 3.10" };
+  const toolIcon  = { vdrop:"vdrop", fault:"fault", load:"load", panel:"panel", conduit:"conduit", ampacity:"ampacity" };
 
   const { passCount, failCount, warnCount, totalRun } = results.summary;
   const projName = data?.system?.projectName || "Electrical Project";
+  const overallOk = failCount === 0;
 
   const exportReport = () => {
     const w    = window.open("","_blank");
     const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
-    const rows = results.items.map(item=>`
-      <tr>
-        <td><b>${toolLabel[item.tool]||item.tool}</b></td>
-        <td style="font-family:monospace;font-size:12px">${item.id}</td>
-        <td style="font-family:monospace;font-weight:700">${item.value||"—"}</td>
-        <td style="font-size:11px;color:#64748b">${item.detail||"—"}</td>
-        <td style="color:${statusColor[item.status]||"#64748b"};font-weight:800;text-align:center">${item.status}</td>
-      </tr>`).join("");
-    w.document.write(`<!DOCTYPE html><html><head><title>Electrical Computation Report — ${projName}</title>
-    <style>body{font-family:Arial,sans-serif;margin:32px;color:#111;font-size:13px}
-    h1{color:#c2410c;margin:0 0 4px;font-size:20px}h2{color:#c2410c;margin:20px 0 8px;font-size:15px}
-    table{border-collapse:collapse;width:100%}
-    th{background:#c2410c;color:#fff;padding:8px 10px;font-size:11px;text-align:left;border:1px solid #ccc}
-    td{padding:7px 10px;border:1px solid #ddd;vertical-align:middle}
-    tr:nth-child(even)td{background:#fafafa}
-    .kv{display:inline-block;margin-right:18px;font-size:12px}.kv b{color:#c2410c}
-    .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;margin-right:6px}
-    .pass{background:#dcfce7;color:#16a34a}.fail{background:#fee2e2;color:#dc2626}.warn{background:#fef3c7;color:#d97706}
-    @media print{button{display:none}}</style></head><body>
-    <button onclick="window.print()" style="float:right;padding:6px 16px;background:#c2410c;color:#fff;border:none;border-radius:5px;cursor:pointer">🖨️ Print</button>
+    const rows = results.items.map(item => {
+      const cfg = statusCfg[item.status] || {};
+      return `<tr>
+        <td style="font-weight:700">${toolLabel[item.tool]||item.tool}</td>
+        <td style="font-family:monospace;font-size:11px;color:#64748b">${toolCode[item.tool]||""}</td>
+        <td style="font-family:monospace;font-weight:800;font-size:15px">${item.value||"—"}</td>
+        <td style="font-size:11px;color:#475569">${item.detail||"—"}</td>
+        <td style="text-align:center"><span style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:800;
+          background:${item.status==="PASS"?"#dcfce7":item.status==="FAIL"?"#fee2e2":item.status==="WARNING"?"#fef3c7":"#dbeafe"};
+          color:${item.status==="PASS"?"#16a34a":item.status==="FAIL"?"#dc2626":item.status==="WARNING"?"#d97706":"#1d4ed8"}">
+          ${item.status}</span></td>
+      </tr>`;
+    }).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title>Electrical Report — ${projName}</title>
+    <style>
+      body{font-family:Arial,sans-serif;margin:32px;color:#111;font-size:13px}
+      h1{color:#c2410c;margin:0;font-size:22px}
+      .subtitle{color:#64748b;font-size:12px;margin:4px 0 20px}
+      .summary-bar{display:flex;gap:12px;margin-bottom:20px}
+      .badge{display:inline-block;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700}
+      .pass{background:#dcfce7;color:#16a34a}.fail{background:#fee2e2;color:#dc2626}
+      .warn{background:#fef3c7;color:#d97706}.info{background:#dbeafe;color:#1d4ed8}
+      table{border-collapse:collapse;width:100%}
+      th{background:#7c2d12;color:#fff;padding:9px 12px;font-size:11px;text-align:left;letter-spacing:0.5px}
+      td{padding:9px 12px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+      tr:hover td{background:#fafafa}
+      .overall{padding:10px 16px;border-radius:8px;margin-bottom:20px;font-weight:700;font-size:14px}
+      .overall.ok{background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0}
+      .overall.fail{background:#fee2e2;color:#dc2626;border:1px solid #fecaca}
+      @media print{button{display:none}}
+    </style></head><body>
+    <button onclick="window.print()" style="float:right;padding:7px 18px;background:#c2410c;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700">🖨️ Print / Save PDF</button>
     <h1>ELECTRICAL COMPUTATION REPORT</h1>
-    <p style="margin:4px 0 16px;color:#64748b;font-size:12px">Project: <b>${projName}</b> · Generated: ${date} · Buildify PEC Checker</p>
-    <div style="margin-bottom:16px">
+    <div class="subtitle">Project: <b>${projName}</b> · ${date} · PEC 2017 · Generated by Buildify</div>
+    <div class="overall ${overallOk?"ok":"fail"}">
+      ${overallOk?"✓ ALL CHECKS PASSED — No critical issues found":"✗ ISSUES FOUND — Review failed checks before finalizing design"}
+    </div>
+    <div class="summary-bar">
       <span class="badge pass">✓ ${passCount} Pass</span>
       <span class="badge fail">✗ ${failCount} Fail</span>
-      <span class="badge warn">⚠ ${warnCount} Warnings</span>
-      <span class="kv" style="margin-left:12px"><b>Total Checks:</b> ${totalRun}</span>
+      ${warnCount>0?`<span class="badge warn">⚠ ${warnCount} Warnings</span>`:""}
+      <span class="badge info">${totalRun} checks run</span>
     </div>
-    <h2>Computation Results</h2>
-    <table><thead><tr><th>Calculator</th><th>Check</th><th>Result</th><th>Details</th><th>Status</th></tr></thead>
-    <tbody>${rows}</tbody></table>
-    <p style="margin-top:24px;font-size:10px;color:#9ca3af">PRELIMINARY — verify with licensed PEE · PEC 2017 · Buildify</p>
+    <table>
+      <thead><tr><th>Calculator</th><th>Code Reference</th><th>Result</th><th>Details</th><th style="text-align:center">Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="margin-top:24px;font-size:10px;color:#9ca3af;border-top:1px solid #e2e8f0;padding-top:12px">
+      PRELIMINARY DESIGN ONLY — Verify all results with a licensed Professional Electrical Engineer (PEE) before construction.
+      PEC 2017 · Buildify Engineering Suite
+    </p>
     </body></html>`);
-    w.document.close(); setTimeout(()=>w.print(),300);
+    w.document.close();
+    setTimeout(()=>w.print(), 300);
   };
 
   return (
-    <div style={{marginBottom:20,background:T.card,border:`1px solid ${T.border}`,borderRadius:14,overflow:"hidden"}}>
+    <div style={{marginBottom:16,background:T.card,border:`1px solid ${T.border}`,borderRadius:14,overflow:"hidden"}}>
       {/* Header */}
-      <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+      <div style={{padding:"14px 18px",background:overallOk?"rgba(34,197,94,0.05)":"rgba(239,68,68,0.05)",
+        borderBottom:`1px solid ${overallOk?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"}`,
+        display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
         <div>
-          <div style={{fontWeight:800,fontSize:14,color:T.text}}>Electrical Computation Summary</div>
-          <div style={{fontSize:11,color:T.muted,marginTop:1}}>{projName} · {totalRun} checks run</div>
+          <div style={{fontWeight:800,fontSize:14,color:T.text,display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:16}}>{overallOk?"✅":"❌"}</span>
+            Computation Summary — {projName}
+          </div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+            {totalRun} checks run · {passCount} passed · {failCount} failed{warnCount>0?` · ${warnCount} warnings`:""}
+          </div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"rgba(34,197,94,0.1)",color:"#22c55e"}}>✓ {passCount} Pass</span>
-          <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"rgba(239,68,68,0.1)",color:"#ef4444"}}>✗ {failCount} Fail</span>
-          {warnCount>0 && <span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:8,background:"rgba(245,158,11,0.1)",color:"#f59e0b"}}>⚠ {warnCount} Warn</span>}
+          {passCount>0 && <span style={{fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:8,background:"rgba(34,197,94,0.1)",color:"#22c55e"}}>✓ {passCount} Pass</span>}
+          {failCount>0 && <span style={{fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:8,background:"rgba(239,68,68,0.1)",color:"#ef4444"}}>✗ {failCount} Fail</span>}
+          {warnCount>0 && <span style={{fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:8,background:"rgba(245,158,11,0.1)",color:"#f59e0b"}}>⚠ {warnCount} Warn</span>}
           <button onClick={exportReport}
-            style={{padding:"6px 14px",borderRadius:8,border:"none",background:`linear-gradient(135deg,${ACCENT},#e85520)`,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+            style={{padding:"7px 15px",borderRadius:8,border:"none",
+              background:"linear-gradient(135deg,#ff6b2b,#e85520)",color:"#fff",
+              cursor:"pointer",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
             <Icon name="download" size={13} color="#fff"/> Export Report
           </button>
         </div>
       </div>
-      {/* Results grid */}
-      <div style={{padding:"14px 18px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
-        {results.items.map(item=>{
-          const sc = statusColor[item.status] || T.muted;
-          const sb = statusBg[item.status] || "transparent";
+
+      {/* Result cards */}
+      <div style={{padding:"14px 18px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+        {results.items.map(item => {
+          const cfg = statusCfg[item.status] || statusCfg.COMPUTED;
           return (
             <button key={item.tool} onClick={()=>onNavigate(item.tool)}
-              style={{background:sb,border:`1.5px solid ${sc}40`,borderRadius:10,padding:"12px 14px",
-                textAlign:"left",cursor:"pointer",transition:"all 0.15s"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=sc;}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=`${sc}40`;}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              style={{background:cfg.bg,border:`1.5px solid ${cfg.border}`,borderRadius:10,padding:"14px 16px",
+                textAlign:"left",cursor:"pointer",transition:"all 0.15s",width:"100%"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=cfg.color;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=cfg.border;}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:7}}>
-                  <Icon name={toolIcon[item.tool]||"loads"} size={14} color={sc}/>
+                  <Icon name={toolIcon[item.tool]||"loads"} size={14} color={cfg.color}/>
                   <span style={{fontWeight:800,fontSize:12,color:T.text}}>{toolLabel[item.tool]||item.tool}</span>
                 </div>
                 <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:6,
-                  background:sb,color:sc,border:`1px solid ${sc}40`}}>{item.status}</span>
+                  background:cfg.bg,color:cfg.color,border:`1px solid ${cfg.border}`}}>{cfg.label}</span>
               </div>
-              <div style={{fontSize:20,fontWeight:900,color:sc,fontFamily:"monospace",lineHeight:1,marginBottom:4}}>{item.value}</div>
-              <div style={{fontSize:11,color:T.muted}}>{item.detail}</div>
-              <div style={{fontSize:10,color:`${ACCENT}80`,marginTop:4}}>{toolCode[item.tool]}</div>
+              <div style={{fontSize:26,fontWeight:900,color:cfg.color,fontFamily:"monospace",lineHeight:1,marginBottom:6}}>
+                {item.value||"—"}
+              </div>
+              <div style={{fontSize:11,color:T.muted,lineHeight:1.4}}>{item.detail}</div>
+              <div style={{fontSize:10,color:"rgba(255,107,43,0.5)",marginTop:6,fontWeight:600}}>{toolCode[item.tool]} · Open calculator →</div>
             </button>
           );
         })}
@@ -7547,6 +7612,8 @@ function ElecComputationSummary({ results, data, onNavigate }) {
     </div>
   );
 }
+
+
 
 function ElecCode({ apiKey }) {
   const ACCENT     = "#ff6b2b";
