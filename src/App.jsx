@@ -1344,8 +1344,11 @@ function PlanChecker({ apiKey }) {
 
   const addFiles = useCallback(fs=>{
     setFiles(p=>[...p,...Array.from(fs).map(f=>({file:f,id:Math.random().toString(36).slice(2),name:f.name,size:f.size,type:f.type||"application/octet-stream"}))]);
-    setResult(null); setError(null);
+    setError(null); // preserve existing result when adding more files
   },[]);
+
+  // Sync external result → local state so analysis survives sub-tool navigation
+  useEffect(()=>{ if(externalResult && !result) setResult(externalResult); },[externalResult]);
 
   const run = async () => {
     if(!files.length) return;
@@ -1366,7 +1369,8 @@ function PlanChecker({ apiKey }) {
       const raw = data.content?.map(b=>b.text||"").join("");
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
-      setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      setResult(parsed);
+      if(onResultChange) onResultChange(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"electrical", module:"electrical", projectName:parsed?.summary?.projectName||"Electrical Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     } catch(e) { setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
@@ -1735,9 +1739,9 @@ const FromPlansBadge = () => (
   <span title="Value extracted from uploaded plans" style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.3)",padding:"1px 6px",borderRadius:4,fontWeight:700,marginLeft:6,verticalAlign:"middle"}}>FROM PLANS ✓</span>
 );
 
-function StructuralChecker({ apiKey, onDataExtracted }) {
+function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultChange, externalExtracted }) {
   const [files,setFiles]   = useState([]);
-  const [result,setResult] = useState(null);
+  const [result,setResult] = useState(externalResult||null);
   const [busy,setBusy]     = useState(false);
   const [error,setError]   = useState(null);
   const [drag,setDrag]     = useState(false);
@@ -1747,7 +1751,7 @@ function StructuralChecker({ apiKey, onDataExtracted }) {
   const [corrections,setCorrections] = useState(null);
   const [correcting,setCorrecting]   = useState(false);
   const [revNum,setRevNum] = useState(1);
-  const [extractedData, setExtractedData] = useState(null);
+  const [extractedData, setExtractedData] = useState(externalExtracted||null);
   const ref = useRef(null);
 
   const addFiles = useCallback(fs=>{
@@ -1791,7 +1795,8 @@ function StructuralChecker({ apiKey, onDataExtracted }) {
               setExtractedData(extracted);
       } catch { /* extraction failed silently - compliance result still shown */ }
 
-      setResult(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      setResult(parsed);
+      if(onResultChange) onResultChange(parsed); setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     } catch(e){ setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
@@ -2660,6 +2665,21 @@ function LoadCombinations({ structuralData }) {
     </div>
   );
 }
+
+// ─── BOM REVIEW DATA ─────────────────────────────────────────────────────────
+const BOM_SYSTEM_PROMPT = `You are a licensed Civil/Structural Engineer expert in Philippine construction standards, DPWH Blue Book, and project cost estimation. You review Bills of Materials against structural and architectural plans.
+
+Analyze the BOM for:
+1. Completeness — are all materials from the plans listed?
+2. Quantity accuracy — do quantities match plan takeoffs?
+3. Unit costs — are rates reasonable for current PH market?
+4. Missing items — what's in the plans but not in the BOM?
+5. Excess items — what's in the BOM but not in the plans?
+6. Specification compliance — do specs match NSCP/DPWH standards?
+
+Respond ONLY as valid JSON (no markdown, no preamble):
+{"summary":{"projectName":"string","totalBomCost":0,"estimatedActualCost":0,"variance":0,"variancePercent":0,"overallStatus":"ACCURATE|UNDER-ESTIMATED|OVER-ESTIMATED|INCOMPLETE","criticalCount":0,"warningCount":0,"infoCount":0,"analysisNotes":"under 80 words"},"findings":[{"id":1,"severity":"CRITICAL|WARNING|INFO","category":"Missing Item|Quantity Error|Cost Variance|Spec Issue|Excess Item|Other","title":"under 8 words","description":"under 60 words","recommendation":"under 40 words","quantityBom":null,"quantityPlans":null,"unit":"string","costImpact":0}],"costBreakdown":{"concrete":0,"formworks":0,"rebar":0,"masonry":0,"finishes":0,"doors_windows":0,"electrical":0,"plumbing":0,"others":0}}`;
+
 
 function BOMReview({ apiKey }) {
   const [planFiles,     setPlanFiles]     = useState([]);
@@ -3582,6 +3602,7 @@ INSTRUCTIONS:
       let parsed;
       try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed);
+      if(onResultChange) onResultChange(parsed);
       setActiveTab("summary");
       // ── Save to history ──
       addHistoryEntry({
@@ -4295,215 +4316,263 @@ function runAllComputations(sd) {
   return results;
 }
 
-// ─── STRUCTURAL INTELLIGENCE PANEL ───────────────────────────────────────────
-function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runState }) {
-  const [expanded, setExpanded] = useState({ building:true, materials:true, seismic:true, members:false, loads:true });
-  const toggle = (key) => setExpanded(p=>({...p,[key]:!p[key]}));
+// ─── STRUCTURAL INTELLIGENCE PANEL (redesigned) ──────────────────────────────
+function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runState, structuralResults, onNavigate }) {
+  const [expanded, setExpanded] = useState(false); // collapsed by default
+  const [showMembers, setShowMembers] = useState(false);
 
-  const Fp = ({children}) => (
-    <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)",padding:"1px 5px",borderRadius:3,fontWeight:700,marginLeft:6}}>PLANS</span>
-  );
+  const bldg = data.building  || {};
+  const mat  = data.materials || {};
+  const sei  = data.seismic   || {};
+  const lds  = data.loads     || {};
+  const beams   = data.beams    || [];
+  const cols    = data.columns  || [];
+  const ftgs    = data.footings || [];
+  const slbs    = data.slabs    || [];
 
-  const SectionHeader = ({label, skey, count}) => (
-    <div onClick={()=>toggle(skey)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"8px 0",borderBottom:`1px solid ${T.border}`,marginBottom:expanded[skey]?12:0}}>
-      <span style={{fontSize:12,fontWeight:800,color:T.text,textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</span>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        {count > 0 && <span style={{fontSize:10,background:"rgba(6,150,215,0.15)",color:"#0696d7",padding:"1px 7px",borderRadius:10,fontWeight:700}}>{count} extracted</span>}
-        <span style={{color:T.muted,fontSize:12}}>{expanded[skey]?"▲":"▼"}</span>
-      </div>
-    </div>
-  );
+  // Computation readiness — which calcs have enough data
+  const readiness = [
+    { key:"seismic", label:"Seismic",      ok: !!(sei.zone || sei.seismicWeight),            detail: sei.zone || "" },
+    { key:"beam",    label:"Beam",          ok: !!(beams.length && mat.fc),                   detail: beams.length ? `${beams.length} member(s)` : "" },
+    { key:"column",  label:"Column",        ok: !!(cols.length && mat.fc),                    detail: cols.length ? `${cols.length} member(s)` : "" },
+    { key:"footing", label:"Footing",       ok: !!(ftgs.length),                              detail: ftgs.length ? `${ftgs.length} member(s)` : "" },
+    { key:"slab",    label:"Slab",          ok: !!(slbs.length || (lds.floorDL && mat.fc)),   detail: slbs.length ? `${slbs.length} member(s)` : "" },
+    { key:"loads",   label:"Load Combos",   ok: !!(lds.floorDL && lds.floorLL),               detail: lds.floorDL ? `DL=${lds.floorDL}` : "" },
+  ];
 
-  const Field = ({label, value, path, type="number", fromPlans=false}) => {
+  const readyCount = readiness.filter(r=>r.ok).length;
+
+  // Computation results summary
+  const getItemStatus = (key) => {
+    if (!structuralResults) return null;
+    const items = structuralResults.items.filter(i=>i.tool===key);
+    if (!items.length) return null;
+    return items.every(i=>i.status==="PASS"||i.status==="COMPUTED") ? "pass"
+         : items.some(i=>i.status==="FAIL") ? "fail" : "computed";
+  };
+
+  const statusColor = { pass:"#22c55e", fail:"#ef4444", computed:"#0696d7" };
+  const statusIcon  = { pass:"✓", fail:"✗", computed:"✓" };
+
+  // Inline field editor (only shown when expanded)
+  const Field = ({label, value, path, type="number", fp=false}) => {
     const parts = path.split(".");
     const handleChange = (v) => {
       const updated = JSON.parse(JSON.stringify(data));
       let ref = updated;
-      for (let i=0; i<parts.length-1; i++) {
-        if (!ref[parts[i]]) ref[parts[i]] = {};
-        ref = ref[parts[i]];
-      }
+      for (let i=0;i<parts.length-1;i++) { if(!ref[parts[i]]) ref[parts[i]]={};  ref=ref[parts[i]]; }
       ref[parts[parts.length-1]] = type==="number" ? +v : v;
       onUpdate(updated);
     };
     return (
-      <div style={{display:"flex",flexDirection:"column",gap:3}}>
-        <label style={{fontSize:10,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.3px"}}>
-          {label}{fromPlans && <Fp/>}
-        </label>
+      <div>
+        <div style={{fontSize:10,color:T.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px",fontWeight:600}}>
+          {label}{fp && <span style={{fontSize:8,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)",padding:"0px 4px",borderRadius:3,fontWeight:700,marginLeft:5}}>PLANS</span>}
+        </div>
         <input type={type} value={value??""} onChange={e=>handleChange(e.target.value)}
-          style={{background:fromPlans?"rgba(34,197,94,0.05)":"rgba(255,255,255,0.03)",border:`1px solid ${fromPlans?"rgba(34,197,94,0.3)":T.border}`,borderRadius:7,padding:"6px 10px",color:T.text,fontSize:13,fontWeight:600,outline:"none",width:"100%"}}/>
+          style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${fp?"rgba(34,197,94,0.25)":T.border}`,
+            borderRadius:6,padding:"5px 8px",color:T.text,fontSize:12,fontWeight:600,outline:"none",width:"100%"}}/>
       </div>
     );
   };
 
-  const bldg = data.building||{};
-  const mat  = data.materials||{};
-  const sei  = data.seismic||{};
-  const lds  = data.loads||{};
-  const beams = data.beams||[];
-  const cols  = data.columns||[];
-  const ftgs  = data.footings||[];
-  const slbs  = data.slabs||[];
-  const memberCount = beams.length + cols.length + ftgs.length + slbs.length;
-
-  const passCount  = runState?.summary?.pass || 0;
-  const failCount  = runState?.summary?.fail || 0;
-  const totalCount = runState?.summary?.total || 0;
-
   return (
-    <div style={{background:"rgba(6,150,215,0.04)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:14,padding:20,marginBottom:20}}>
-      {/* Header */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#0696d7,#0569a8)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{marginBottom:20}}>
+      {/* ── Compact summary bar ── */}
+      <div style={{background:"rgba(6,150,215,0.06)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:12,padding:"12px 16px"}}>
+
+        {/* Top row: project info + actions */}
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#0696d7,#0569a8)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <Icon name="structural" size={16} color="#fff"/>
           </div>
-          <div>
-            <div style={{fontWeight:800,fontSize:14,color:T.text}}>Structural Intelligence Panel</div>
-            <div style={{fontSize:11,color:T.muted}}>Extracted from uploaded plans · All values editable</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+              {bldg.name || "Structural Plans Loaded"}
+            </div>
+            <div style={{fontSize:11,color:T.muted}}>
+              {[bldg.floors&&`${bldg.floors}F`, sei.zone, mat.fc&&`f'c=${mat.fc}MPa`, mat.fy&&`fy=${mat.fy}MPa`].filter(Boolean).join(" · ")||"Ready for computation"}
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+            <button onClick={()=>setExpanded(p=>!p)}
+              style={{padding:"6px 12px",background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:600}}>
+              {expanded ? "▲ Less" : "▼ Edit Data"}
+            </button>
+            <button onClick={onRunAll} disabled={runState?.running}
+              style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",
+                background:runState?.running?"rgba(6,150,215,0.2)":"linear-gradient(135deg,#0696d7,#0569a8)",
+                border:"none",color:runState?.running?"#64748b":"#fff",borderRadius:8,
+                cursor:runState?.running?"not-allowed":"pointer",fontWeight:800,fontSize:12,transition:"all 0.2s"}}>
+              {runState?.running
+                ? <><span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⚙</span> Running…</>
+                : <><Icon name="loads" size={13} color="#fff"/> Run All</>}
+            </button>
+            <button onClick={onClear}
+              style={{padding:"8px 10px",background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:8,cursor:"pointer",fontSize:11}}>
+              ✕
+            </button>
           </div>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          {runState && (
-            <div style={{display:"flex",gap:6,alignItems:"center",fontSize:12}}>
-              {passCount > 0 && <span style={{color:"#22c55e",fontWeight:700}}>✓ {passCount} PASS</span>}
-              {failCount > 0 && <span style={{color:"#ef4444",fontWeight:700}}>✗ {failCount} FAIL</span>}
+
+        {/* ── Computation readiness checklist ── */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,marginTop:12}}>
+          {readiness.map(r => {
+            const computed = getItemStatus(r.key);
+            return (
+              <button key={r.key} onClick={()=>onNavigate&&onNavigate(r.key)}
+                style={{padding:"7px 8px",borderRadius:8,cursor:"pointer",textAlign:"center",border:"none",
+                  background: computed ? (computed==="fail"?"rgba(239,68,68,0.08)":"rgba(34,197,94,0.08)") : r.ok ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                  transition:"all 0.15s"}}>
+                <div style={{fontSize:14,fontWeight:900,marginBottom:2,
+                  color: computed ? statusColor[computed] : r.ok ? "#0696d7" : T.muted}}>
+                  {computed ? statusIcon[computed] : r.ok ? "●" : "○"}
+                </div>
+                <div style={{fontSize:10,fontWeight:700,color:computed?statusColor[computed]:r.ok?T.text:T.muted,lineHeight:1.2}}>{r.label}</div>
+                {computed && (
+                  <div style={{fontSize:9,color:statusColor[computed],fontWeight:700,marginTop:1,textTransform:"uppercase"}}>
+                    {computed}
+                  </div>
+                )}
+                {!computed && r.ok && r.detail && (
+                  <div style={{fontSize:9,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.detail}</div>
+                )}
+                {!computed && !r.ok && (
+                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>no data</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Run All result summary (shows after computation) ── */}
+        {structuralResults && (
+          <div style={{display:"flex",gap:10,marginTop:10,padding:"8px 12px",background:T.dim,borderRadius:8,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{fontSize:11,color:T.muted,fontWeight:600}}>Computation result:</span>
+            {[
+              {label:`${structuralResults.summary.pass} PASS`,   color:"#22c55e", bg:"rgba(34,197,94,0.1)"},
+              {label:`${structuralResults.summary.fail} FAIL`,   color:"#ef4444", bg:"rgba(239,68,68,0.1)"},
+              {label:`${structuralResults.summary.computed} COMPUTED`, color:"#0696d7", bg:"rgba(6,150,215,0.1)"},
+            ].map(s=>(
+              <span key={s.label} style={{fontSize:11,fontWeight:700,color:s.color,background:s.bg,padding:"3px 10px",borderRadius:6}}>{s.label}</span>
+            ))}
+            <button onClick={()=>{ /* export handled by StructuralComputationSummary */
+              const w=window.open("","_blank");
+              const date=new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+              const toolLabel={seismic:"Seismic",beam:"Beam",column:"Column",footing:"Footing",slab:"Slab",loads:"Load Combos"};
+              const statusColor2={PASS:"#16a34a",FAIL:"#dc2626",COMPUTED:"#0284c7",ERROR:"#d97706"};
+              const rows=structuralResults.items.map(item=>`<tr><td>${toolLabel[item.tool]||item.tool}</td><td><strong>${item.id}</strong></td><td>${item.value||"-"}</td><td>${item.detail||"-"}</td><td style="color:${statusColor2[item.status]};font-weight:700">${item.status}</td></tr>`).join("");
+              w.document.write(`<!DOCTYPE html><html><head><title>Structural Computation Package</title><style>body{font-family:Arial,sans-serif;margin:40px;font-size:13px}table{border-collapse:collapse;width:100%}th{background:#1e293b;color:#fff;padding:9px}td{border:1px solid #e2e8f0;padding:8px 10px}h1{color:#0696d7}@media print{button{display:none}}</style></head><body><h1>Structural Computation Package</h1><p style="color:#64748b">NSCP 2015 · ${date} · Buildify</p><table><tr><th>Tool</th><th>Member ID</th><th>Result</th><th>Detail</th><th>Status</th></tr>${rows}</table><p style="margin-top:24px;font-size:11px;color:#9ca3af">⚠️ For preliminary design only. Verify with licensed PSCE.</p></body></html>`);
+              w.document.close(); setTimeout(()=>w.print(),400);
+            }} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",background:"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:"#fff",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:11}}>
+              <Icon name="download" size={11} color="#fff"/> Export PDF
+            </button>
+          </div>
+        )}
+
+        {/* ── Expandable data editor ── */}
+        {expanded && (
+          <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+
+              {/* Building + Seismic */}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Building Info</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div style={{gridColumn:"1/-1"}}><Field label="Project Name" value={bldg.name} path="building.name" type="text" fp={!!bldg.name}/></div>
+                  <Field label="Floors" value={bldg.floors} path="building.floors" fp={!!bldg.floors}/>
+                  <Field label="Floor Height (m)" value={bldg.floorHeight} path="building.floorHeight" fp={!!bldg.floorHeight}/>
+                </div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:4}}>Materials</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <Field label="f'c (MPa)" value={mat.fc} path="materials.fc" fp={!!mat.fc}/>
+                  <Field label="fy (MPa)"  value={mat.fy} path="materials.fy" fp={!!mat.fy}/>
+                </div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:4}}>Floor Loads</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <Field label="DL (kPa)" value={lds.floorDL} path="loads.floorDL" fp={!!lds.floorDL}/>
+                  <Field label="LL (kPa)" value={lds.floorLL} path="loads.floorLL" fp={!!lds.floorLL}/>
+                </div>
+              </div>
+
+              {/* Seismic */}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Seismic Parameters</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <Field label="Zone" value={sei.zone} path="seismic.zone" type="text" fp={!!sei.zone}/>
+                  <Field label="Soil Type" value={sei.soilTypeLabel} path="seismic.soilTypeLabel" type="text" fp={!!sei.soilTypeLabel}/>
+                  <Field label="Weight W (kN)" value={sei.seismicWeight} path="seismic.seismicWeight" fp={sei.seismicWeight!=null}/>
+                  <Field label="Period T (s)" value={sei.naturalPeriod} path="seismic.naturalPeriod" fp={sei.naturalPeriod!=null}/>
+                  <Field label="Factor R" value={sei.responseFactor} path="seismic.responseFactor" fp={sei.responseFactor!=null}/>
+                </div>
+              </div>
             </div>
-          )}
-          <button onClick={onRunAll} disabled={runState?.running}
-            style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",background:runState?.running?"rgba(6,150,215,0.2)":"linear-gradient(135deg,#0696d7,#0569a8)",border:"none",color:runState?.running?"#64748b":"#fff",borderRadius:9,cursor:runState?.running?"not-allowed":"pointer",fontWeight:800,fontSize:13,transition:"all 0.2s"}}>
-            {runState?.running ? (
-              <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⚙</span> Running…</>
-            ) : (
-              <><Icon name="loads" size={14} color="#fff"/> Run All Computations</>
+
+            {/* Members — collapsible */}
+            {(beams.length+cols.length+ftgs.length+slbs.length) > 0 && (
+              <div style={{marginTop:12}}>
+                <button onClick={()=>setShowMembers(p=>!p)}
+                  style={{background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>
+                  {showMembers?"▲":"▼"} Member Schedule ({beams.length+cols.length+ftgs.length+slbs.length} extracted)
+                </button>
+                {showMembers && (
+                  <div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}>
+                    {beams.length>0&&(
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#0696d7",marginBottom:6,textTransform:"uppercase"}}>Beams ({beams.length})</div>
+                        {beams.map((bm,i)=>(
+                          <div key={i} style={{display:"flex",gap:8,padding:"6px 10px",background:"rgba(6,150,215,0.05)",borderRadius:7,marginBottom:5,fontSize:11,flexWrap:"wrap"}}>
+                            <span style={{fontWeight:700,color:"#0696d7",minWidth:28}}>{bm.id||`B${i+1}`}</span>
+                            {bm.width&&<span style={{color:T.muted}}>b={bm.width}</span>}
+                            {bm.depth&&<span style={{color:T.muted}}>d={bm.depth}</span>}
+                            {bm.Mu&&<span style={{color:T.muted}}>Mu={bm.Mu}</span>}
+                            {bm.Vu&&<span style={{color:T.muted}}>Vu={bm.Vu}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {cols.length>0&&(
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",marginBottom:6,textTransform:"uppercase"}}>Columns ({cols.length})</div>
+                        {cols.map((c,i)=>(
+                          <div key={i} style={{display:"flex",gap:8,padding:"6px 10px",background:"rgba(245,158,11,0.05)",borderRadius:7,marginBottom:5,fontSize:11,flexWrap:"wrap"}}>
+                            <span style={{fontWeight:700,color:"#f59e0b",minWidth:28}}>{c.id||`C${i+1}`}</span>
+                            {c.width&&<span style={{color:T.muted}}>b={c.width}</span>}
+                            {c.height&&<span style={{color:T.muted}}>h={c.height}</span>}
+                            {c.Pu&&<span style={{color:T.muted}}>Pu={c.Pu}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {ftgs.length>0&&(
+                      <div>
+                        <div style={{fontSize:10,fontWeight:700,color:"#22c55e",marginBottom:6,textTransform:"uppercase"}}>Footings ({ftgs.length})</div>
+                        {ftgs.map((f,i)=>(
+                          <div key={i} style={{display:"flex",gap:8,padding:"6px 10px",background:"rgba(34,197,94,0.05)",borderRadius:7,marginBottom:5,fontSize:11,flexWrap:"wrap"}}>
+                            <span style={{fontWeight:700,color:"#22c55e",minWidth:28}}>{f.id||`F${i+1}`}</span>
+                            {f.columnLoad&&<span style={{color:T.muted}}>P={f.columnLoad}</span>}
+                            {f.soilBearing&&<span style={{color:T.muted}}>qa={f.soilBearing}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
-          </button>
-          <button onClick={onClear} style={{padding:"9px 12px",background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:9,cursor:"pointer",fontSize:12}}>Clear</button>
-        </div>
-      </div>
 
-      {/* Sections */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-
-        {/* Building Info */}
-        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
-          <SectionHeader label="Building Info" skey="building" count={Object.values(bldg).filter(Boolean).length}/>
-          {expanded.building && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div style={{gridColumn:"1/-1"}}><Field label="Project Name" value={bldg.name} path="building.name" type="text" fromPlans={!!bldg.name}/></div>
-              <Field label="Occupancy" value={bldg.occupancy} path="building.occupancy" type="text" fromPlans={!!bldg.occupancy}/>
-              <Field label="No. of Floors" value={bldg.floors} path="building.floors" fromPlans={!!bldg.floors}/>
-              <Field label="Floor Height (m)" value={bldg.floorHeight} path="building.floorHeight" fromPlans={!!bldg.floorHeight}/>
-              <Field label="Total Height (m)" value={bldg.totalHeight} path="building.totalHeight" fromPlans={!!bldg.totalHeight}/>
-              <Field label="Floor Area (m²)" value={bldg.floorArea} path="building.floorArea" fromPlans={!!bldg.floorArea}/>
+            <div style={{marginTop:10,fontSize:11,color:T.muted,fontStyle:"italic"}}>
+              All fields editable above. Green label = extracted from plans. Changes feed into all design calculators.
             </div>
-          )}
-        </div>
-
-        {/* Materials */}
-        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
-          <SectionHeader label="Materials" skey="materials" count={Object.values(mat).filter(v=>v!==null&&v!==undefined).length}/>
-          {expanded.materials && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <Field label="f'c (MPa)" value={mat.fc} path="materials.fc" fromPlans={!!mat.fc}/>
-              <Field label="fy (MPa)" value={mat.fy} path="materials.fy" fromPlans={!!mat.fy}/>
-              <Field label="Cover — Beam (mm)" value={mat.coverBeam} path="materials.coverBeam" fromPlans={!!mat.coverBeam}/>
-              <Field label="Cover — Column (mm)" value={mat.coverColumn} path="materials.coverColumn" fromPlans={!!mat.coverColumn}/>
-              <Field label="Cover — Slab (mm)" value={mat.coverSlab} path="materials.coverSlab" fromPlans={!!mat.coverSlab}/>
-            </div>
-          )}
-        </div>
-
-        {/* Seismic */}
-        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
-          <SectionHeader label="Seismic Parameters" skey="seismic" count={Object.values(sei).filter(Boolean).length}/>
-          {expanded.seismic && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <Field label="Seismic Zone" value={sei.zone} path="seismic.zone" type="text" fromPlans={!!sei.zone}/>
-              <Field label="Soil Type" value={sei.soilTypeLabel} path="seismic.soilTypeLabel" type="text" fromPlans={!!sei.soilTypeLabel}/>
-              <Field label="Seismic Weight (kN)" value={sei.seismicWeight} path="seismic.seismicWeight" fromPlans={!!sei.seismicWeight}/>
-              <Field label="Natural Period T (s)" value={sei.naturalPeriod} path="seismic.naturalPeriod" fromPlans={!!sei.naturalPeriod}/>
-              <Field label="Response Factor R" value={sei.responseFactor} path="seismic.responseFactor" fromPlans={!!sei.responseFactor}/>
-            </div>
-          )}
-        </div>
-
-        {/* Loads */}
-        <div style={{background:T.card,borderRadius:10,padding:"14px 16px"}}>
-          <SectionHeader label="Design Loads" skey="loads" count={Object.values(lds).filter(Boolean).length}/>
-          {expanded.loads && (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <Field label="Floor DL (kPa)" value={lds.floorDL} path="loads.floorDL" fromPlans={!!lds.floorDL}/>
-              <Field label="Floor LL (kPa)" value={lds.floorLL} path="loads.floorLL" fromPlans={!!lds.floorLL}/>
-              <Field label="Roof DL (kPa)" value={lds.roofDL} path="loads.roofDL" fromPlans={!!lds.roofDL}/>
-              <Field label="Roof LL (kPa)" value={lds.roofLL} path="loads.roofLL" fromPlans={!!lds.roofLL}/>
-            </div>
-          )}
-        </div>
-
-        {/* Members */}
-        <div style={{background:T.card,borderRadius:10,padding:"14px 16px",gridColumn:"1/-1"}}>
-          <SectionHeader label="Structural Members" skey="members" count={memberCount}/>
-          {expanded.members && (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
-              {/* Beams */}
-              {beams.length > 0 && (
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#0696d7",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>Beams ({beams.length})</div>
-                  {beams.map((bm,i)=>(
-                    <div key={i} style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:8,padding:"8px 10px",background:"rgba(6,150,215,0.05)",borderRadius:8,border:"1px solid rgba(6,150,215,0.15)"}}>
-                      <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"#0696d7",marginBottom:4}}>{bm.id||`B${i+1}`}</div>
-                      <div><div style={{fontSize:9,color:T.muted}}>SPAN(m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.span??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>b(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.width??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>d(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.depth??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>Mu(kN·m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.Mu??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>Vu(kN)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{bm.Vu??"-"}</div></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Columns */}
-              {cols.length > 0 && (
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>Columns ({cols.length})</div>
-                  {cols.map((c,i)=>(
-                    <div key={i} style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:8,padding:"8px 10px",background:"rgba(245,158,11,0.05)",borderRadius:8,border:"1px solid rgba(245,158,11,0.15)"}}>
-                      <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"#f59e0b",marginBottom:4}}>{c.id||`C${i+1}`}</div>
-                      <div><div style={{fontSize:9,color:T.muted}}>b(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.width??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>h(mm)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.height??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>Pu(kN)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.Pu??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>Mu(kN·m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{c.Mu??"-"}</div></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* Footings */}
-              {ftgs.length > 0 && (
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"#22c55e",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>Footings ({ftgs.length})</div>
-                  {ftgs.map((f,i)=>(
-                    <div key={i} style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:8,padding:"8px 10px",background:"rgba(34,197,94,0.05)",borderRadius:8,border:"1px solid rgba(34,197,94,0.15)"}}>
-                      <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"#22c55e",marginBottom:4}}>{f.id||`F${i+1}`}</div>
-                      <div><div style={{fontSize:9,color:T.muted}}>P(kN)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{f.columnLoad??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>qa(kPa)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{f.soilBearing??"-"}</div></div>
-                      <div><div style={{fontSize:9,color:T.muted}}>Df(m)</div><div style={{fontSize:12,fontWeight:600,color:T.text}}>{f.depth??"-"}</div></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {memberCount === 0 && (
-                <div style={{gridColumn:"1/-1",textAlign:"center",padding:"20px",color:T.muted,fontSize:13}}>
-                  No member data extracted. Member dimensions not found in plans or plans don't include schedule tables.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 
 // ─── STRUCTURAL COMPUTATION SUMMARY ──────────────────────────────────────────
 function StructuralComputationSummary({ results, onNavigate }) {
@@ -4604,6 +4673,9 @@ function StructiCode({ apiKey, initialTool }) {
 
   // ── Structural data (lives here, never lost on tool switch) ──
   const [structuralData, setStructuralData]     = useState(null);
+  // ── Plan Checker results — lifted here so they survive sub-tool navigation ──
+  const [checkerResult, setCheckerResult]       = useState(null);
+  const [checkerExtracted, setCheckerExtracted] = useState(null);
   const [structuralResults, setStructuralResults] = useState(null);
   const [runState, setRunState]                 = useState(null);
 
@@ -4612,9 +4684,9 @@ function StructiCode({ apiKey, initialTool }) {
 
   const handleDataExtracted = (d) => {
     setStructuralData(d);
+    setCheckerExtracted(d);
     setStructuralResults(null);
     setRunState(null);
-    setSubTool(null);
   };
 
   const handleRunAll = async () => {
@@ -4629,6 +4701,8 @@ function StructiCode({ apiKey, initialTool }) {
 
   const handleClear = () => {
     setStructuralData(null);
+    setCheckerResult(null);
+    setCheckerExtracted(null);
     setStructuralResults(null);
     setRunState(null);
     setSubTool(null);
@@ -4715,97 +4789,108 @@ function StructiCode({ apiKey, initialTool }) {
       {/* ── AI Plan Checker (main tab with embedded sub-tools) ── */}
       {tab==="checker" && (
         <div>
-          {/* Sub-tool navigation — always visible inside checker tab */}
-          <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap",padding:"12px 16px",background:T.card,borderRadius:12,border:`1px solid ${T.border}`,alignItems:"center"}}>
-            <button onClick={()=>setSubTool(null)}
-              style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,
-                border:`1.5px solid ${subTool===null?"#0696d7":T.border}`,
-                background:subTool===null?"rgba(6,150,215,0.12)":"transparent",
-                color:subTool===null?"#0696d7":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-              <Icon name="checker" size={13} color={subTool===null?"#0696d7":T.muted}/>
-              Plan Analysis
-            </button>
-
-            <div style={{width:1,height:24,background:T.border,margin:"0 4px"}}/>
-
-            <span style={{fontSize:10,color:T.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginRight:4}}>Design Calcs:</span>
-
-            {SUB_TOOLS.map(t=>(
-              <button key={t.key} onClick={()=>setSubTool(t.key)}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
-                  border:`1.5px solid ${subTool===t.key?"#0696d7":T.border}`,
-                  background:subTool===t.key?"rgba(6,150,215,0.12)":"transparent",
-                  color:subTool===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:11,fontWeight:700,
-                  transition:"all 0.15s",position:"relative"}}>
-                <Icon name={t.icon} size={12} color={subTool===t.key?"#0696d7":T.muted}/>
-                <span>{t.label}</span>
-                <SubToolStatus toolKey={t.key}/>
-              </button>
-            ))}
+          {/* ── Analysis result persists: always mounted, shown/hidden cleanly ── */}
+          <div style={{display: subTool===null ? "block" : "none"}}>
+            {/* Compact data strip — shown only when structuralData exists */}
+            {structuralData && (
+              <StructuralIntelligencePanel
+                data={structuralData}
+                onUpdate={setStructuralData}
+                onRunAll={handleRunAll}
+                onClear={handleClear}
+                runState={runState}
+                structuralResults={structuralResults}
+                onNavigate={(key)=>setSubTool(key)}
+              />
+            )}
+            {/* Plan upload + compliance findings — always mounted */}
+            <StructuralChecker
+              apiKey={apiKey}
+              onDataExtracted={handleDataExtracted}
+              externalResult={checkerResult}
+              onResultChange={setCheckerResult}
+              externalExtracted={checkerExtracted}
+            />
           </div>
 
-          {/* Plan Checker view */}
-          {subTool===null && (
+          {/* ── Design calc sub-tools — with persistent analysis strip on top ── */}
+          {subTool !== null && (
             <div>
-              {/* Intelligence Panel — only when data available */}
-              {structuralData && (
-                <StructuralIntelligencePanel
-                  data={structuralData}
-                  onUpdate={setStructuralData}
-                  onRunAll={handleRunAll}
-                  onClear={handleClear}
-                  runState={runState}
-                />
-              )}
+              {/* Compact breadcrumb + analysis snapshot */}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"10px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`,flexWrap:"wrap"}}>
+                <button onClick={()=>setSubTool(null)}
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,color:"#0696d7",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+                  ← Plan Analysis
+                </button>
+                <div style={{width:1,height:20,background:T.border}}/>
+                {(() => { const t = SUB_TOOLS.find(t=>t.key===subTool); return t ? (
+                  <>
+                    <Icon name={t.icon} size={15} color="#0696d7"/>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:T.text}}>{t.label}</div>
+                      <div style={{fontSize:11,color:T.muted}}>{t.code}</div>
+                    </div>
+                  </>
+                ) : null; })()}
+                {hasData(subTool) && (
+                  <span style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#22c55e",fontWeight:700,marginLeft:4}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block"}}/>
+                    Pre-filled from plans
+                  </span>
+                )}
+                {/* Mini analysis status if available */}
+                {checkerResult && (
+                  <div style={{marginLeft:"auto",display:"flex",gap:12,alignItems:"center"}}>
+                    <span style={{fontSize:11,color:T.muted}}>
+                      {checkerResult.summary?.projectName && <strong style={{color:T.text}}>{checkerResult.summary.projectName}</strong>}
+                    </span>
+                    {checkerResult.summary?.criticalCount > 0 && <span style={{fontSize:11,fontWeight:700,color:"#ef4444"}}>⚑ {checkerResult.summary.criticalCount} Critical</span>}
+                    {checkerResult.summary?.warningCount  > 0 && <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>⚠ {checkerResult.summary.warningCount} Warnings</span>}
+                  </div>
+                )}
+              </div>
 
-              {/* Computation Summary — after Run All */}
-              {structuralResults && (
-                <StructuralComputationSummary
-                  results={structuralResults}
-                  onNavigate={(key)=>setSubTool(key)}
-                />
-              )}
+              {/* Design Calc tab strip */}
+              <div style={{display:"flex",gap:5,marginBottom:20,flexWrap:"wrap"}}>
+                {SUB_TOOLS.map(t=>(
+                  <button key={t.key} onClick={()=>setSubTool(t.key)}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
+                      border:`1.5px solid ${subTool===t.key?"#0696d7":T.border}`,
+                      background:subTool===t.key?"rgba(6,150,215,0.12)":"transparent",
+                      color:subTool===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>
+                    <Icon name={t.icon} size={12} color={subTool===t.key?"#0696d7":T.muted}/>
+                    <span>{t.label}</span>
+                    <SubToolStatus toolKey={t.key}/>
+                  </button>
+                ))}
+              </div>
 
-              {/* The actual plan checker (upload + compliance findings) */}
-              <StructuralChecker apiKey={apiKey} onDataExtracted={handleDataExtracted}/>
+              {subTool==="seismic" && <SeismicCalc   structuralData={structuralData}/>}
+              {subTool==="beam"    && <BeamDesign     structuralData={structuralData}/>}
+              {subTool==="column"  && <ColumnDesign   structuralData={structuralData}/>}
+              {subTool==="footing" && <FootingDesign  structuralData={structuralData}/>}
+              {subTool==="slab"    && <SlabDesign     structuralData={structuralData}/>}
+              {subTool==="loads"   && <LoadCombinations structuralData={structuralData}/>}
             </div>
           )}
 
-          {/* Design sub-tool views */}
-          {subTool==="seismic"  && (
-            <div>
-              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="seismic")} onBack={()=>setSubTool(null)} hasData={hasData("seismic")}/>
-              <SeismicCalc structuralData={structuralData}/>
-            </div>
-          )}
-          {subTool==="beam"     && (
-            <div>
-              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="beam")} onBack={()=>setSubTool(null)} hasData={hasData("beam")}/>
-              <BeamDesign structuralData={structuralData}/>
-            </div>
-          )}
-          {subTool==="column"   && (
-            <div>
-              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="column")} onBack={()=>setSubTool(null)} hasData={hasData("column")}/>
-              <ColumnDesign structuralData={structuralData}/>
-            </div>
-          )}
-          {subTool==="footing"  && (
-            <div>
-              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="footing")} onBack={()=>setSubTool(null)} hasData={hasData("footing")}/>
-              <FootingDesign structuralData={structuralData}/>
-            </div>
-          )}
-          {subTool==="slab"     && (
-            <div>
-              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="slab")} onBack={()=>setSubTool(null)} hasData={hasData("slab")}/>
-              <SlabDesign structuralData={structuralData}/>
-            </div>
-          )}
-          {subTool==="loads"    && (
-            <div>
-              <SubToolHeader tool={SUB_TOOLS.find(t=>t.key==="loads")} onBack={()=>setSubTool(null)} hasData={hasData("loads")}/>
-              <LoadCombinations structuralData={structuralData}/>
+          {/* Design calc launcher — visible on Plan Analysis view only, after analysis */}
+          {subTool===null && checkerResult && (
+            <div style={{marginTop:16,padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Design Calculator</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {SUB_TOOLS.map(t=>(
+                  <button key={t.key} onClick={()=>setSubTool(t.key)}
+                    style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:8,
+                      border:`1.5px solid ${hasData(t.key)?"rgba(34,197,94,0.35)":T.border}`,
+                      background:hasData(t.key)?"rgba(34,197,94,0.06)":"transparent",
+                      color:hasData(t.key)?"#22c55e":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                    <Icon name={t.icon} size={13} color={hasData(t.key)?"#22c55e":T.muted}/>
+                    <span>{t.label}</span>
+                    {hasData(t.key) && <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",padding:"1px 5px",borderRadius:3,fontWeight:800}}>DATA</span>}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -4922,7 +5007,8 @@ function PlumbingChecker({ apiKey }) {
       const data=await callAI({ apiKey, system:NPC_SYSTEM_PROMPT, messages:[{role:"user",content:blocks}] });
       const raw=data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed;try{parsed=JSON.parse(raw);}catch{throw new Error("Could not parse AI response.");}
-      setResult(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
+      setResult(parsed);
+      if(onResultChange) onResultChange(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
       addHistoryEntry({ tool:"plumbing", module:"sanitary", projectName:parsed?.summary?.projectName||"Plumbing Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
     }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);setBusyMsg("");}
   };
