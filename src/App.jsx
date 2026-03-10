@@ -2944,6 +2944,16 @@ function BOMReview({ apiKey }) {
   const STR = "#0696d7";
   const tick = () => new Promise(r => setTimeout(r, 0));
 
+  // ── Restore last BOM session on mount ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      if (!s?.bomResult?.summary) return;
+      setResult(s.bomResult);
+      if (s.compareResult) setCompareResult(s.compareResult);
+    } catch {}
+  }, []); // eslint-disable-line
+
   const PROJECT_PRESETS = [
     { value:"duplex_residential",  label:"Duplex / Townhouse Residence" },
     { value:"single_residential",  label:"Single Detached House" },
@@ -3168,9 +3178,30 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
     );
   };
 
+  const handleNewBOM = () => {
+    setResult(null); setCompareResult(null); setPlanFiles([]); setBomFiles([]); setBomFiles2([]);
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+      delete s.bomResult; delete s.compareResult;
+      localStorage.setItem("buildify_session_structural", JSON.stringify(s));
+    } catch {}
+  };
+
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <NoKeyBanner/>
+
+      {/* ── New BOM Review button when result is loaded ── */}
+      {result && (
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <button onClick={handleNewBOM}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:9,
+              border:"1.5px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",
+              color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>
+            <Icon name="plus" size={13} color="#ef4444"/> New BOM Review
+          </button>
+        </div>
+      )}
 
       {/* ── Config + Upload Panel ── */}
       <Card>
@@ -3765,6 +3796,15 @@ function CostEstimator({ apiKey }) {
   const fmtN  = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
   const fmtR  = n => (+n||0).toLocaleString("en-PH",{maximumFractionDigits:0});
 
+  // ── Restore last estimate session on mount ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      if (!s?.estimateResult?.summary) return;
+      setResult(s.estimateResult);
+    } catch {}
+  }, []); // eslint-disable-line
+
   const addFiles = useCallback(fs => setFiles(p => [...p, ...Array.from(fs).map(f => ({
     file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream"
   }))]), []);
@@ -4070,9 +4110,29 @@ INSTRUCTIONS:
 
   const TRADE_COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#84cc16","#ec4899","#6366f1","#14b8a6","#a78bfa"];
 
+  const handleNewEstimate = () => {
+    setResult(null); setFiles([]);
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+      delete s.estimateResult;
+      localStorage.setItem("buildify_session_structural", JSON.stringify(s));
+    } catch {}
+  };
+
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <NoKeyBanner/>
+
+      {result && (
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <button onClick={handleNewEstimate}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:9,
+              border:"1.5px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",
+              color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700}}>
+            <Icon name="plus" size={13} color="#ef4444"/> New Estimate
+          </button>
+        </div>
+      )}
 
       {/* ── Config Panel ── */}
       <Card>
@@ -5607,6 +5667,8 @@ function StructiCode({ apiKey, initialTool }) {
   const [checkerExtracted,  setCheckerExtracted]  = useState(null);
   const [structuralResults, setStructuralResults] = useState(null);
   const [runState,          setRunState]          = useState(null);
+  const [bomResult,         setBomResult]         = useState(null);
+  const [estimateResult,    setEstimateResult]    = useState(null);
 
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null);
@@ -5620,6 +5682,8 @@ function StructiCode({ apiKey, initialTool }) {
       if (s.checkerExtracted?.building) { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
       if (s.structuralResults?.items)   setStructuralResults(s.structuralResults);
       if (s.runState)                   setRunState(s.runState);
+      if (s.bomResult?.summary)         setBomResult(s.bomResult);
+      if (s.estimateResult?.summary)    setEstimateResult(s.estimateResult);
     } catch {}
   }, []); // eslint-disable-line
 
@@ -5705,22 +5769,48 @@ function StructiCode({ apiKey, initialTool }) {
     return <span style={{width:7,height:7,borderRadius:"50%",background:T.muted,display:"inline-block",opacity:0.3,marginLeft:4}}/>;
   };
 
+  const handleNewReview = () => {
+    setCheckerResult(null);
+    setCheckerExtracted(null);
+    setStructuralData(null);
+    setStructuralResults(null);
+    setRunState(null);
+    setSubTool(null);
+    setTab("checker");
+    setBomResult(null);
+    setEstimateResult(null);
+    try { localStorage.removeItem("buildify_session_structural"); } catch {}
+  };
+
   return (
     <div>
       {/* ── 3 Main Tabs ── */}
-      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
-        {MAIN_TABS.map(t=>(
-          <button key={t.key} onClick={()=>{ setTab(t.key); setSubTool(null); }}
-            style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
-              border:`1.5px solid ${tab===t.key?"#0696d7":T.border}`,
-              background:tab===t.key?"rgba(6,150,215,0.12)":"transparent",
-              color:tab===t.key?"#0696d7":T.muted,
-              cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
-            <Icon name={t.icon||"report"} size={15} color={tab===t.key?"#0696d7":T.muted}/>
-            <span>{t.label}</span>
-            {t.badge && <span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
+      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${T.border}`,alignItems:"center"}}>
+        <div style={{display:"flex",gap:8,flex:1,flexWrap:"wrap"}}>
+          {MAIN_TABS.map(t=>(
+            <button key={t.key} onClick={()=>{ setTab(t.key); setSubTool(null); }}
+              style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
+                border:`1.5px solid ${tab===t.key?"#0696d7":T.border}`,
+                background:tab===t.key?"rgba(6,150,215,0.12)":"transparent",
+                color:tab===t.key?"#0696d7":T.muted,
+                cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
+              <Icon name={t.icon||"report"} size={15} color={tab===t.key?"#0696d7":T.muted}/>
+              <span>{t.label}</span>
+              {t.badge && <span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
+            </button>
+          ))}
+        </div>
+        {(checkerResult || bomResult || estimateResult) && (
+          <button onClick={handleNewReview}
+            title="Clear session and start a new review"
+            style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:10,
+              border:`1.5px solid rgba(239,68,68,0.3)`,background:"rgba(239,68,68,0.07)",
+              color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0,
+              transition:"all 0.15s"}}>
+            <Icon name="plus" size={13} color="#ef4444"/>
+            New Review
           </button>
-        ))}
+        )}
       </div>
 
       {/* ── BOM Review ── */}
@@ -7764,10 +7854,22 @@ function ElecCode({ apiKey }) {
           display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <Icon name="electrical" size={20} color="#fff"/>
         </div>
-        <div>
+        <div style={{flex:1}}>
           <div style={{fontWeight:900,fontSize:20,color:T.text,letterSpacing:"-0.5px"}}>Electrical</div>
           <div style={{fontSize:11,color:T.muted,marginTop:1}}>PEC 2017 · RA 9514 (FSIC) · Philippine Green Building Code</div>
         </div>
+        {checkerResult && (
+          <button onClick={()=>{
+            setCheckerResult(null); setElectricalData(null); setElecResults(null);
+            setRunState(null); setCalcStates({}); setMainTab("checker");
+            try { localStorage.removeItem("buildify_session_electrical"); } catch {}
+          }}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,
+              border:"1.5px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",
+              color:"#ef4444",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+            <Icon name="plus" size={13} color="#ef4444"/> New Review
+          </button>
+        )}
       </div>
 
       {/* Main tabs */}
@@ -8003,8 +8105,21 @@ function SaniCode({ apiKey }) {
   ];
   return (
     <div>
-      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
+      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,flex:1,flexWrap:"wrap"}}>
         {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:T.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span></button>)}
+        </div>
+        {checkerResult && (
+          <button onClick={()=>{
+            setCheckerResult(null); setTool("checker");
+            try { localStorage.removeItem("buildify_session_sanitary"); } catch {}
+          }}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:9,
+              border:"1.5px solid rgba(6,182,212,0.3)",background:"rgba(6,182,212,0.07)",
+              color:"#06b6d4",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+            <Icon name="plus" size={13} color="#06b6d4"/> New Review
+          </button>
+        )}
       </div>
       {tool==="checker"  && <PlumbingChecker apiKey={apiKey}/>}
       {tool==="fixture"  && <FixtureUnitCalc/>}
