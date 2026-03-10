@@ -1877,7 +1877,7 @@ const FromPlansBadge = () => (
   <span title="Value extracted from uploaded plans" style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.3)",padding:"1px 6px",borderRadius:4,fontWeight:700,marginLeft:6,verticalAlign:"middle"}}>FROM PLANS ✓</span>
 );
 
-function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultChange, externalExtracted }) {
+function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultChange, externalExtracted, onSessionSave }) {
   const [files,setFiles]   = useState([]);
   const [result,setResult] = useState(externalResult||null);
   const [busy,setBusy]     = useState(false);
@@ -1937,7 +1937,8 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
       if(onResultChange) onResultChange(parsed);
         if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
         setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
-      addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
+      const _structHistId = addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
+      if(onSessionSave) onSessionSave({ checkerResult: parsed });;
     } catch(e){ setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
@@ -2898,7 +2899,7 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
 
 
 
-function BOMReview({ apiKey }) {
+function BOMReview({ apiKey, onSessionSave }) {
   const [planFiles,     setPlanFiles]     = useState([]);
   const [bomFiles,      setBomFiles]      = useState([]);
   const [bomFiles2,     setBomFiles2]     = useState([]);
@@ -3009,6 +3010,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
       try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed1);
       addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.notes||"" } });
+      if(onSessionSave) onSessionSave({ bomResult: parsed1 });;
 
       // Comparison BOM
       if (mode === "compare" && bomFiles2.length) {
@@ -3712,7 +3714,7 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
   "marketWarnings": []
 }`;
 
-function CostEstimator({ apiKey }) {
+function CostEstimator({ apiKey, onSessionSave }) {
   const [files,       setFiles]       = useState([]);
   const [drag,        setDrag]        = useState(false);
   const [result,      setResult]      = useState(null);
@@ -3857,6 +3859,7 @@ INSTRUCTIONS:
           summary: `${parsed?.project?.type||""} · ${parsed?.project?.finishLevel||""} · ${(parsed?.project?.estimatedGFA||0).toLocaleString()} sqm`,
         }
       });
+      if(onSessionSave) onSessionSave({ estimateResult: parsed });;
     } catch(e) {
       setError(e.message || "Estimation failed. Please try again.");
     } finally {
@@ -5570,21 +5573,54 @@ function RebarSchedule({ structuralData, structuralResults }) {
 }
 
 
-function StructiCode({ apiKey, initialTool }) {
+function StructiCode({ apiKey, initialTool, restoredSession, onSessionConsumed }) {
   // ── Top-level 3 tools ──
   const [tab, setTab] = useState("checker");
   useEffect(()=>{ if(initialTool==="bom") setTab("bom"); else if(initialTool==="estimate") setTab("estimate"); },[initialTool]);
 
   // ── Structural data (lives here, never lost on tool switch) ──
-  const [structuralData, setStructuralData]     = useState(null);
+  const [structuralData, setStructuralData]       = useState(null);
   // ── Plan Checker results — lifted here so they survive sub-tool navigation ──
-  const [checkerResult, setCheckerResult]       = useState(null);
-  const [checkerExtracted, setCheckerExtracted] = useState(null);
+  const [checkerResult,     setCheckerResult]     = useState(null);
+  const [checkerExtracted,  setCheckerExtracted]  = useState(null);
   const [structuralResults, setStructuralResults] = useState(null);
-  const [runState, setRunState]                 = useState(null);
+  const [runState,          setRunState]          = useState(null);
+  // ── BOM + Estimate results — lifted so session can save them ──
+  const [bomResult,         setBomResult]         = useState(null);
+  const [estimateResult,    setEstimateResult]    = useState(null);
 
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null); // null = show checker+summary, else show that calc
+
+  // ── Session restore — fires once when restoredSession arrives ──
+  useEffect(() => {
+    if (!restoredSession) return;
+    if (restoredSession.checkerResult)     setCheckerResult(restoredSession.checkerResult);
+    if (restoredSession.structuralData)    setStructuralData(restoredSession.structuralData);
+    if (restoredSession.checkerExtracted)  setCheckerExtracted(restoredSession.checkerExtracted);
+    if (restoredSession.structuralResults) setStructuralResults(restoredSession.structuralResults);
+    if (restoredSession.runState)          setRunState(restoredSession.runState);
+    if (restoredSession.bomResult)         setBomResult(restoredSession.bomResult);
+    if (restoredSession.estimateResult)    setEstimateResult(restoredSession.estimateResult);
+    if (restoredSession._tab)              setTab(restoredSession._tab);
+    if (onSessionConsumed) onSessionConsumed();
+  }, [restoredSession]);
+
+  // ── Auto-save session whenever meaningful state changes ──
+  const _sessionRef = { checkerResult, structuralData, checkerExtracted, structuralResults, runState, bomResult, estimateResult, _tab: tab };
+  useEffect(() => {
+    if (!checkerResult && !bomResult && !estimateResult) return; // nothing worth saving yet
+    DB.saveSession("structural", _sessionRef);
+  }, [checkerResult, structuralData, structuralResults, bomResult, estimateResult]);
+
+  // ── onSessionSave handler passed down to children ──
+  const handleSessionSave = (partial) => {
+    const next = { ..._sessionRef, ...partial };
+    if (partial.checkerResult)     setCheckerResult(partial.checkerResult);
+    if (partial.bomResult)         setBomResult(partial.bomResult);
+    if (partial.estimateResult)    setEstimateResult(partial.estimateResult);
+    DB.saveSession("structural", next);
+  };
 
   const handleDataExtracted = (d) => {
     setStructuralData(d);
@@ -5687,10 +5723,10 @@ function StructiCode({ apiKey, initialTool }) {
       </div>
 
       {/* ── BOM Review ── */}
-      {tab==="bom" && <BOMReview apiKey={apiKey}/>}
+      {tab==="bom" && <BOMReview apiKey={apiKey} onSessionSave={handleSessionSave}/>}
 
       {/* ── Cost Estimator ── */}
-      {tab==="estimate" && <CostEstimator apiKey={apiKey}/>}
+      {tab==="estimate" && <CostEstimator apiKey={apiKey} onSessionSave={handleSessionSave}/>}
 
       {/* ── AI Plan Checker (main tab with embedded sub-tools) ── */}
       {tab==="checker" && (
@@ -5726,6 +5762,7 @@ function StructiCode({ apiKey, initialTool }) {
               externalResult={checkerResult}
               onResultChange={setCheckerResult}
               externalExtracted={checkerExtracted}
+              onSessionSave={handleSessionSave}
             />
           </div>
 
@@ -5891,7 +5928,7 @@ const DFU_TO_PIPE = [
 const WSFU_TO_GPM = wsfu => wsfu<=6?wsfu*1.5:wsfu<=10?wsfu*1.2:wsfu<=20?wsfu*1.0:wsfu*0.9;
 
 // ─── SANICODE: AI PLAN CHECKER ────────────────────────────────────────────────
-function PlumbingChecker({ apiKey }) {
+function PlumbingChecker({ apiKey, onSessionSave }) {
   const [files,setFiles]=useState([]);
   const [result,setResult]=useState(null);
   const [busy,setBusy]=useState(false);
@@ -5927,6 +5964,7 @@ function PlumbingChecker({ apiKey }) {
       setResult(parsed);
       if(onResultChange) onResultChange(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
       addHistoryEntry({ tool:"plumbing", module:"sanitary", projectName:parsed?.summary?.projectName||"Plumbing Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
+      if(onSessionSave) onSessionSave({ checkerResult: parsed });;
     }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);setBusyMsg("");}
   };
   const findings=result?.findings||[];
@@ -7615,7 +7653,7 @@ function ElecComputationSummary({ results, data, onNavigate }) {
 
 
 
-function ElecCode({ apiKey }) {
+function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   const ACCENT     = "#ff6b2b";
   const ACCENT_DIM = "rgba(255,107,43,0.1)";
 
@@ -7632,6 +7670,26 @@ function ElecCode({ apiKey }) {
   // ── Navigation ──
   const [mainTab,  setMainTab]  = useState("checker");
   const [calcTool, setCalcTool] = useState(null);
+
+  // ── Session restore ──
+  useEffect(() => {
+    if (!restoredSession) return;
+    if (restoredSession.checkerResult)  setCheckerResult(restoredSession.checkerResult);
+    if (restoredSession.electricalData) setElectricalData(restoredSession.electricalData);
+    if (restoredSession.elecResults)    setElecResults(restoredSession.elecResults);
+    if (restoredSession.runState)       setRunState(restoredSession.runState);
+    if (restoredSession.calcStates)     setCalcStates(restoredSession.calcStates);
+    if (restoredSession._mainTab)       setMainTab(restoredSession._mainTab);
+    if (onSessionConsumed) onSessionConsumed();
+  }, [restoredSession]);
+
+  // ── Auto-save session whenever meaningful state changes ──
+  useEffect(() => {
+    if (!checkerResult && !electricalData) return;
+    DB.saveSession("electrical", {
+      checkerResult, electricalData, elecResults, runState, calcStates, _mainTab: mainTab,
+    });
+  }, [checkerResult, electricalData, elecResults, calcStates]);
 
   const CALC_TOOLS = [
     { key:"vdrop",    icon:"vdrop",     label:"Voltage Drop",      code:"PEC Art. 2.30" },
@@ -7924,8 +7982,24 @@ function ElecCode({ apiKey }) {
 
 
 
-function SaniCode({ apiKey }) {
-  const [tool,setTool]=useState("checker");
+function SaniCode({ apiKey, restoredSession, onSessionConsumed }) {
+  const [tool,       setTool]       = useState("checker");
+  const [checkerResult, setCheckerResult] = useState(null);
+
+  // ── Session restore ──
+  useEffect(() => {
+    if (!restoredSession) return;
+    if (restoredSession.checkerResult) setCheckerResult(restoredSession.checkerResult);
+    if (restoredSession._tool)         setTool(restoredSession._tool);
+    if (onSessionConsumed) onSessionConsumed();
+  }, [restoredSession]);
+
+  // ── Auto-save when checker result arrives ──
+  useEffect(() => {
+    if (!checkerResult) return;
+    DB.saveSession("sanitary", { checkerResult, _tool: tool });
+  }, [checkerResult]);
+
   const TOOLS=[
     {key:"checker",  icon:"🤖", label:"AI Plan Checker"},
     {key:"fixture",  icon:"🚰", label:"Fixture Units"},
@@ -7940,7 +8014,7 @@ function SaniCode({ apiKey }) {
       <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
         {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:T.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span></button>)}
       </div>
-      {tool==="checker"  && <PlumbingChecker apiKey={apiKey}/>}
+      {tool==="checker"  && <PlumbingChecker apiKey={apiKey} onSessionSave={(p)=>{ if(p.checkerResult) setCheckerResult(p.checkerResult); }}/>}
       {tool==="fixture"  && <FixtureUnitCalc/>}
       {tool==="pipe"     && <PipeSizing/>}
       {tool==="septic"   && <SepticTankSizing/>}
@@ -7953,28 +8027,95 @@ function SaniCode({ apiKey }) {
 
 
 // ─── HISTORY SYSTEM ──────────────────────────────────────────────────────────
-const HISTORY_KEY = "buildify_history";
+// ─── DB ABSTRACTION LAYER ─────────────────────────────────────────────────────
+// All persistence goes through DB.*  — swap internals for Supabase later,
+// zero changes needed anywhere else in the app.
+// ─────────────────────────────────────────────────────────────────────────────
+const HISTORY_KEY  = "buildify_history";
+const SESSION_KEYS = {
+  structural: "buildify_session_structural",
+  electrical: "buildify_session_electrical",
+  sanitary:   "buildify_session_sanitary",
+};
 
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+function _uuid() {
+  // Simple UUID v4 — replaced by Supabase auto-id later
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
 }
-function saveHistory(entries) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, 200))); } catch {}
-}
-function addHistoryEntry(entry) {
-  const entries = loadHistory();
-  entries.unshift({ ...entry, id: Date.now().toString(), timestamp: new Date().toISOString() });
-  saveHistory(entries);
-  window.dispatchEvent(new Event("buildify_history_update"));
-}
-function deleteHistoryEntry(id) {
-  saveHistory(loadHistory().filter(e => e.id !== id));
-  window.dispatchEvent(new Event("buildify_history_update"));
-}
-function clearHistory() {
-  localStorage.removeItem(HISTORY_KEY);
-  window.dispatchEvent(new Event("buildify_history_update"));
-}
+
+const DB = {
+  // ── History ──────────────────────────────────────────────────────────────
+  loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+  },
+  saveHistory(entries) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, 200))); } catch {}
+  },
+  addHistoryEntry(entry) {
+    const entries = DB.loadHistory();
+    const id = _uuid();
+    entries.unshift({
+      ...entry,
+      id,
+      userId: "local",          // → replace with real user ID when Supabase lands
+      timestamp: new Date().toISOString(),
+    });
+    DB.saveHistory(entries);
+    window.dispatchEvent(new CustomEvent("buildify_history_update"));
+    return id;
+  },
+  deleteHistoryEntry(id) {
+    DB.saveHistory(DB.loadHistory().filter(e => e.id !== id));
+    window.dispatchEvent(new CustomEvent("buildify_history_update"));
+  },
+  clearHistory() {
+    localStorage.removeItem(HISTORY_KEY);
+    // Also clear all module sessions
+    Object.values(SESSION_KEYS).forEach(k => localStorage.removeItem(k));
+    window.dispatchEvent(new CustomEvent("buildify_history_update"));
+  },
+
+  // ── Sessions ─────────────────────────────────────────────────────────────
+  saveSession(module, payload) {
+    try {
+      const key = SESSION_KEYS[module];
+      if (!key) return;
+      localStorage.setItem(key, JSON.stringify({
+        ...payload,
+        _savedAt: new Date().toISOString(),
+        _module:  module,
+        userId:   "local",
+      }));
+    } catch(e) { console.warn("DB.saveSession failed", e); }
+  },
+  loadSession(module) {
+    try {
+      const key = SESSION_KEYS[module];
+      if (!key) return null;
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  },
+  clearSession(module) {
+    try {
+      const key = SESSION_KEYS[module];
+      if (key) localStorage.removeItem(key);
+    } catch {}
+  },
+  hasSession(module) {
+    try { return !!localStorage.getItem(SESSION_KEYS[module]); } catch { return false; }
+  },
+};
+
+// ── Backwards-compat shims (so existing call sites don't break) ───────────
+function loadHistory()             { return DB.loadHistory(); }
+function saveHistory(e)            { return DB.saveHistory(e); }
+function addHistoryEntry(entry)    { return DB.addHistoryEntry(entry); }
+function deleteHistoryEntry(id)    { return DB.deleteHistoryEntry(id); }
+function clearHistory()            { return DB.clearHistory(); }
 
 // ─── DASHBOARD HOME ───────────────────────────────────────────────────────────
 function DashboardHome({ onNavigate }) {
@@ -8140,7 +8281,7 @@ function DashboardHome({ onNavigate }) {
             {recent3.map((entry, idx) => {
               const meta = TOOL_META[entry.tool] || { icon:"report", label:entry.tool, color:"#94a3b8" };
               return (
-                <button key={entry.id} onClick={() => onNavigate(entry.module, entry.tool)}
+                <button key={entry.id} onClick={() => onNavigate(entry.module, entry.tool, entry.id)}
                   style={{ background:T.card, border:`1.5px solid ${T.border}`, borderRadius:12,
                     padding:"14px 16px", cursor:"pointer", textAlign:"left", transition:"all 0.2s",
                     display:"flex", flexDirection:"column", gap:8, position:"relative", overflow:"hidden" }}
@@ -8286,7 +8427,7 @@ function DashboardHome({ onNavigate }) {
                       style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${T.border}`, background:"rgba(6,150,215,0.08)", color:"#0696d7", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", gap:4, fontWeight:700 }}>
                       <Icon name="download" size={12} color="#0696d7"/> Report
                     </button>
-                    <button onClick={()=>onNavigate(entry.module, entry.tool)} title="Open Tool"
+                    <button onClick={()=>onNavigate(entry.module, entry.tool, entry.id)} title="Open Tool"
                       style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${meta.color}40`, background:`${meta.color}10`, color:meta.color, cursor:"pointer", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
                       <Icon name="open" size={12} color={meta.color}/> Open
                     </button>
@@ -8867,12 +9008,17 @@ function LoginModal({ onClose, onSuccess }) {
 
 // ─── DASHBOARD (logged-in app) ────────────────────────────────────────────────
 function Dashboard({ user, onLogout }) {
-  const [module,      setModule]      = useState("home");
-  const [structTool,  setStructTool]  = useState("bom");
-  const [history,     setHistory]     = useState(loadHistory());
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
+  const [module,         setModule]         = useState("home");
+  const [structTool,     setStructTool]     = useState("bom");
+  const [history,        setHistory]        = useState(loadHistory());
+  const [sidebarOpen,    setSidebarOpen]    = useState(() => {
     try { return localStorage.getItem("buildify_sidebar") !== "collapsed"; } catch { return true; }
   });
+
+  // ── Session restore state ──
+  const [pendingRestore,    setPendingRestore]    = useState(null);  // { module, session, entry }
+  const [restoredSession,   setRestoredSession]   = useState(null);  // passed as prop to modules
+  const [restoreDismissed,  setRestoreDismissed]  = useState(false); // user dismissed banner
 
   // Keep history live for sidebar pills
   useEffect(() => {
@@ -8887,9 +9033,50 @@ function Dashboard({ user, onLogout }) {
     return next;
   });
 
-  const navigateTo = (mod, tool) => {
+  // ── navigateTo — extended signature ──────────────────────────────────────
+  // entryId: optional history entry id — triggers restore banner
+  const navigateTo = (mod, tool, entryId = null) => {
     setModule(mod);
     if (mod === "structural" && tool) setStructTool(tool === "checker" ? "checker" : tool);
+    setRestoredSession(null);
+    setRestoreDismissed(false);
+
+    if (entryId) {
+      // History-card click — offer to restore the most recent saved session for this module
+      const session = DB.loadSession(mod);
+      const entry   = DB.loadHistory().find(e => e.id === entryId);
+      if (session) {
+        setPendingRestore({ module: mod, session, entry });
+      } else {
+        setPendingRestore(null);
+      }
+    } else {
+      // Quick-launch click — check if there's an auto-saved session for this module
+      // and offer it silently (no banner) — just sets pending so user can restore manually
+      const session = DB.loadSession(mod);
+      if (session) {
+        setPendingRestore({ module: mod, session, entry: null });
+      } else {
+        setPendingRestore(null);
+      }
+    }
+  };
+
+  const handleRestore = () => {
+    if (!pendingRestore) return;
+    setRestoredSession(pendingRestore.session);
+    setPendingRestore(null);
+    setRestoreDismissed(false);
+  };
+
+  const handleDismissRestore = () => {
+    setPendingRestore(null);
+    setRestoreDismissed(true);
+  };
+
+  const handleSessionConsumed = () => {
+    // Module has absorbed the restored session — clear it so it doesn't re-fire
+    setRestoredSession(null);
   };
 
   const [apiKey, setApiKey] = useState(() => {
@@ -8906,7 +9093,8 @@ function Dashboard({ user, onLogout }) {
     const diffMin = Math.floor((Date.now() - new Date(latest.timestamp)) / 60000);
     const age = diffMin < 60 ? `${diffMin}m ago` : diffMin < 1440 ? `${Math.floor(diffMin/60)}h ago`
               : `${Math.floor(diffMin/1440)}d ago`;
-    return { count: entries.length, age };
+    const hasSession = DB.hasSession(mod);
+    return { count: entries.length, age, hasSession };
   };
 
   const SB = sidebarOpen ? 230 : 58;
@@ -8924,6 +9112,21 @@ function Dashboard({ user, onLogout }) {
     electrical: { title:"Electrical", sub:"PEC 2017 · RA 9514 (FSIC) · Green Building Code" },
     sanitary:   { title:"Sanitary",   sub:"National Plumbing Code 2000 · PD 856 Sanitation Code" },
   };
+
+  // ── Restore banner colors per module ──
+  const MOD_COLOR = { structural:"#0696d7", electrical:"#ff6b2b", sanitary:"#06b6d4" };
+  const modColor  = MOD_COLOR[module] || "#0696d7";
+
+  const fmtRestoreDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const diffMin = Math.floor((Date.now() - d) / 60000);
+    if (diffMin < 60)  return `${diffMin}m ago`;
+    if (diffMin < 1440) return `${Math.floor(diffMin/60)}h ago`;
+    return d.toLocaleDateString("en-PH", { month:"short", day:"numeric" }) + " · " +
+           d.toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" });
+  };
+
 
   return (
     <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", display:"flex" }}>
@@ -8980,10 +9183,10 @@ function Dashboard({ user, onLogout }) {
                 {/* Icon — with dot indicator when collapsed */}
                 <span style={{ flexShrink:0, display:"flex", alignItems:"center", position:"relative" }}>
                   <Icon name={item.icon} size={18} color={active ? item.color : "#64748b"}/>
-                  {/* Activity dot — only when sidebar collapsed & has runs */}
-                  {!sidebarOpen && stats && (
+                  {/* Activity dot — only when sidebar collapsed & has runs or saved session */}
+                  {!sidebarOpen && stats && (stats.count > 0 || stats.hasSession) && (
                     <span style={{ position:"absolute", top:-2, right:-2, width:7, height:7,
-                      borderRadius:"50%", background:item.color,
+                      borderRadius:"50%", background: stats.hasSession ? item.color : "#64748b",
                       border:"1.5px solid #0f1118", display:"block" }}/>
                   )}
                 </span>
@@ -9006,10 +9209,16 @@ function Dashboard({ user, onLogout }) {
                         </span>
                       )}
                     </div>
-                    {/* Last used time — only show when not active */}
+                    {/* Last used time + saved session indicator — only show when not active */}
                     {stats && !active && (
-                      <div style={{ fontSize:9, color:"rgba(100,116,139,0.6)", marginTop:1 }}>
-                        Last: {stats.age}
+                      <div style={{ fontSize:9, color:"rgba(100,116,139,0.6)", marginTop:1, display:"flex", alignItems:"center", gap:5 }}>
+                        <span>Last: {stats.age}</span>
+                        {stats.hasSession && (
+                          <span style={{ fontSize:8, fontWeight:800, padding:"1px 5px", borderRadius:3,
+                            background:`${item.color}18`, color:item.color }}>
+                            SAVED
+                          </span>
+                        )}
                       </div>
                     )}
                     {/* Sub-label when active */}
@@ -9115,13 +9324,72 @@ function Dashboard({ user, onLogout }) {
               <div style={{ fontSize:12, color:"#f59e0b" }}>⚠️ <strong>API key required.</strong> Paste your Anthropic key above (starts with <code style={{background:"rgba(0,0,0,0.3)",padding:"1px 5px",borderRadius:3}}>sk-ant-</code>). Get yours at <strong>console.anthropic.com → API Keys</strong>.</div>
             </div>
           )}
+
+          {/* ── Session Restore Banner ── */}
+          {pendingRestore && pendingRestore.module === module && (
+            <div style={{
+              borderTop:`1px solid ${modColor}30`,
+              background:`linear-gradient(135deg, ${modColor}0d, ${modColor}06)`,
+              padding:"10px 24px",
+              display:"flex", alignItems:"center", gap:12, flexWrap:"wrap",
+            }}>
+              {/* Icon */}
+              <div style={{ width:28, height:28, borderRadius:8, background:`${modColor}20`,
+                border:`1px solid ${modColor}40`, display:"flex", alignItems:"center",
+                justifyContent:"center", flexShrink:0 }}>
+                <Icon name="open" size={14} color={modColor}/>
+              </div>
+
+              {/* Text */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <span style={{ fontSize:12, fontWeight:700, color:T.text }}>
+                  Previous session available
+                </span>
+                {pendingRestore.entry && (
+                  <span style={{ fontSize:12, color:T.muted }}>
+                    {" — "}<strong style={{ color:T.text }}>{pendingRestore.entry.projectName || "Untitled"}</strong>
+                    {" · "}{fmtRestoreDate(pendingRestore.session._savedAt)}
+                  </span>
+                )}
+                {!pendingRestore.entry && pendingRestore.session._savedAt && (
+                  <span style={{ fontSize:12, color:T.muted }}>
+                    {" — saved "}{fmtRestoreDate(pendingRestore.session._savedAt)}
+                  </span>
+                )}
+                <span style={{ fontSize:11, color:T.muted, marginLeft:8 }}>
+                  · AI results, computed values + pre-fills will all be restored
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                <button onClick={handleRestore}
+                  style={{ padding:"6px 16px", borderRadius:8, border:"none",
+                    background:`linear-gradient(135deg, ${modColor}, ${modColor}cc)`,
+                    color:"#fff", cursor:"pointer", fontSize:12, fontWeight:800,
+                    boxShadow:`0 2px 10px ${modColor}40`, whiteSpace:"nowrap" }}>
+                  ↩ Restore Session
+                </button>
+                <button onClick={handleDismissRestore}
+                  style={{ padding:"6px 12px", borderRadius:8,
+                    border:`1px solid ${T.border}`, background:"transparent",
+                    color:T.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                  Start Fresh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Page content */}
         <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
           {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
           {module==="electrical" && (
-            <ElecCode apiKey={apiKey}/>
+            <ElecCode
+              apiKey={apiKey}
+              restoredSession={restoredSession}
+              onSessionConsumed={handleSessionConsumed}
+            />
           )}
           {module==="structural" && (
             <>
@@ -9132,7 +9400,14 @@ function Dashboard({ user, onLogout }) {
                   <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
                 </div>
               </div>
-              <Card><StructiCode apiKey={apiKey} initialTool={structTool}/></Card>
+              <Card>
+                <StructiCode
+                  apiKey={apiKey}
+                  initialTool={structTool}
+                  restoredSession={restoredSession}
+                  onSessionConsumed={handleSessionConsumed}
+                />
+              </Card>
             </>
           )}
           {module==="sanitary" && (
@@ -9144,7 +9419,13 @@ function Dashboard({ user, onLogout }) {
                   <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
                 </div>
               </div>
-              <Card><SaniCode apiKey={apiKey}/></Card>
+              <Card>
+                <SaniCode
+                  apiKey={apiKey}
+                  restoredSession={restoredSession}
+                  onSessionConsumed={handleSessionConsumed}
+                />
+              </Card>
             </>
           )}
         </div>
