@@ -3723,6 +3723,7 @@ CRITICAL OUTPUT RULES:
       {/* ── New BOM Review button when result is loaded ── */}
                   {(result || generateResult || compareResult) && (
       <div style={{marginBottom:0}}>
+{(result || (mode==="generate" && generateResult)) && (<>
 {/* ── Shared Markup & Contingency panel ── */}
             <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
               <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
@@ -3761,7 +3762,7 @@ CRITICAL OUTPUT RULES:
               )}
             </div>
       </div>
-      )}
+      </>)}
 
       {result && (
         <div style={{display:"flex",justifyContent:"flex-end"}}>
@@ -4243,7 +4244,7 @@ CRITICAL OUTPUT RULES:
       )}
 
       {/* ── GENERATE BOM RESULTS ── */}
-      {generateResult && (() => {
+      {mode==="generate" && generateResult && (() => {
         const g = generateResult;
         const s = g.summary || {};
         const fmt = n => "\u20b1" + (+n||0).toLocaleString("en-PH");
