@@ -468,6 +468,39 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
   return data;
 };
 
+const repairBomJSON = str => {
+  // Try direct parse first
+  try { return JSON.parse(str); } catch {}
+  // Strip any trailing incomplete array/object
+  let s = str.trimEnd();
+  // Find last complete lineItem entry
+  const tryClose = (suffix) => { try { return JSON.parse(s + suffix); } catch { return null; } };
+  // Try closing at various truncation points
+  const attempts = [
+    s + ']}',                           // truncated inside tradeSummary
+    s + '}]}',                          // truncated inside last lineItem
+    s + '"]}',                          // truncated mid-string in lineItem
+    s + ',"tradeSummary":[]}',          // truncated before tradeSummary
+    s.replace(/,\s*$/, '') + ']}',      // trailing comma then close
+    s.replace(/,\s*$/, '') + '}]}',
+  ];
+  for (const attempt of attempts) {
+    const r = tryClose('');
+    if (r) return r;
+    try { const p = JSON.parse(attempt); if (p?.summary && p?.lineItems) return p; } catch {}
+  }
+  // Last resort: find last complete lineItem and close there
+  const lastComplete = s.lastIndexOf(',"confidenceNote"');
+  if (lastComplete > 0) {
+    const end = s.indexOf('}', lastComplete);
+    if (end > 0) {
+      const truncated = s.substring(0, end+1) + '],"tradeSummary":[]}';
+      try { const p = JSON.parse(truncated); if (p?.summary && p?.lineItems) return p; } catch {}
+    }
+  }
+  return null;
+};
+
 const repairJSON = str => {
   try { return JSON.parse(str); } catch {}
   let s = str;
@@ -3381,11 +3414,31 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
         const userMsg = [...planBlocks, { type:"text", text:`Generate a complete Bill of Materials and Quantities from these engineering plans.
 Project type: ${projectPreset.replace(/_/g," ")}
 Rate basis: ${projectType === "government" ? "DPWH Blue Book / Government rates" : "Private NCR market rates (2025)"}
-Read every plan sheet. Compute quantities for all visible elements. Return only valid JSON.` }];
+
+CRITICAL OUTPUT RULES:
+- Return ONLY valid JSON. No explanations, no markdown, no text before or after.
+- Keep all string values SHORT (under 80 chars). Use qtyBasis for computation details.
+- Do NOT pad or repeat information. Be concise in every field.
+- If you cannot fit all line items, prioritize: structural elements first, then MEP, then finishes.
+- Every lineItem MUST have: trade, description, unit, qty, unitRateLow, unitRateHigh, totalLow, totalHigh.
+- qtyBasis is required for all concrete and rebar items. Optional for others.` }];
         setBusyMsg("📐 AI is reading plans and computing quantities…"); await tick();
-        const data = await callAI({ apiKey, system:BOM_GENERATE_PROMPT, messages:[{ role:"user", content:userMsg }], max_tokens:8000 });
+        const data = await callAI({ apiKey, system:BOM_GENERATE_PROMPT, messages:[{ role:"user", content:userMsg }], max_tokens:16000 });
         const raw  = data.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
-        let parsed; try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
+        // Check for truncation (stop_reason = max_tokens)
+        const stopReason = data.stop_reason;
+        let parsed;
+        try { parsed = JSON.parse(raw); }
+        catch {
+          // Try repairing truncated JSON
+          parsed = repairBomJSON(raw);
+          if (!parsed) {
+            const hint = stopReason === "max_tokens"
+              ? "The response was too long and got cut off. Try uploading fewer plan sheets, or use simpler plans."
+              : `JSON parse error. Raw response starts with: ${raw.slice(0,120)}`;
+            throw new Error(hint);
+          }
+        }
         setGenerateResult(parsed);
         addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed?.summary?.projectName||"BOM Generated", meta:{ totalHigh:parsed?.summary?.totalCostHigh, findings:parsed?.lineItems?.length||0, summary:parsed?.summary?.notes||"" } });
         try {
