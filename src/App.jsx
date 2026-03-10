@@ -3375,8 +3375,8 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   const [showMargins, setShowMargins] = useState(false);
   const [busyMsg,     setBusyMsg]     = useState("");
   const [debugInfo,   setDebugInfo]   = useState("");
-  const [bomMarkup, setBomMarkup] = useState({ materials: 0, labor: 0, overhead: 10, contingency: 5 });
-  const [showMarkup, setShowMarkup] = useState(false);
+  const [bomMarkup,   setBomMarkup]   = useState({ materials: 0, labor: 0, overhead: 10, contingency: 5 });
+  const [showMarkup,  setShowMarkup]  = useState(false);
 
   const planRef = useRef(null);
   const bomRef  = useRef(null);
@@ -3442,7 +3442,14 @@ function BOMReview({ apiKey, sessionTick=0 }) {
       * (1 + (m.contingency || 0) / 100);
   };
 
-  const computeAdjusted = (base) => {
+  const bomMfn = n => {
+    const m = bomMarkup;
+    return (+n||0)*(1+(m.materials||0)/100)*(1+(m.labor||0)/100)*(1+(m.overhead||0)/100)*(1+(m.contingency||0)/100);
+  };
+  const bomMf = n => "₱" + bomMfn(n).toLocaleString("en-PH", {maximumFractionDigits:0});
+  const bomTotalMarkupPct = ((1+(bomMarkup.materials||0)/100)*(1+(bomMarkup.labor||0)/100)*(1+(bomMarkup.overhead||0)/100)*(1+(bomMarkup.contingency||0)/100)-1)*100;
+
+    const computeAdjusted = (base) => {
     return base
       * (1 + marginsState.materials.pct   / 100)
       * (1 + marginsState.labor.pct       / 100)
@@ -3715,7 +3722,44 @@ CRITICAL OUTPUT RULES:
       <NoKeyBanner/>
 
       {/* ── New BOM Review button when result is loaded ── */}
-      {result && (
+                  {/* ── Shared Markup & Contingency panel ── */}
+            <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
+              <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
+                  {bomTotalMarkupPct > 0.1 && <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(6,150,215,0.15)",color:STR}}>+{bomTotalMarkupPct.toFixed(1)}% applied</span>}
+                </div>
+                <span style={{color:T.muted,fontSize:13}}>{showMarkup ? "▲" : "▼"}</span>
+              </div>
+              {showMarkup && (
+                <div style={{padding:"0 16px 16px",borderTop:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:12,marginTop:10}}>Compounds on the base estimate. Use to account for price escalation, contractor margin, contingency, and VAT.</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {[["materials","Materials / Escalation",STR],["labor","Labor Markup","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
+                      <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:9,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
+                            onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                            style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
+                          <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
+                        </div>
+                        <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
+                          onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                          style={{width:"100%",marginTop:6,accentColor:color}}/>
+                      </div>
+                    ))}
+                  </div>
+                  {bomTotalMarkupPct > 0.1 && (
+                    <div style={{marginTop:12,background:"rgba(6,150,215,0.06)",border:`1px solid ${STR}22`,borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:12,color:T.muted}}>Combined multiplier on base estimate</span>
+                      <span style={{fontSize:15,fontWeight:800,color:STR}}>×{(1+bomTotalMarkupPct/100).toFixed(3)} &nbsp;(+{bomTotalMarkupPct.toFixed(1)}%)</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+{result && (
         <div style={{display:"flex",justifyContent:"flex-end"}}>
           <button onClick={handleNewBOM}
             style={{display:"flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:9,
@@ -3801,25 +3845,40 @@ CRITICAL OUTPUT RULES:
         </div>
 
         {mode !== "generate" && (<div style={{marginBottom:14}}>
-          <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12,transition:"all 0.15s",width:"100%"}}>
-            <span>⚙️</span>
-            <span>Margin Controls</span>
-            <span style={{marginLeft:"auto",fontSize:11}}>{showMargins?"▲":"▼"}</span>
-            <span style={{background:`${STR}22`,color:STR,fontSize:11,padding:"2px 10px",borderRadius:6,fontWeight:800}}>+{Object.values(marginsState).reduce((a,m)=>a+m.pct,0)}% total uplift</span>
+          <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12,transition:"all 0.15s"}}>
+            <Icon name="settings" size={13}/>
+            <span>{showMargins?"▲":"▼"}</span>
+            <span style={{background:`${STR}22`,color:STR,padding:"1px 7px",borderRadius:14,fontSize:11,fontWeight:800}}>Markup & Margins</span>
+            {Object.values(marginsState).some(m=>m.pct>0) && (
+              <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:12,background:"rgba(6,150,215,0.15)",color:STR}}>
+                +{(((1+(marginsState.materials.pct||0)/100)*(1+(marginsState.labor.pct||0)/100)*(1+(marginsState.overhead.pct||0)/100)*(1+(marginsState.contingency.pct||0)/100)*(1+(marginsState.profit.pct||0)/100))-1)*100 |0}% applied
+              </span>
+            )}
           </button>
           {showMargins && (
-            <div style={{marginTop:10,background:`rgba(59,130,246,0.04)`,border:`1.5px solid ${STR}33`,borderRadius:12,padding:14}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:9}}>
-                {Object.entries(marginsState).map(([key,m])=>(
-                  <div key={key} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:9,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>{m.label}</div>
-                    <div style={{display:"flex",alignItems:"center",gap:5}}>
-                      <input type="number" value={m.pct} min={0} max={100} step={0.5}
-                        onChange={e=>setMarginsState(p=>({...p,[key]:{...p[key],pct:+e.target.value}}))}
-                        style={{flex:1,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:7,padding:"7px 8px",color:T.text,fontSize:14,fontWeight:800,outline:"none",textAlign:"center"}}
-                        onFocus={e=>e.target.style.borderColor=STR} onBlur={e=>e.target.style.borderColor=T.border}/>
-                      <span style={{fontSize:14,fontWeight:800,color:STR}}>%</span>
+            <div style={{marginTop:10,background:"rgba(255,255,255,0.02)",border:`1.5px solid ${T.border}`,borderRadius:12,padding:14}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Applied to all cost totals in the UI, PDFs, and exports. Compounds multiplicatively.</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9}}>
+                {[
+                  {key:"materials",  label:"Materials / Price Escalation", color:"#0696d7"},
+                  {key:"labor",      label:"Labor Markup",                  color:"#06b6d4"},
+                  {key:"overhead",   label:"Overhead & Profit",             color:"#ff6b2b"},
+                  {key:"contingency",label:"Contingency",                   color:"#a78bfa"},
+                  {key:"profit",     label:"Net Profit",                    color:"#10b981"},
+                ].map(({key,label,color})=>(
+                  <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${color}33`,borderRadius:9,padding:"12px 14px"}}>
+                    <div style={{fontSize:9,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <input type="number" min="0" max="100" step="0.5"
+                        value={marginsState[key]?.pct||0}
+                        onChange={e=>setMarginsState(p=>({...p,[key]:{...p[key],pct:+e.target.value||0}}))}
+                        style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
+                      <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
                     </div>
+                    <input type="range" min="0" max="50" step="0.5"
+                      value={marginsState[key]?.pct||0}
+                      onChange={e=>setMarginsState(p=>({...p,[key]:{...p[key],pct:+e.target.value||0}}))}
+                      style={{width:"100%",marginTop:6,accentColor:color}}/>
                   </div>
                 ))}
               </div>
@@ -3875,16 +3934,16 @@ CRITICAL OUTPUT RULES:
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
                   <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
                     <div style={{fontSize:9,color:T.muted,marginBottom:2}}>BOM SUBMITTED</div>
-                    <div style={{fontSize:14,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</div>
+                    <div style={{fontSize:14,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{bomMf(bomTotal)}</div>
                   </div>
                   <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
                     <div style={{fontSize:9,color:T.muted,marginBottom:2}}>AI BASE</div>
-                    <div style={{fontSize:14,fontWeight:800,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</div>
+                    <div style={{fontSize:14,fontWeight:800,color:STR,fontFamily:"monospace"}}>{bomMf(aiBase)}</div>
                   </div>
                 </div>
                 <div style={{background:`${STR}12`,border:`1.5px solid ${STR}44`,borderRadius:9,padding:"11px 14px",textAlign:"right"}}>
                   <div style={{fontSize:9,color:T.muted,marginBottom:2}}>ADJUSTED TOTAL (with margins)</div>
-                  <div style={{fontSize:20,fontWeight:900,color:STR,fontFamily:"monospace"}}>{fmt(adjustedTotal)}</div>
+                  <div style={{fontSize:20,fontWeight:900,color:STR,fontFamily:"monospace"}}>{bomMf(adjustedTotal)}</div>
                   {bomTotal>0 && <div style={{fontSize:10,color:adjustedTotal>bomTotal?"#ef4444":"#10b981",marginTop:2}}>
                     {adjustedTotal>bomTotal?`▲ ${((adjustedTotal/bomTotal-1)*100).toFixed(1)}% vs submitted`:`▼ ${((1-adjustedTotal/bomTotal)*100).toFixed(1)}% vs submitted`}
                   </div>}
@@ -3929,13 +3988,13 @@ CRITICAL OUTPUT RULES:
               <Card>
                 <Label>Cost Components</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{bomMf(bomTotal)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{bomMf(aiBase)}</span></div>
                   <div style={{height:1,background:T.border}}/>
                   {Object.entries(marginsState).map(([k,m])=>m.pct>0?(
                     <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",background:T.dim,borderRadius:7}}><span style={{fontSize:12,color:T.muted}}>{m.label} +{m.pct}%</span><span style={{fontSize:12,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(aiBase*(m.pct/100))}</span></div>
                   ):null)}
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"11px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}><span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span><span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{fmt(adjustedTotal)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"11px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}><span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span><span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{bomMf(adjustedTotal)}</span></div>
                 </div>
               </Card>
               <Card>
@@ -4107,7 +4166,7 @@ CRITICAL OUTPUT RULES:
               <Card>
                 <Label>Markup in Submitted BOM</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
-                  {[{l:"Contingency",found:bomMarkup.contingencyFound,pct:bomMarkup.contingencyPercent,std:"5–10%"},{l:"Overhead",found:bomMarkup.overheadFound,pct:bomMarkup.overheadPercent,std:"5–10%"},{l:"Profit",found:bomMarkup.profitFound,pct:bomMarkup.profitPercent,std:"8–15%"}].map(r=>(
+                  {[{l:"Contingency",found:markup.contingencyFound,pct:markup.contingencyPercent,std:"5–10%"},{l:"Overhead",found:markup.overheadFound,pct:markup.overheadPercent,std:"5–10%"},{l:"Profit",found:markup.profitFound,pct:markup.profitPercent,std:"8–15%"}].map(r=>(
                     <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:r.found?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1px solid ${r.found?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.2)"}`,borderRadius:9}}>
                       <div style={{display:"flex",alignItems:"center",gap:9}}>
                         <span style={{fontSize:15}}>{r.found?"✅":"❌"}</span>
@@ -4119,8 +4178,8 @@ CRITICAL OUTPUT RULES:
                       <div style={{fontSize:15,fontWeight:800,color:r.found?"#10b981":"#ef4444"}}>{r.found?`${r.pct}%`:"Not found"}</div>
                     </div>
                   ))}
-                  <div style={{padding:"7px 12px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>VAT Status: <strong style={{color:T.text}}>{bomMarkup.vatStatus||"NOT STATED"}</strong></div>
-                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:12,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{bomMarkup.recommendation}</div>
+                  <div style={{padding:"7px 12px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>VAT Status: <strong style={{color:T.text}}>{markup.vatStatus||"NOT STATED"}</strong></div>
+                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:12,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
                 </div>
               </Card>
               <Card>
@@ -4152,8 +4211,8 @@ CRITICAL OUTPUT RULES:
                       {[
                         {l:"Status",     v:r.summary.overallStatus,    col:STATUS_COL[r.summary.overallStatus]},
                         {l:"Risk",       v:r.summary.contractorRisk,   col:RISK_COL[r.summary.contractorRisk]},
-                        {l:"BOM Total",  v:fmt(r.summary.bomTotalEstimate), col:T.text},
-                        {l:"AI Base",    v:fmt(r.summary.aiAdjustedEstimate), col:STR},
+                        {l:"BOM Total",  v:bomMf(r.summary.bomTotalEstimate), col:T.text},
+                        {l:"AI Base",    v:bomMf(r.summary.aiAdjustedEstimate), col:STR},
                         {l:"Missing",    v:`${(r.missingItems||[]).length} items`, col:"#8b5cf6"},
                         {l:"Critical",   v:`${r.summary.criticalCount} issues`, col:"#ef4444"},
                       ].map(s=>(
@@ -4225,9 +4284,9 @@ CRITICAL OUTPUT RULES:
         const g = generateResult;
         const s = g.summary || {};
         const fmt = n => "\u20b1" + (+n||0).toLocaleString("en-PH");
-        const mfn = n => { const m=bomMarkup; return (+n||0)*(1+(m.materials||0)/100)*(1+(m.labor||0)/100)*(1+(m.overhead||0)/100)*(1+(m.contingency||0)/100); };
-        const mf  = n => fmt(mfn(n));
-        const totalMarkupPct = ((1+(bomMarkup.materials||0)/100)*(1+(bomMarkup.labor||0)/100)*(1+(bomMarkup.overhead||0)/100)*(1+(bomMarkup.contingency||0)/100)-1)*100;
+        const mfn = n => bomMfn(n);
+        const mf  = n => bomMf(n);
+        const totalMarkupPct = bomTotalMarkupPct;
         const confColor = c => c==="HIGH" ? "#16a34a" : c==="LOW" ? "#ef4444" : "#d97706";
         return (
           <div style={{marginTop:20}}>
@@ -4365,43 +4424,7 @@ CRITICAL OUTPUT RULES:
               </div>
             </div>
 
-            {/* Markup controls */}
-            <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
-              <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
-                  {totalMarkupPct > 0.1 && <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(6,150,215,0.15)",color:STR}}>+{totalMarkupPct.toFixed(1)}% applied</span>}
-                </div>
-                <span style={{color:T.muted,fontSize:13}}>{showMarkup ? "▲" : "▼"}</span>
-              </div>
-              {showMarkup && (
-                <div style={{padding:"0 16px 16px",borderTop:`1px solid ${T.border}`}}>
-                  <div style={{fontSize:11,color:T.muted,marginBottom:12,marginTop:10}}>These multipliers compound on the AI base estimate. Use to account for price escalation, contractor margin, contingency, and VAT.</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                    {[["materials","Materials / Price Escalation",STR],["labor","Labor Markup","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
-                      <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:9,padding:"12px 14px"}}>
-                        <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
-                            onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                            style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
-                          <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
-                        </div>
-                        <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
-                          onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                          style={{width:"100%",marginTop:6,accentColor:color}}/>
-                      </div>
-                    ))}
-                  </div>
-                  {totalMarkupPct > 0.1 && (
-                    <div style={{marginTop:12,background:"rgba(6,150,215,0.06)",border:`1px solid ${STR}22`,borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontSize:12,color:T.muted}}>Combined multiplier on base estimate</span>
-                      <span style={{fontSize:15,fontWeight:800,color:STR}}>×{((1+totalMarkupPct/100)).toFixed(3)} &nbsp;(+{totalMarkupPct.toFixed(1)}%)</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            
 
             {/* Cost summary cards */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
