@@ -1329,7 +1329,7 @@ function NoKeyBanner() {
   );
 }
 
-function PlanChecker({ apiKey }) {
+function PlanChecker({ apiKey, externalResult=null, onResultChange=null }) {
   const [files, setFiles]   = useState([]);
   const [busy, setBusy]     = useState(false);
   const [busyMsg, setBusyMsg] = useState("");
@@ -6315,21 +6315,6 @@ function ElecCode({ apiKey }) {
   const [mainTab,  setMainTab]  = useState("checker");
   const [calcTool, setCalcTool] = useState(null);  // null = show tool picker
 
-  const ElecTabBtn = ({ tab }) => {
-    const active = mainTab === tab.key;
-    return (
-      <button onClick={() => { setMainTab(tab.key); if(tab.key==="tools") setCalcTool(null); }}
-        style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 18px",
-          borderRadius:9, border:`1.5px solid ${active ? ACCENT : T.border}`,
-          background: active ? ACCENT_DIM : "transparent",
-          color: active ? ACCENT : T.muted,
-          cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.15s" }}>
-        <Icon name={tab.icon} size={14} color={active ? ACCENT : T.muted}/>
-        {tab.label}
-      </button>
-    );
-  };
-
   return (
     <div>
       {/* Module header */}
@@ -6349,7 +6334,20 @@ function ElecCode({ apiKey }) {
 
         {/* Main tabs */}
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {MAIN_TABS.map(t => <ElecTabBtn key={t.key} tab={t}/>)}
+          {MAIN_TABS.map(t => {
+            const active = mainTab === t.key;
+            return (
+              <button key={t.key} onClick={() => { setMainTab(t.key); if(t.key==="tools") setCalcTool(null); }}
+                style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 18px",
+                  borderRadius:9, border:`1.5px solid ${active ? "#ff6b2b" : T.border}`,
+                  background: active ? "rgba(255,107,43,0.1)" : "transparent",
+                  color: active ? "#ff6b2b" : T.muted,
+                  cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.15s" }}>
+                <Icon name={t.icon} size={14} color={active ? "#ff6b2b" : T.muted}/>
+                {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -7395,7 +7393,7 @@ function Dashboard({ user, onLogout }) {
         {/* Page content */}
         <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
           {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
-                    {module==="electrical" && (
+          {module==="electrical" && (
             <ElecCode apiKey={apiKey}/>
           )}
           {module==="structural" && (
