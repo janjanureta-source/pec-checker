@@ -2667,18 +2667,95 @@ function LoadCombinations({ structuralData }) {
 }
 
 // ─── BOM REVIEW DATA ─────────────────────────────────────────────────────────
-const BOM_SYSTEM_PROMPT = `You are a licensed Civil/Structural Engineer expert in Philippine construction standards, DPWH Blue Book, and project cost estimation. You review Bills of Materials against structural and architectural plans.
+const BOM_SYSTEM_PROMPT = `You are a licensed Civil/Structural Engineer and Quantity Surveyor expert in Philippine construction standards, DPWH Blue Book 2024, and current NCR market rates (2025).
 
-Analyze the BOM for:
-1. Completeness — are all materials from the plans listed?
-2. Quantity accuracy — do quantities match plan takeoffs?
-3. Unit costs — are rates reasonable for current PH market?
-4. Missing items — what's in the plans but not in the BOM?
-5. Excess items — what's in the BOM but not in the plans?
-6. Specification compliance — do specs match NSCP/DPWH standards?
+You will receive one or more plan images/PDFs and a Bill of Materials (BOM) document.
 
-Respond ONLY as valid JSON (no markdown, no preamble):
-{"summary":{"projectName":"string","totalBomCost":0,"estimatedActualCost":0,"variance":0,"variancePercent":0,"overallStatus":"ACCURATE|UNDER-ESTIMATED|OVER-ESTIMATED|INCOMPLETE","criticalCount":0,"warningCount":0,"infoCount":0,"analysisNotes":"under 80 words"},"findings":[{"id":1,"severity":"CRITICAL|WARNING|INFO","category":"Missing Item|Quantity Error|Cost Variance|Spec Issue|Excess Item|Other","title":"under 8 words","description":"under 60 words","recommendation":"under 40 words","quantityBom":null,"quantityPlans":null,"unit":"string","costImpact":0}],"costBreakdown":{"concrete":0,"formworks":0,"rebar":0,"masonry":0,"finishes":0,"doors_windows":0,"electrical":0,"plumbing":0,"others":0}}`;
+Perform a full BOM review:
+1. Read every line item in the BOM — quantity, unit, description, unit cost, total cost
+2. Cross-check quantities against what is visible in the plans
+3. Flag missing items (in plans but not in BOM), excess items (in BOM but not in plans)
+4. Assess unit costs vs. current 2025 NCR market rates or DPWH Blue Book (per project type)
+5. Compute trade-level cost breakdown
+6. Give an overall adjusted cost estimate based on what the plans actually show
+
+Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
+{
+  "summary": {
+    "projectName": "string",
+    "projectType": "Residential|Commercial|Industrial|Institutional|Mixed-Use",
+    "projectScope": "1-sentence description of visible scope",
+    "discipline": "Civil|Architectural|MEP|Full",
+    "overallStatus": "ACCURATE|UNDER-ESTIMATED|OVER-ESTIMATED|INCOMPLETE",
+    "contractorRiskReason": "1-sentence risk flag or null",
+    "bomTotalEstimate": 0,
+    "aiAdjustedEstimate": 0,
+    "variance": 0,
+    "variancePercent": 0,
+    "criticalCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "bomDateWarning": null,
+    "notes": "2-3 sentence analysis notes"
+  },
+  "lineItems": [
+    {
+      "id": 1,
+      "description": "item description from BOM",
+      "trade": "Concrete|Rebar|Formworks|Masonry|Finishes|Doors & Windows|Electrical|Plumbing|Others",
+      "unit": "string",
+      "qtyBom": 0,
+      "qtyPlans": 0,
+      "unitCostBom": 0,
+      "unitCostMarket": 0,
+      "totalBom": 0,
+      "totalMarket": 0,
+      "status": "OK|OVER|UNDER|MISSING|EXCESS",
+      "remark": "brief note or null"
+    }
+  ],
+  "missingItems": [
+    {
+      "id": 1,
+      "description": "item visible in plans but absent in BOM",
+      "trade": "string",
+      "estimatedQty": 0,
+      "unit": "string",
+      "estimatedCost": 0,
+      "severity": "CRITICAL|WARNING"
+    }
+  ],
+  "excessItems": [
+    {
+      "id": 1,
+      "description": "item in BOM not visible in plans",
+      "trade": "string",
+      "qtyBom": 0,
+      "unit": "string",
+      "totalBom": 0,
+      "remark": "brief explanation"
+    }
+  ],
+  "costBreakdown": {
+    "concrete": 0,
+    "formworks": 0,
+    "rebar": 0,
+    "masonry": 0,
+    "finishes": 0,
+    "doors_windows": 0,
+    "electrical": 0,
+    "plumbing": 0,
+    "others": 0
+  },
+  "markupAssessment": {
+    "observedMarkup": 0,
+    "recommendedMarkup": 0,
+    "flag": "OK|HIGH|LOW",
+    "note": "brief explanation"
+  },
+  "priceEscalationWarning": null
+}`;
+
 
 
 function BOMReview({ apiKey }) {
@@ -4803,6 +4880,15 @@ function StructiCode({ apiKey, initialTool }) {
                 onNavigate={(key)=>setSubTool(key)}
               />
             )}
+
+            {/* ── Computation Summary — full PASS/FAIL table after Run All ── */}
+            {structuralResults && (
+              <StructuralComputationSummary
+                results={structuralResults}
+                onNavigate={(key)=>setSubTool(key)}
+              />
+            )}
+
             {/* Plan upload + compliance findings — always mounted */}
             <StructuralChecker
               apiKey={apiKey}
