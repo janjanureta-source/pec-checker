@@ -5599,21 +5599,30 @@ function StructiCode({ apiKey, initialTool, restoredSession, onSessionConsumed }
   const [tab, setTab] = useState("checker");
   useEffect(()=>{ if(initialTool==="bom") setTab("bom"); else if(initialTool==="estimate") setTab("estimate"); },[initialTool]);
 
-  // ── Load saved session from localStorage on mount ──
-  const _initStructSession = React.useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("buildify_session_structural") || "null"); } catch { return null; }
-  }, []);
-
   // ── Structural data (lives here, never lost on tool switch) ──
-  const [structuralData, setStructuralData]       = useState(_initStructSession?.checkerExtracted || null);
+  const [structuralData, setStructuralData]       = useState(null);
   // ── Plan Checker results — lifted here so they survive sub-tool navigation ──
-  const [checkerResult,     setCheckerResult]     = useState(_initStructSession?.checkerResult || null);
-  const [checkerExtracted,  setCheckerExtracted]  = useState(_initStructSession?.checkerExtracted || null);
-  const [structuralResults, setStructuralResults] = useState(_initStructSession?.structuralResults || null);
-  const [runState,          setRunState]          = useState(_initStructSession?.runState || null);
-  // ── BOM + Estimate results — lifted so session can save them ──
-  const [bomResult,         setBomResult]         = useState(_initStructSession?.bomResult || null);
-  const [estimateResult,    setEstimateResult]    = useState(_initStructSession?.estimateResult || null);
+  const [checkerResult,     setCheckerResult]     = useState(null);
+  const [checkerExtracted,  setCheckerExtracted]  = useState(null);
+  const [structuralResults, setStructuralResults] = useState(null);
+  const [runState,          setRunState]          = useState(null);
+  // ── BOM + Estimate results ──
+  const [bomResult,         setBomResult]         = useState(null);
+  const [estimateResult,    setEstimateResult]    = useState(null);
+
+  // ── Auto-load last session on mount (runs once) ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      if (!s || !s.checkerResult) return; // nothing worth restoring
+      if (s.checkerResult)     setCheckerResult(s.checkerResult);
+      if (s.checkerExtracted)  { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
+      if (s.structuralResults) setStructuralResults(s.structuralResults);
+      if (s.runState)          setRunState(s.runState);
+      if (s.bomResult)         setBomResult(s.bomResult);
+      if (s.estimateResult)    setEstimateResult(s.estimateResult);
+    } catch { /* corrupted session — ignore */ }
+  }, []); // eslint-disable-line
 
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null); // null = show checker+summary, else show that calc
@@ -7701,19 +7710,28 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   const ACCENT     = "#ff6b2b";
   const ACCENT_DIM = "rgba(255,107,43,0.1)";
 
-  // ── Load saved session from localStorage on mount ──
-  const _initElecSession = React.useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("buildify_session_electrical") || "null"); } catch { return null; }
-  }, []);
-
   // ── All state lives here — never lost on tab switch ──
-  const [checkerResult,  setCheckerResult]  = useState(_initElecSession?.checkerResult  || null);
-  const [electricalData, setElectricalData] = useState(_initElecSession?.electricalData || null);
-  const [elecResults,    setElecResults]    = useState(_initElecSession?.elecResults    || null);
-  const [runState,       setRunState]       = useState(_initElecSession?.runState       || null);
+  const [checkerResult,  setCheckerResult]  = useState(null);
+  const [electricalData, setElectricalData] = useState(null);
+  const [elecResults,    setElecResults]    = useState(null);
+  const [runState,       setRunState]       = useState(null);
 
   // ── Sticky calculator states ──
-  const [calcStates, setCalcStates] = useState(_initElecSession?.calcStates || {});
+  const [calcStates, setCalcStates] = useState({});
+
+  // ── Auto-load last session on mount (runs once) ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_electrical") || "null");
+      if (!s || !s.checkerResult) return;
+      if (s.checkerResult)  setCheckerResult(s.checkerResult);
+      if (s.electricalData) setElectricalData(s.electricalData);
+      if (s.elecResults)    setElecResults(s.elecResults);
+      if (s.runState)       setRunState(s.runState);
+      if (s.calcStates)     setCalcStates(s.calcStates);
+      if (s._mainTab)       setMainTab(s._mainTab);
+    } catch { /* corrupted session — ignore */ }
+  }, []); // eslint-disable-line
   const updateCalcState = (key, state) => setCalcStates(p => ({ ...p, [key]: state }));
 
   // ── Navigation ──
@@ -8038,12 +8056,18 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
 
 
 function SaniCode({ apiKey, restoredSession, onSessionConsumed }) {
-  const _initSaniSession = React.useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("buildify_session_sanitary") || "null"); } catch { return null; }
-  }, []);
+  const [tool,          setTool]          = useState("checker");
+  const [checkerResult, setCheckerResult] = useState(null);
 
-  const [tool,          setTool]          = useState(_initSaniSession?._tool || "checker");
-  const [checkerResult, setCheckerResult] = useState(_initSaniSession?.checkerResult || null);
+  // ── Auto-load last session on mount ──
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_sanitary") || "null");
+      if (!s || !s.checkerResult) return;
+      if (s.checkerResult) setCheckerResult(s.checkerResult);
+      if (s._tool)         setTool(s._tool);
+    } catch { /* corrupted session — ignore */ }
+  }, []); // eslint-disable-line
 
   // ── Session restore ──
   useEffect(() => {
