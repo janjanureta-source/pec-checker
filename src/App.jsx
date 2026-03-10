@@ -55,6 +55,10 @@ const Icon = ({ name, size=16, color="currentColor", strokeWidth=1.6 }) => {
     info:        <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8.5" strokeWidth={2.5}/><path d="M12 12v5"/></>,
     alert:       <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".5" fill={color}/></>,
     logo:        <><path d="M3 6h8v12H3zM13 6h8v12h-8z" strokeWidth={1.4}/><line x1="3" y1="12" x2="11" y2="12"/><line x1="13" y1="12" x2="21" y2="12"/></>,
+    // ── New electrical icons
+    panel:       <><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="2" y1="9" x2="8" y2="9"/><line x1="2" y1="14" x2="8" y2="14"/><line x1="11" y1="8" x2="18" y2="8"/><line x1="11" y1="12" x2="18" y2="12"/><line x1="11" y1="16" x2="15" y2="16"/></>,
+    conduit:     <><path d="M3 12h18"/><path d="M3 7c0-2 2-4 4-4h8c2 0 4 2 4 4"/><path d="M3 17c0 2 2 4 4 4h8c2 0 4-2 4-4"/><circle cx="7" cy="12" r="1.5" fill={color}/><circle cx="12" cy="12" r="1.5" fill={color}/><circle cx="17" cy="12" r="1.5" fill={color}/></>,
+    ampacity:    <><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/><path d="M5 20v2M19 2v2"/></>,
   };
   const content = paths[name] || <><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r=".5" fill={color}/></>;
   return <svg {...p}>{content}</svg>;
@@ -6296,6 +6300,756 @@ function StormDrainage() {
 
 // ─── SANICODE: MAIN WRAPPER ───────────────────────────────────────────────────
 // ─── ELECCODE: MAIN ELECTRICAL MODULE ───────────────────────────────────────
+
+// ─── PANEL SCHEDULE BUILDER ──────────────────────────────────────────────────
+function PanelScheduleBuilder() {
+  const ACCENT = "#ff6b2b";
+  const fmt = n => (+n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmtA = n => (+n||0).toFixed(1);
+
+  const PHASES = ["A","B","C"];
+  const CIRCUIT_TYPES = ["Lighting","Receptacle","HVAC/AC","Appliance","Motor","Spare","Space"];
+  const VOLTAGES = [230,240,120,400];
+
+  const [panelName,   setPanelName]   = useState("LP-1");
+  const [panelVolt,   setPanelVolt]   = useState(230);
+  const [panelPhase,  setPanelPhase]  = useState("1");
+  const [mainBreaker, setMainBreaker] = useState(100);
+  const [busRating,   setBusRating]   = useState(100);
+  const [occupancy,   setOccupancy]   = useState("residential");
+  const [showExport,  setShowExport]  = useState(false);
+
+  const makeCircuit = (id, phase="A") => ({
+    id, num: id*2-1, phase,
+    desc:"", type:"Lighting",
+    poles:1, va:0, amps:0, breaker:20,
+    wire: "12", notes:""
+  });
+
+  const [circuits, setCircuits] = useState([
+    makeCircuit(1,"A"), makeCircuit(2,"B"), makeCircuit(3,"A"),
+    makeCircuit(4,"B"), makeCircuit(5,"A"), makeCircuit(6,"B"),
+  ]);
+
+  const addRow = () => {
+    const newId = circuits.length + 1;
+    const phase = PHASES[(circuits.length) % (panelPhase==="3" ? 3 : 1 === 0 ? 1 : 2)];
+    setCircuits(p => [...p, makeCircuit(newId, phase||"A")]);
+  };
+  const remRow = id => setCircuits(p => p.filter(c => c.id !== id));
+  const upd    = (id, field, val) => setCircuits(p => p.map(c => c.id===id ? {...c,[field]:val} : c));
+
+  // Auto-calc amps from VA
+  const updVA = (id, va) => {
+    const amps = panelVolt > 0 ? (va / panelVolt) : 0;
+    setCircuits(p => p.map(c => c.id===id ? {...c, va:+va, amps:+fmtA(amps)} : c));
+  };
+
+  // Totals
+  const totalVA     = circuits.reduce((s,c)=>s+(+c.va||0),0);
+  const demandVA    = occupancy==="residential"
+    ? (totalVA<=3000 ? totalVA : 3000 + (Math.min(totalVA,120000)-3000)*0.35 + Math.max(0,totalVA-120000)*0.25)
+    : (totalVA<=10000 ? totalVA : 10000 + (totalVA-10000)*0.5);
+  const totalAmps   = panelVolt > 0 ? demandVA / panelVolt : 0;
+  const requiredMain = Math.ceil(totalAmps * 1.25 / 5) * 5;
+
+  // Recommend wire for each breaker
+  const recWire = (breaker) => {
+    for (const s of AWG_SIZES) {
+      if ((WIRE_DATA[s]?.ampacity||0) >= breaker) return s;
+    }
+    return "500+";
+  };
+
+  const phaseLoad = { A:0, B:0, C:0 };
+  circuits.forEach(c => { phaseLoad[c.phase] = (phaseLoad[c.phase]||0) + (+c.va||0); });
+  const maxLoad = Math.max(...Object.values(phaseLoad));
+  const minLoad = Math.min(...Object.values(phaseLoad));
+  const imbalance = maxLoad > 0 ? ((maxLoad - minLoad) / maxLoad * 100) : 0;
+
+  const thS = { padding:"8px 10px", color:T.muted, fontWeight:700, fontSize:10,
+    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}`,
+    whiteSpace:"nowrap", background:T.dim };
+  const tdS = { padding:"6px 8px", borderBottom:`1px solid ${T.border}`, verticalAlign:"middle" };
+  const inS = { background:"#0a0f1a", border:`1px solid ${T.border}`, borderRadius:7,
+    padding:"5px 8px", color:T.text, fontSize:12, outline:"none", width:"100%" };
+
+  const exportSchedule = () => {
+    const circRows = circuits.map(c=>`
+      <tr>
+        <td style="text-align:center;font-weight:700">${c.num}</td>
+        <td style="text-align:center">${c.phase}</td>
+        <td>${c.desc||"—"}</td>
+        <td style="text-align:center">${c.type}</td>
+        <td style="text-align:center">${c.poles}P</td>
+        <td style="text-align:right;font-family:monospace">${(+c.va||0).toLocaleString()}</td>
+        <td style="text-align:right;font-family:monospace">${fmtA(+c.amps||0)}</td>
+        <td style="text-align:center;font-weight:700">${c.breaker}A</td>
+        <td style="text-align:center">#${c.wire} AWG</td>
+        <td style="font-size:11px">${c.notes||""}</td>
+      </tr>`).join("");
+    const w = window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><title>Panel Schedule — ${panelName}</title>
+    <style>body{font-family:Arial,sans-serif;margin:32px;color:#111;font-size:12px}
+    table{border-collapse:collapse;width:100%}
+    th{background:#1e3a5f;color:#fff;padding:7px 8px;font-size:10px;text-align:center;border:1px solid #ccc}
+    td{padding:6px 8px;border:1px solid #ddd;vertical-align:middle}
+    tr:nth-child(even)td{background:#f9fafb}
+    h2{color:#1e3a5f;margin:0 0 4px}
+    .kv{display:inline-block;margin-right:20px;font-size:12px}
+    .kv b{color:#1e3a5f}
+    @media print{button{display:none}}</style></head><body>
+    <button onclick="window.print()" style="float:right;padding:6px 16px;background:#1e3a5f;color:#fff;border:none;border-radius:5px;cursor:pointer">🖨️ Print</button>
+    <h2>PANEL SCHEDULE — ${panelName}</h2>
+    <div style="margin:8px 0 16px">
+      <span class="kv"><b>Voltage:</b> ${panelVolt}V</span>
+      <span class="kv"><b>Phase:</b> ${panelPhase}φ</span>
+      <span class="kv"><b>Main Breaker:</b> ${mainBreaker}A</span>
+      <span class="kv"><b>Bus Rating:</b> ${busRating}A</span>
+      <span class="kv"><b>Total Connected:</b> ${totalVA.toLocaleString()} VA</span>
+      <span class="kv"><b>Demand Load:</b> ${Math.round(demandVA).toLocaleString()} VA</span>
+      <span class="kv"><b>Required Main:</b> ${requiredMain}A</span>
+    </div>
+    <table><thead><tr>
+      <th>Ckt#</th><th>Phase</th><th>Circuit Description</th><th>Type</th>
+      <th>Poles</th><th>VA</th><th>Amps</th><th>Breaker</th><th>Wire</th><th>Notes</th>
+    </tr></thead><tbody>${circRows}</tbody>
+    <tfoot><tr style="background:#1e3a5f;color:#fff">
+      <td colspan="5" style="padding:8px;font-weight:700;color:#fff">TOTAL CONNECTED</td>
+      <td style="text-align:right;font-family:monospace;font-weight:700;color:#fff">${totalVA.toLocaleString()} VA</td>
+      <td style="text-align:right;font-family:monospace;color:#fff">${fmtA(totalVA/panelVolt)} A</td>
+      <td colspan="3"></td>
+    </tr></tfoot></table>
+    <p style="margin-top:20px;font-size:10px;color:#9ca3af">PEC 2017 Art. 2.20 Demand Factor applied · PRELIMINARY — verify with licensed PEE · Buildify</p>
+    </body></html>`);
+    w.document.close(); setTimeout(()=>w.print(),300);
+  };
+
+  return (
+    <div>
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}>
+        Build a complete panel schedule per <strong style={{color:T.text}}>PEC 2017 Art. 2.20</strong>. VA auto-calculates amps. Export a print-ready schedule.
+      </p>
+
+      {/* Panel info */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:20}}>
+        <div><Label>Panel Name / ID</Label>
+          <input value={panelName} onChange={e=>setPanelName(e.target.value)}
+            style={{...inS}} placeholder="LP-1"/></div>
+        <div><Label>System Voltage</Label>
+          <Select value={panelVolt} onChange={e=>setPanelVolt(+e.target.value)}>
+            {VOLTAGES.map(v=><option key={v} value={v}>{v}V</option>)}
+          </Select></div>
+        <div><Label>Phase</Label>
+          <Select value={panelPhase} onChange={e=>setPanelPhase(e.target.value)}>
+            <option value="1">Single Phase (1φ)</option>
+            <option value="3">Three Phase (3φ)</option>
+          </Select></div>
+        <div><Label>Main Breaker (A)</Label>
+          <Input type="number" value={mainBreaker} min={15} onChange={e=>setMainBreaker(+e.target.value)}/></div>
+        <div><Label>Bus Rating (A)</Label>
+          <Input type="number" value={busRating} min={15} onChange={e=>setBusRating(+e.target.value)}/></div>
+        <div><Label>Occupancy</Label>
+          <Select value={occupancy} onChange={e=>setOccupancy(e.target.value)}>
+            <option value="residential">Residential</option>
+            <option value="commercial">Commercial</option>
+          </Select></div>
+      </div>
+
+      {/* Summary KPIs */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:20}}>
+        <Stat label="Connected Load"  value={(totalVA/1000).toFixed(2)+" kVA"} sub={totalVA.toLocaleString()+" VA"}/>
+        <Stat label="Demand Load"     value={(demandVA/1000).toFixed(2)+" kVA"} sub="PEC Art. 2.20"/>
+        <Stat label="Design Current"  value={fmtA(totalAmps)+" A"} sub={`at ${panelVolt}V`}/>
+        <Stat label="Required Main"   value={requiredMain+" A"} sub="125% × demand" accent={requiredMain > mainBreaker}/>
+        <div style={{background:imbalance>10?T.dim:"rgba(34,197,94,0.07)",border:`1.5px solid ${imbalance>10?T.border:"rgba(34,197,94,0.2)"}`,borderRadius:12,padding:"16px 18px"}}>
+          <Label>Phase Imbalance</Label>
+          <div style={{fontSize:22,fontWeight:800,color:imbalance>10?T.warn:T.success}}>{imbalance.toFixed(1)}%</div>
+          <div style={{fontSize:11,color:T.muted}}>{imbalance>10?"⚠️ Rebalance loads":"✓ Balanced"}</div>
+        </div>
+        {panelPhase==="3" && (
+          <div style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 18px"}}>
+            <Label>Phase Loads (VA)</Label>
+            {Object.entries(phaseLoad).map(([ph,va])=>(
+              <div key={ph} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginTop:4}}>
+                <span style={{color:T.muted,fontWeight:700}}>Phase {ph}</span>
+                <span style={{fontFamily:"monospace",color:T.text}}>{(+va||0).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Warnings */}
+      {requiredMain > mainBreaker && (
+        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:T.danger}}>
+          ⚠️ <strong>Main breaker undersized.</strong> Demand load requires at least {requiredMain}A main — current setting is {mainBreaker}A.
+        </div>
+      )}
+      {requiredMain > busRating && (
+        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:T.danger}}>
+          ⚠️ <strong>Bus rating exceeded.</strong> Demand current ({fmtA(totalAmps)}A) exceeds bus rating ({busRating}A).
+        </div>
+      )}
+
+      {/* Circuit table */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <Label>Circuit Schedule ({circuits.length} circuits)</Label>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={addRow} style={{padding:"6px 14px",borderRadius:8,border:`1.5px dashed ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Circuit</button>
+          <button onClick={exportSchedule} style={{padding:"6px 14px",borderRadius:8,border:"none",background:`linear-gradient(135deg,${ACCENT},#e85520)`,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>📄 Export Schedule</button>
+        </div>
+      </div>
+      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr>
+              {["Ckt #","Ph","Description","Type","Poles","VA","Amps","Breaker","Wire (Auto)","Notes",""].map(h=>(
+                <th key={h} style={thS}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {circuits.map((c,idx)=>(
+              <tr key={c.id} style={{background:idx%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                <td style={{...tdS,textAlign:"center",fontWeight:700,color:ACCENT,width:40}}>{c.num}</td>
+                <td style={{...tdS,width:50}}>
+                  <Select value={c.phase} onChange={e=>upd(c.id,"phase",e.target.value)} style={{width:54,padding:"4px 6px",fontSize:11}}>
+                    {PHASES.map(ph=><option key={ph} value={ph}>{ph}</option>)}
+                  </Select>
+                </td>
+                <td style={{...tdS,minWidth:160}}>
+                  <input value={c.desc} onChange={e=>upd(c.id,"desc",e.target.value)}
+                    placeholder="e.g. Bedroom lights" style={{...inS,fontSize:12}}/>
+                </td>
+                <td style={{...tdS,width:110}}>
+                  <Select value={c.type} onChange={e=>upd(c.id,"type",e.target.value)} style={{width:"100%",padding:"4px 6px",fontSize:11}}>
+                    {CIRCUIT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </td>
+                <td style={{...tdS,width:60}}>
+                  <Select value={c.poles} onChange={e=>upd(c.id,"poles",+e.target.value)} style={{width:54,padding:"4px 6px",fontSize:11}}>
+                    <option value={1}>1P</option>
+                    <option value={2}>2P</option>
+                    <option value={3}>3P</option>
+                  </Select>
+                </td>
+                <td style={{...tdS,width:90}}>
+                  <input type="number" value={c.va||""} min={0}
+                    onChange={e=>updVA(c.id,e.target.value)}
+                    placeholder="VA" style={{...inS,textAlign:"right"}}/>
+                </td>
+                <td style={{...tdS,width:70,fontFamily:"monospace",textAlign:"right",color:T.accent}}>
+                  {fmtA(+c.amps||0)}
+                </td>
+                <td style={{...tdS,width:80}}>
+                  <Select value={c.breaker} onChange={e=>upd(c.id,"breaker",+e.target.value)} style={{width:"100%",padding:"4px 6px",fontSize:11}}>
+                    {[15,20,30,40,50,60,70,80,100,125,150,200].map(b=><option key={b} value={b}>{b}A</option>)}
+                  </Select>
+                </td>
+                <td style={{...tdS,width:90,textAlign:"center"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:T.muted,background:T.dim,padding:"2px 8px",borderRadius:5}}>
+                    #{recWire(c.breaker)} AWG
+                  </span>
+                </td>
+                <td style={{...tdS,minWidth:120}}>
+                  <input value={c.notes} onChange={e=>upd(c.id,"notes",e.target.value)}
+                    placeholder="Notes…" style={{...inS,fontSize:11}}/>
+                </td>
+                <td style={{...tdS,width:36,textAlign:"center"}}>
+                  <button onClick={()=>remRow(c.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:T.danger,width:26,height:26,borderRadius:6,cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{background:T.dim,borderTop:`2px solid ${T.border}`}}>
+              <td colSpan={5} style={{padding:"9px 10px",fontWeight:800,color:T.muted,fontSize:11}}>TOTAL CONNECTED</td>
+              <td style={{padding:"9px 10px",fontWeight:800,color:ACCENT,fontSize:13,fontFamily:"monospace",textAlign:"right"}}>{totalVA.toLocaleString()} VA</td>
+              <td style={{padding:"9px 10px",fontFamily:"monospace",color:T.text,textAlign:"right"}}>{fmtA(totalVA/panelVolt)}</td>
+              <td colSpan={4}/>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div style={{marginTop:12,fontSize:11,color:T.muted}}>
+        💡 Wire size is auto-recommended per breaker rating. Verify insulation type and derating factors for final design.
+      </div>
+    </div>
+  );
+}
+
+// ─── CONDUIT FILL CALCULATOR ─────────────────────────────────────────────────
+function ConduitFillCalc() {
+  const ACCENT = "#ff6b2b";
+
+  // PEC 2017 Art. 3.50 — Conduit trade sizes with internal area (mm²)
+  const CONDUIT_DATA = {
+    "RSC/IMC": {
+      "1/2\"":  { area:122.71,  label:"½\" (16mm)" },
+      "3/4\"":  { area:201.06,  label:"¾\" (19mm)" },
+      "1\"":    { area:338.16,  label:"1\" (25mm)" },
+      "1-1/4\"":{area:573.76,  label:"1¼\" (32mm)" },
+      "1-1/2\"":{area:747.13,  label:"1½\" (38mm)" },
+      "2\"":    { area:1194.59, label:"2\" (50mm)" },
+      "2-1/2\"":{area:1937.09, label:"2½\" (63mm)" },
+      "3\"":    { area:2848.06, label:"3\" (75mm)" },
+      "4\"":    { area:5013.27, label:"4\" (100mm)" },
+    },
+    "EMT": {
+      "1/2\"":  { area:90.97,   label:"½\" (16mm)" },
+      "3/4\"":  { area:163.87,  label:"¾\" (19mm)" },
+      "1\"":    { area:283.53,  label:"1\" (25mm)" },
+      "1-1/4\"":{area:484.54,  label:"1¼\" (32mm)" },
+      "1-1/2\"":{area:637.94,  label:"1½\" (38mm)" },
+      "2\"":    { area:1017.87, label:"2\" (50mm)" },
+      "2-1/2\"":{area:1649.55, label:"2½\" (63mm)" },
+      "3\"":    { area:2430.19, label:"3\" (75mm)" },
+      "4\"":    { area:4268.22, label:"4\" (100mm)" },
+    },
+    "PVC (Schedule 40)": {
+      "1/2\"":  { area:122.71,  label:"½\" (16mm)" },
+      "3/4\"":  { area:201.06,  label:"¾\" (19mm)" },
+      "1\"":    { area:338.16,  label:"1\" (25mm)" },
+      "1-1/4\"":{area:573.76,  label:"1¼\" (32mm)" },
+      "1-1/2\"":{area:747.13,  label:"1½\" (38mm)" },
+      "2\"":    { area:1194.59, label:"2\" (50mm)" },
+      "3\"":    { area:2848.06, label:"3\" (75mm)" },
+      "4\"":    { area:5013.27, label:"4\" (100mm)" },
+    },
+  };
+
+  // THWN conductor OD areas (mm²) — outer diameter incl. insulation
+  const CONDUCTOR_AREA = {
+    14: 8.97,  12: 11.68, 10: 16.77, 8: 24.26,  6: 37.16,
+    4: 52.84,  3: 62.77,  2: 73.16,  1: 95.03,
+    "1/0": 113.10, "2/0": 133.77, "3/0": 158.06, "4/0": 192.52,
+    250: 225.81, 300: 264.52, 350: 298.45, 400: 345.35, 500: 411.55,
+  };
+
+  const [conduitType, setConduitType] = useState("RSC/IMC");
+  const [conduitSize, setConduitSize] = useState("3/4\"");
+  const [conductors,  setConductors]  = useState([
+    { id:1, size:"12", qty:3, type:"THWN" },
+  ]);
+
+  const addConductor = () => setConductors(p=>[...p,{id:Date.now(),size:"12",qty:1,type:"THWN"}]);
+  const remConductor = id => setConductors(p=>p.filter(c=>c.id!==id));
+  const updC = (id,f,v) => setConductors(p=>p.map(c=>c.id===id?{...c,[f]:v}:c));
+
+  const conduitArea    = CONDUIT_DATA[conduitType]?.[conduitSize]?.area || 0;
+  const totalWireArea  = conductors.reduce((s,c)=>{
+    const area = CONDUCTOR_AREA[c.size] || 0;
+    return s + area * (+c.qty||1);
+  }, 0);
+  const fillPct        = conduitArea > 0 ? (totalWireArea / conduitArea * 100) : 0;
+
+  const totalWires     = conductors.reduce((s,c)=>s+(+c.qty||1),0);
+  const fillLimit      = totalWires === 1 ? 53 : totalWires === 2 ? 31 : 40;
+
+  // Find minimum conduit size that fits
+  const recConduit = () => {
+    const sizes = Object.keys(CONDUIT_DATA[conduitType] || {});
+    for (const sz of sizes) {
+      const area = CONDUIT_DATA[conduitType][sz].area;
+      const pct  = totalWireArea / area * 100;
+      if (pct <= fillLimit) return { size: sz, label: CONDUIT_DATA[conduitType][sz].label, pct };
+    }
+    return null;
+  };
+  const rec = recConduit();
+  const ok  = fillPct <= fillLimit;
+
+  const thS = { padding:"9px 12px", color:T.muted, fontWeight:700, fontSize:11,
+    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}`, background:T.dim };
+  const tdS = { padding:"8px 10px", borderBottom:`1px solid ${T.border}`, verticalAlign:"middle" };
+
+  return (
+    <div>
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}>
+        Check conductor fill per <strong style={{color:T.text}}>PEC 2017 Art. 3.50</strong>: max 40% for 3+ wires, 31% for 2 wires, 53% for 1 wire.
+      </p>
+
+      {/* Conduit selection */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:24}}>
+        <div><Label>Conduit Type</Label>
+          <Select value={conduitType} onChange={e=>{setConduitType(e.target.value);setConduitSize(Object.keys(CONDUIT_DATA[e.target.value])[1]);}}>
+            {Object.keys(CONDUIT_DATA).map(t=><option key={t} value={t}>{t}</option>)}
+          </Select></div>
+        <div><Label>Conduit Trade Size</Label>
+          <Select value={conduitSize} onChange={e=>setConduitSize(e.target.value)}>
+            {Object.entries(CONDUIT_DATA[conduitType]||{}).map(([k,v])=>(
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </Select></div>
+      </div>
+
+      {/* Results row */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24,alignItems:"start"}}>
+        {/* Gauge */}
+        <Card style={{padding:20,textAlign:"center"}}>
+          <Label>Conduit Fill</Label>
+          <ComplianceGauge pct={fillPct} limit={fillLimit} label={`PEC limit: ${fillLimit}% (${totalWires} wire${totalWires!==1?"s":""})`}/>
+          <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{background:T.dim,borderRadius:9,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:2}}>Wire Area Used</div>
+              <div style={{fontSize:17,fontWeight:800,color:T.text}}>{totalWireArea.toFixed(1)} mm²</div>
+            </div>
+            <div style={{background:T.dim,borderRadius:9,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:2}}>Conduit Area</div>
+              <div style={{fontSize:17,fontWeight:800,color:T.text}}>{conduitArea.toFixed(1)} mm²</div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Stats */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <Stat label="Fill Percentage" value={fillPct.toFixed(2)+"%"} sub={`Limit: ${fillLimit}%`} color={ok?T.success:T.danger}/>
+          <Stat label="Total Conductors" value={totalWires+" wires"} sub="Current-carrying"/>
+          {rec ? (
+            <div style={{background:ok?"rgba(34,197,94,0.07)":"rgba(245,158,11,0.07)",
+              border:`1.5px solid ${ok?"rgba(34,197,94,0.2)":"rgba(245,158,11,0.2)"}`,
+              borderRadius:12,padding:"14px 16px"}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:4,fontWeight:700}}>
+                {ok ? "✓ CURRENT CONDUIT IS ADEQUATE" : "MINIMUM CONDUIT REQUIRED"}
+              </div>
+              <div style={{fontSize:18,fontWeight:800,color:ok?T.success:T.warn}}>
+                {rec.label}
+              </div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+                {rec.pct.toFixed(1)}% fill with {conduitType}
+              </div>
+            </div>
+          ) : (
+            <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:12,padding:"14px 16px"}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.danger}}>✗ Exceeds all available sizes</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:4}}>Split conductors into multiple conduits.</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Conductor table */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <Label>Conductors in Conduit</Label>
+        <button onClick={addConductor} style={{padding:"5px 12px",borderRadius:7,border:`1.5px dashed ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Conductor</button>
+      </div>
+      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:20}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr>{["Wire Size (AWG)","Insulation","Qty","Area/Wire (mm²)","Total Area (mm²)",""].map(h=>(
+              <th key={h} style={thS}>{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody>
+            {conductors.map((c,idx)=>{
+              const area = CONDUCTOR_AREA[c.size]||0;
+              const total = area * (+c.qty||1);
+              return (
+                <tr key={c.id} style={{background:idx%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                  <td style={tdS}>
+                    <Select value={c.size} onChange={e=>updC(c.id,"size",e.target.value)} style={{width:140}}>
+                      {AWG_SIZES.map(s=><option key={s} value={s}>{s} AWG — {WIRE_DATA[s]?.ampacity}A</option>)}
+                    </Select>
+                  </td>
+                  <td style={tdS}>
+                    <Select value={c.type} onChange={e=>updC(c.id,"type",e.target.value)} style={{width:100}}>
+                      <option value="THWN">THWN</option>
+                      <option value="XHHW">XHHW</option>
+                      <option value="THW">THW</option>
+                      <option value="TW">TW</option>
+                    </Select>
+                  </td>
+                  <td style={tdS}>
+                    <Input type="number" value={c.qty} min={1} onChange={e=>updC(c.id,"qty",+e.target.value)} style={{width:70}}/>
+                  </td>
+                  <td style={{...tdS,fontFamily:"monospace",color:T.muted,textAlign:"right"}}>{area.toFixed(2)}</td>
+                  <td style={{...tdS,fontFamily:"monospace",color:ACCENT,fontWeight:700,textAlign:"right"}}>{total.toFixed(2)}</td>
+                  <td style={{...tdS,width:36,textAlign:"center"}}>
+                    <button onClick={()=>remConductor(c.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:T.danger,width:26,height:26,borderRadius:6,cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{background:T.dim,borderTop:`2px solid ${T.border}`}}>
+              <td colSpan={3} style={{padding:"9px 12px",fontWeight:800,color:T.muted,fontSize:11}}>TOTAL</td>
+              <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted,textAlign:"right"}}>{(totalWireArea/Math.max(1,totalWires)).toFixed(2)} avg</td>
+              <td style={{padding:"9px 12px",fontFamily:"monospace",color:ACCENT,fontWeight:800,textAlign:"right"}}>{totalWireArea.toFixed(2)} mm²</td>
+              <td/>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* All conduit sizes comparison */}
+      <Label>Conduit Size Comparison — {conduitType}</Label>
+      <div style={{overflowX:"auto",marginTop:8}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{background:T.dim}}>
+              {["Trade Size","Internal Area (mm²)","Wire Area (mm²)","Fill %","Status"].map(h=>(
+                <th key={h} style={{padding:"9px 12px",color:T.muted,fontWeight:700,fontSize:11,textTransform:"uppercase",textAlign:"left",borderBottom:`1px solid ${T.border}`}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(CONDUIT_DATA[conduitType]||{}).map(([sz,data],idx)=>{
+              const pct = data.area > 0 ? (totalWireArea/data.area*100) : 0;
+              const isCurrent = sz === conduitSize;
+              const fits = pct <= fillLimit;
+              return (
+                <tr key={sz} style={{background:isCurrent?"rgba(255,107,43,0.06)":"transparent",borderBottom:`1px solid ${T.border}`,cursor:"pointer"}}
+                  onClick={()=>setConduitSize(sz)}>
+                  <td style={{padding:"9px 12px",fontWeight:isCurrent?800:400,color:isCurrent?ACCENT:T.text}}>{isCurrent?"▶ ":""}{data.label}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{data.area.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{totalWireArea.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",fontWeight:700,color:fits?T.success:T.danger,fontFamily:"monospace"}}>{pct.toFixed(1)}%</td>
+                  <td style={{padding:"9px 12px"}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:20,background:fits?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",color:fits?T.success:T.danger}}>
+                      {fits?"✓ FITS":"✗ OVERFILLED"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── WIRE AMPACITY DERATING ───────────────────────────────────────────────────
+function AmpacityDerating() {
+  const ACCENT = "#ff6b2b";
+
+  // Base ampacity tables per PEC 2017 Table 3.10 (THWN 75°C Cu in conduit)
+  // Already in WIRE_DATA but we need separate insulation tables
+  const BASE_AMPACITY = {
+    // size: { TW_60: A, THWN_75: A, XHHW_90: A }
+    14:    { TW_60:15,  THWN_75:20,  XHHW_90:25  },
+    12:    { TW_60:20,  THWN_75:25,  XHHW_90:30  },
+    10:    { TW_60:30,  THWN_75:35,  XHHW_90:40  },
+    8:     { TW_60:40,  THWN_75:50,  XHHW_90:55  },
+    6:     { TW_60:55,  THWN_75:65,  XHHW_90:75  },
+    4:     { TW_60:70,  THWN_75:85,  XHHW_90:95  },
+    3:     { TW_60:85,  THWN_75:100, XHHW_90:110 },
+    2:     { TW_60:95,  THWN_75:115, XHHW_90:130 },
+    1:     { TW_60:110, THWN_75:130, XHHW_90:145 },
+    "1/0": { TW_60:125, THWN_75:150, XHHW_90:170 },
+    "2/0": { TW_60:145, THWN_75:175, XHHW_90:195 },
+    "3/0": { TW_60:165, THWN_75:200, XHHW_90:225 },
+    "4/0": { TW_60:195, THWN_75:230, XHHW_90:260 },
+    250:   { TW_60:215, THWN_75:255, XHHW_90:290 },
+    300:   { TW_60:240, THWN_75:285, XHHW_90:320 },
+    350:   { TW_60:260, THWN_75:310, XHHW_90:350 },
+    400:   { TW_60:280, THWN_75:335, XHHW_90:380 },
+    500:   { TW_60:320, THWN_75:380, XHHW_90:430 },
+  };
+
+  // Temperature correction factors (PEC Table 3.10 Notes)
+  // For ambient temps above 30°C (base)
+  const TEMP_FACTORS = {
+    TW_60:   { 21:1.08,26:1.00,31:0.91,36:0.82,41:0.71,46:0.58,51:0.41 },
+    THWN_75: { 21:1.05,26:1.00,31:0.94,36:0.88,41:0.82,46:0.75,51:0.67,56:0.58,61:0.33 },
+    XHHW_90: { 21:1.04,26:1.00,31:0.96,36:0.91,41:0.87,46:0.82,51:0.76,56:0.71,61:0.65,66:0.58,71:0.50 },
+  };
+
+  // Conduit fill adjustment factors (PEC Table 3.13)
+  const FILL_FACTORS = {
+    1:1.00, 2:1.00, 3:1.00, 4:0.80, 5:0.80, 6:0.80,
+    7:0.70, 8:0.70, 9:0.70, 10:0.70, 11:0.70, 12:0.70,
+    13:0.70, 14:0.70, 15:0.70, 16:0.70, 17:0.70, 18:0.70,
+    19:0.70, 20:0.50,
+  };
+  const getFillFactor = n => n >= 20 ? 0.50 : FILL_FACTORS[n] || 0.70;
+
+  const INS_TYPES = [
+    { key:"TW_60",   label:"TW (60°C)",   maxTemp:60  },
+    { key:"THWN_75", label:"THWN (75°C)", maxTemp:75  },
+    { key:"XHHW_90", label:"XHHW (90°C)", maxTemp:90  },
+  ];
+
+  const [wireSize,    setWireSize]    = useState(12);
+  const [insulation,  setInsulation]  = useState("THWN_75");
+  const [ambient,     setAmbient]     = useState(30);
+  const [numWires,    setNumWires]    = useState(3);
+  const [material,    setMaterial]    = useState("copper");
+  const [loadCurrent, setLoadCurrent] = useState(20);
+
+  const insTempKey  = Object.keys(TEMP_FACTORS).find(k=>k===insulation) || "THWN_75";
+  const tempFactors = TEMP_FACTORS[insTempKey] || {};
+
+  // Get nearest temp factor key
+  const getTF = (amb) => {
+    const keys = Object.keys(tempFactors).map(Number).sort((a,b)=>a-b);
+    let best = keys[0];
+    for (const k of keys) { if (k <= amb) best = k; }
+    return tempFactors[best] || 1.0;
+  };
+
+  const baseAmp     = (BASE_AMPACITY[wireSize]?.[insulation] || 0) * (material==="aluminum" ? 0.84 : 1);
+  const tempFactor  = getTF(ambient);
+  const fillFactor  = getFillFactor(numWires);
+  const deratedAmp  = baseAmp * tempFactor * fillFactor;
+  const ok          = deratedAmp >= loadCurrent;
+  const utilPct     = deratedAmp > 0 ? (loadCurrent / deratedAmp * 100) : 0;
+
+  // Recommend minimum wire size
+  const recWire = () => {
+    for (const size of AWG_SIZES) {
+      const base = (BASE_AMPACITY[size]?.[insulation]||0) * (material==="aluminum"?0.84:1);
+      const derated = base * tempFactor * fillFactor;
+      if (derated >= loadCurrent) return { size, derated };
+    }
+    return null;
+  };
+  const rec = recWire();
+
+  // Full table for all wire sizes
+  const tableRows = AWG_SIZES.map(sz=>{
+    const base    = (BASE_AMPACITY[sz]?.[insulation]||0) * (material==="aluminum"?0.84:1);
+    const derated = base * tempFactor * fillFactor;
+    const isCurrent = String(sz) === String(wireSize);
+    return { sz, base, derated, isCurrent };
+  });
+
+  const ambientOptions = [21,26,30,31,36,41,46,51,56,61].filter(t=>{
+    const ins = INS_TYPES.find(i=>i.key===insulation);
+    return t <= (ins?.maxTemp || 90);
+  });
+
+  return (
+    <div>
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}>
+        Apply temperature and conduit fill derating to conductor ampacity per <strong style={{color:T.text}}>PEC 2017 Table 3.10 & 3.13</strong>.
+      </p>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:14,marginBottom:24}}>
+        <div><Label>Wire Size (AWG)</Label>
+          <Select value={wireSize} onChange={e=>setWireSize(e.target.value)}>
+            {AWG_SIZES.map(s=><option key={s} value={s}>{s} AWG</option>)}
+          </Select></div>
+        <div><Label>Insulation Type</Label>
+          <Select value={insulation} onChange={e=>setInsulation(e.target.value)}>
+            {INS_TYPES.map(t=><option key={t.key} value={t.key}>{t.label}</option>)}
+          </Select></div>
+        <div><Label>Material</Label>
+          <Select value={material} onChange={e=>setMaterial(e.target.value)}>
+            <option value="copper">Copper (Cu)</option>
+            <option value="aluminum">Aluminum (Al) −16%</option>
+          </Select></div>
+        <div><Label>Ambient Temperature (°C)</Label>
+          <Select value={ambient} onChange={e=>setAmbient(+e.target.value)}>
+            {ambientOptions.map(t=><option key={t} value={t}>{t}°C {t===30?"(Base)":t>35?"(Hot)":""}</option>)}
+          </Select></div>
+        <div><Label>Conductors in Conduit</Label>
+          <Input type="number" value={numWires} min={1} max={30} onChange={e=>setNumWires(Math.min(30,+e.target.value))}/></div>
+        <div><Label>Load Current (A)</Label>
+          <Input type="number" value={loadCurrent} min={1} onChange={e=>setLoadCurrent(+e.target.value)}/></div>
+      </div>
+
+      {/* Main results */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24,alignItems:"start"}}>
+        {/* Visual result card */}
+        <Card style={{padding:22}}>
+          <Label>Derated Ampacity Result</Label>
+          <div style={{marginTop:12,display:"flex",alignItems:"flex-end",gap:8}}>
+            <div style={{fontSize:48,fontWeight:900,color:ok?T.success:T.danger,lineHeight:1,fontFamily:"monospace"}}>
+              {deratedAmp.toFixed(1)}
+            </div>
+            <div style={{fontSize:18,color:T.muted,paddingBottom:6}}>A</div>
+          </div>
+          <div style={{marginTop:6,fontSize:12,color:T.muted}}>Derated ampacity for #{wireSize} AWG {material}</div>
+
+          {/* Utilization bar */}
+          <div style={{marginTop:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.muted,marginBottom:4}}>
+              <span>Load Utilization</span>
+              <span style={{fontWeight:700,color:ok?T.success:T.danger}}>{utilPct.toFixed(1)}%</span>
+            </div>
+            <div style={{background:T.border,borderRadius:99,height:10,overflow:"hidden"}}>
+              <div style={{width:`${Math.min(utilPct,100)}%`,height:"100%",
+                background:`linear-gradient(90deg,${ok?"#22c55e":"#ef4444"},${ok?"#16a34a":"#dc2626"})`,
+                borderRadius:99,transition:"width 0.5s ease"}}/>
+            </div>
+            <div style={{marginTop:8,fontSize:12,fontWeight:700,color:ok?T.success:T.danger,padding:"6px 12px",borderRadius:8,background:ok?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)",border:`1px solid ${ok?"rgba(34,197,94,0.2)":"rgba(239,68,68,0.2)"}`}}>
+              {ok ? `✓ Wire adequate — ${(deratedAmp-loadCurrent).toFixed(1)}A margin` : `✗ Insufficient — ${(loadCurrent-deratedAmp).toFixed(1)}A short`}
+            </div>
+          </div>
+        </Card>
+
+        {/* Derating breakdown */}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <Stat label="Base Ampacity"          value={baseAmp.toFixed(1)+" A"}    sub={`${insulation.replace("_"," ")} in conduit`}/>
+          <Stat label="Temp. Correction Factor" value={"× "+tempFactor.toFixed(2)} sub={`Ambient ${ambient}°C`} color={tempFactor<1?T.warn:T.success}/>
+          <Stat label="Conduit Fill Factor"     value={"× "+fillFactor.toFixed(2)} sub={`${numWires} conductor${numWires!==1?"s":""} in conduit`} color={fillFactor<1?T.warn:T.success}/>
+          <div style={{background:T.dim,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"14px 16px"}}>
+            <Label>Formula</Label>
+            <div style={{fontSize:12,color:T.muted,fontFamily:"monospace",lineHeight:1.8,marginTop:6}}>
+              Derated = Base × T.F. × C.F.<br/>
+              = {baseAmp.toFixed(1)} × {tempFactor.toFixed(2)} × {fillFactor.toFixed(2)}<br/>
+              = <strong style={{color:ok?T.success:T.danger}}>{deratedAmp.toFixed(1)} A</strong>
+            </div>
+          </div>
+          {!ok && rec && (
+            <div style={{background:"rgba(245,158,11,0.08)",border:"1.5px solid rgba(245,158,11,0.3)",borderRadius:12,padding:"14px 16px"}}>
+              <div style={{fontSize:11,color:T.warn,fontWeight:700,marginBottom:4}}>MINIMUM WIRE SIZE REQUIRED</div>
+              <div style={{fontSize:20,fontWeight:800,color:T.warn}}>#{rec.size} AWG</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>Derated ampacity: {rec.derated.toFixed(1)}A</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Wire size comparison table */}
+      <Label>Full Wire Size Derating Table — {insulation.replace("_"," ")}, {ambient}°C ambient, {numWires} wires</Label>
+      <div style={{overflowX:"auto",marginTop:10}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{background:T.dim}}>
+              {["Wire Size","Base Ampacity","Temp Factor","Fill Factor","Derated Ampacity","Adequate for Load",""].map(h=>(
+                <th key={h} style={{padding:"9px 12px",color:T.muted,fontWeight:700,fontSize:11,textTransform:"uppercase",textAlign:"left",borderBottom:`1px solid ${T.border}`}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map(({sz,base,derated,isCurrent})=>{
+              const adequate = derated >= loadCurrent;
+              return (
+                <tr key={sz} style={{background:isCurrent?"rgba(255,107,43,0.06)":"transparent",borderBottom:`1px solid ${T.border}`,cursor:"pointer"}}
+                  onClick={()=>setWireSize(sz)}>
+                  <td style={{padding:"9px 12px",fontWeight:isCurrent?800:400,color:isCurrent?ACCENT:T.text}}>
+                    {isCurrent?"▶ ":""}{sz} AWG{sz>=250?" kcmil":""}
+                  </td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{base.toFixed(1)} A</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{tempFactor.toFixed(2)}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{fillFactor.toFixed(2)}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",fontWeight:700,color:adequate?T.success:T.danger}}>{derated.toFixed(1)} A</td>
+                  <td style={{padding:"9px 12px"}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:20,
+                      background:adequate?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
+                      color:adequate?T.success:T.danger}}>
+                      {adequate?"✓ YES":"✗ NO"}
+                    </span>
+                  </td>
+                  <td style={{padding:"9px 12px",width:36}}/>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:10,fontSize:12,color:T.muted}}>
+        ⚠️ Derating factors per PEC 2017. Aluminum values use 84% of copper ampacity. Always verify with licensed PEE before final design.
+      </div>
+    </div>
+  );
+}
+
+
 function ElecCode({ apiKey }) {
   const ACCENT = "#ff6b2b";
   const ACCENT_DIM = "rgba(255,107,43,0.1)";
@@ -6307,9 +7061,12 @@ function ElecCode({ apiKey }) {
   ];
 
   const CALC_TOOLS = [
-    { key:"vdrop",  icon:"vdrop",  label:"Voltage Drop",     code:"PEC Art. 2.30" },
-    { key:"fault",  icon:"fault",  label:"Short Circuit",    code:"PEC Art. 2.40" },
-    { key:"load",   icon:"load",   label:"Load Calculator",  code:"PEC Art. 2.20" },
+    { key:"vdrop",    icon:"vdrop",     label:"Voltage Drop",       code:"PEC Art. 2.30" },
+    { key:"fault",    icon:"fault",     label:"Short Circuit",      code:"PEC Art. 2.40" },
+    { key:"load",     icon:"load",      label:"Load Calculator",    code:"PEC Art. 2.20" },
+    { key:"panel",    icon:"panel",     label:"Panel Schedule",     code:"PEC Art. 2.20" },
+    { key:"conduit",  icon:"conduit",   label:"Conduit Fill",       code:"PEC Art. 3.50" },
+    { key:"ampacity", icon:"ampacity",  label:"Ampacity Derating",  code:"PEC Table 3.10" },
   ];
 
   const [mainTab,  setMainTab]  = useState("checker");
@@ -6426,9 +7183,12 @@ function ElecCode({ apiKey }) {
               </div>
 
               <Card>
-                {calcTool === "vdrop" && <VoltageDropCalc/>}
-                {calcTool === "fault" && <ShortCircuitCalc/>}
-                {calcTool === "load"  && <LoadCalc/>}
+                {calcTool === "vdrop"    && <VoltageDropCalc/>}
+                {calcTool === "fault"    && <ShortCircuitCalc/>}
+                {calcTool === "load"     && <LoadCalc/>}
+                {calcTool === "panel"    && <PanelScheduleBuilder/>}
+                {calcTool === "conduit"  && <ConduitFillCalc/>}
+                {calcTool === "ampacity" && <AmpacityDerating/>}
               </Card>
             </>
           )}
@@ -6529,9 +7289,12 @@ function DashboardHome({ onNavigate }) {
     slab:       { icon:"slab", label:"Slab Design",      module:"structural", color:"#0696d7" },
     loads:      { icon:"loads", label:"Load Combos",      module:"structural", color:"#0696d7" },
     electrical: { icon:"checker", label:"Electrical Check", module:"electrical", color:"#ff6b2b" },
-    vdrop:      { icon:"vdrop", label:"Voltage Drop",     module:"electrical", color:"#ff6b2b" },
-    fault:      { icon:"fault", label:"Short Circuit",    module:"electrical", color:"#ff6b2b" },
-    load:       { icon:"loads", label:"Load Calc",        module:"electrical", color:"#ff6b2b" },
+    vdrop:      { icon:"vdrop",    label:"Voltage Drop",     module:"electrical", color:"#ff6b2b" },
+    fault:      { icon:"fault",    label:"Short Circuit",    module:"electrical", color:"#ff6b2b" },
+    load:       { icon:"loads",    label:"Load Calc",        module:"electrical", color:"#ff6b2b" },
+    panel:      { icon:"panel",    label:"Panel Schedule",   module:"electrical", color:"#ff6b2b" },
+    conduit:    { icon:"conduit",  label:"Conduit Fill",     module:"electrical", color:"#ff6b2b" },
+    ampacity:   { icon:"ampacity", label:"Ampacity Derate",  module:"electrical", color:"#ff6b2b" },
     plumbing:   { icon:"checker", label:"Plumbing Check",   module:"sanitary",   color:"#06b6d4" },
     fixture:    { icon:"fixture", label:"Fixture Units",    module:"sanitary",   color:"#06b6d4" },
     pipe:       { icon:"pipe", label:"Pipe Sizing",      module:"sanitary",   color:"#06b6d4" },
