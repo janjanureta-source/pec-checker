@@ -1428,8 +1428,8 @@ function PlanChecker({ apiKey, externalResult=null, onResultChange=null, onDataE
     setError(null); // preserve existing result when adding more files
   },[]);
 
-  // Sync external result → local state so analysis survives sub-tool navigation
-  useEffect(()=>{ if(externalResult && !result) setResult(externalResult); },[externalResult]);
+  // Sync external result → local state (handles both navigation and session restore)
+  useEffect(()=>{ if(externalResult) { setResult(externalResult); setTab("all"); setOpen({}); } },[externalResult]);
 
   const run = async () => {
     if(!files.length) return;
@@ -1892,6 +1892,15 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
   const [extractedData, setExtractedData] = useState(externalExtracted||null);
   const ref = useRef(null);
 
+  // ── Sync when parent restores session data ──────────────────────────────
+  useEffect(() => {
+    if (externalResult) { setResult(externalResult); setTab("all"); setOpen({}); }
+  }, [externalResult]);
+  useEffect(() => {
+    if (externalExtracted) setExtractedData(externalExtracted);
+  }, [externalExtracted]);
+
+
   const addFiles = useCallback(fs=>{
     setFiles(p=>[...p,...Array.from(fs).map(f=>({file:f,id:Math.random().toString(36).slice(2),name:f.name,size:f.size,type:f.type||"application/octet-stream"}))]);
     setResult(null); setError(null);
@@ -1937,8 +1946,8 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
       if(onResultChange) onResultChange(parsed);
         if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
         setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
-      const _structHistId = addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
-      if(onSessionSave) onSessionSave({ checkerResult: parsed });;
+      addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
+      if(onSessionSave) onSessionSave({ checkerResult: parsed, checkerExtracted: extractedData });;
     } catch(e){ setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
@@ -3010,7 +3019,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
       try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed1);
       addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.notes||"" } });
-      if(onSessionSave) onSessionSave({ bomResult: parsed1 });;
+      if(onSessionSave) onSessionSave({ bomResult: parsed1 });
 
       // Comparison BOM
       if (mode === "compare" && bomFiles2.length) {
@@ -3859,7 +3868,7 @@ INSTRUCTIONS:
           summary: `${parsed?.project?.type||""} · ${parsed?.project?.finishLevel||""} · ${(parsed?.project?.estimatedGFA||0).toLocaleString()} sqm`,
         }
       });
-      if(onSessionSave) onSessionSave({ estimateResult: parsed });;
+      if(onSessionSave) onSessionSave({ estimateResult: parsed });
     } catch(e) {
       setError(e.message || "Estimation failed. Please try again.");
     } finally {
@@ -5607,19 +5616,25 @@ function StructiCode({ apiKey, initialTool, restoredSession, onSessionConsumed }
   }, [restoredSession]);
 
   // ── Auto-save session whenever meaningful state changes ──
-  const _sessionRef = { checkerResult, structuralData, checkerExtracted, structuralResults, runState, bomResult, estimateResult, _tab: tab };
+  // Use a ref to always capture latest state (avoids stale closure)
+  const _structSessionRef = React.useRef({});
   useEffect(() => {
-    if (!checkerResult && !bomResult && !estimateResult) return; // nothing worth saving yet
-    DB.saveSession("structural", _sessionRef);
+    _structSessionRef.current = { checkerResult, structuralData, checkerExtracted, structuralResults, runState, bomResult, estimateResult, _tab: tab };
+  });
+  useEffect(() => {
+    if (!checkerResult && !bomResult && !estimateResult) return;
+    DB.saveSession("structural", _structSessionRef.current);
   }, [checkerResult, structuralData, structuralResults, bomResult, estimateResult]);
 
   // ── onSessionSave handler passed down to children ──
   const handleSessionSave = (partial) => {
-    const next = { ..._sessionRef, ...partial };
-    if (partial.checkerResult)     setCheckerResult(partial.checkerResult);
-    if (partial.bomResult)         setBomResult(partial.bomResult);
-    if (partial.estimateResult)    setEstimateResult(partial.estimateResult);
-    DB.saveSession("structural", next);
+    if (partial.checkerResult)    setCheckerResult(partial.checkerResult);
+    if (partial.checkerExtracted) setCheckerExtracted(partial.checkerExtracted);
+    if (partial.bomResult)        setBomResult(partial.bomResult);
+    if (partial.estimateResult)   setEstimateResult(partial.estimateResult);
+    // Save immediately with merged state
+    const merged = { ..._structSessionRef.current, ...partial };
+    DB.saveSession("structural", merged);
   };
 
   const handleDataExtracted = (d) => {
@@ -5964,7 +5979,7 @@ function PlumbingChecker({ apiKey, onSessionSave }) {
       setResult(parsed);
       if(onResultChange) onResultChange(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
       addHistoryEntry({ tool:"plumbing", module:"sanitary", projectName:parsed?.summary?.projectName||"Plumbing Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
-      if(onSessionSave) onSessionSave({ checkerResult: parsed });;
+      if(onSessionSave) onSessionSave({ checkerResult: parsed });
     }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);setBusyMsg("");}
   };
   const findings=result?.findings||[];
@@ -7684,11 +7699,13 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   }, [restoredSession]);
 
   // ── Auto-save session whenever meaningful state changes ──
+  const _elecSessionRef = React.useRef({});
+  useEffect(() => {
+    _elecSessionRef.current = { checkerResult, electricalData, elecResults, runState, calcStates, _mainTab: mainTab };
+  });
   useEffect(() => {
     if (!checkerResult && !electricalData) return;
-    DB.saveSession("electrical", {
-      checkerResult, electricalData, elecResults, runState, calcStates, _mainTab: mainTab,
-    });
+    DB.saveSession("electrical", _elecSessionRef.current);
   }, [checkerResult, electricalData, elecResults, calcStates]);
 
   const CALC_TOOLS = [
@@ -7998,7 +8015,7 @@ function SaniCode({ apiKey, restoredSession, onSessionConsumed }) {
   useEffect(() => {
     if (!checkerResult) return;
     DB.saveSession("sanitary", { checkerResult, _tool: tool });
-  }, [checkerResult]);
+  }, [checkerResult, tool]);
 
   const TOOLS=[
     {key:"checker",  icon:"🤖", label:"AI Plan Checker"},
