@@ -1535,7 +1535,7 @@ Be very specific with corrected values and drafting instructions. Reference typi
 
       {error && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"12px 16px", marginBottom:20, color:T.danger, fontSize:14 }}>⚠️ {error}</div>}
 
-      {result && (
+      {result?.summary && (
         <div style={{ animation:"fadeIn 0.35s ease" }}>
           {/* Summary card */}
           <Card style={{ marginBottom:16 }}>
@@ -2001,7 +2001,7 @@ Respond ONLY as valid JSON array:
       {files.length>0&&(<button onClick={run} disabled={busy} style={{width:"100%",background:busy?"rgba(59,130,246,0.2)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?(busyMsg||"⚙️ Analyzing…"):`🏗️ Run Structural Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>)}
       {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
 
-      {result&&(
+      {result?.summary&&(
         <div style={{animation:"fadeIn 0.35s ease"}}>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
@@ -5614,13 +5614,14 @@ function StructiCode({ apiKey, initialTool, restoredSession, onSessionConsumed }
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
-      if (!s || !s.checkerResult) return; // nothing worth restoring
-      if (s.checkerResult)     setCheckerResult(s.checkerResult);
-      if (s.checkerExtracted)  { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
-      if (s.structuralResults) setStructuralResults(s.structuralResults);
-      if (s.runState)          setRunState(s.runState);
-      if (s.bomResult)         setBomResult(s.bomResult);
-      if (s.estimateResult)    setEstimateResult(s.estimateResult);
+      // Validate — must have a real checkerResult with summary
+      if (!s || !s.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
+      if (s.checkerExtracted?.building) { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
+      if (s.structuralResults?.items)   setStructuralResults(s.structuralResults);
+      if (s.runState)                   setRunState(s.runState);
+      if (s.bomResult?.summary)         setBomResult(s.bomResult);
+      if (s.estimateResult?.summary)    setEstimateResult(s.estimateResult);
     } catch { /* corrupted session — ignore */ }
   }, []); // eslint-disable-line
 
@@ -7723,8 +7724,9 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_electrical") || "null");
-      if (!s || !s.checkerResult) return;
-      if (s.checkerResult)  setCheckerResult(s.checkerResult);
+      // Validate — must have a real checkerResult with summary
+      if (!s || !s.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
       if (s.electricalData) setElectricalData(s.electricalData);
       if (s.elecResults)    setElecResults(s.elecResults);
       if (s.runState)       setRunState(s.runState);
@@ -8063,9 +8065,9 @@ function SaniCode({ apiKey, restoredSession, onSessionConsumed }) {
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_sanitary") || "null");
-      if (!s || !s.checkerResult) return;
-      if (s.checkerResult) setCheckerResult(s.checkerResult);
-      if (s._tool)         setTool(s._tool);
+      if (!s || !s.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
+      if (s._tool) setTool(s._tool);
     } catch { /* corrupted session — ignore */ }
   }, []); // eslint-disable-line
 
@@ -8179,7 +8181,14 @@ const DB = {
       const key = SESSION_KEYS[module];
       if (!key) return null;
       const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      // Validate — must have a real AI result, not a stale empty object
+      if (!s?.checkerResult?.summary?.projectName && !s?.bomResult?.summary && !s?.estimateResult?.summary) {
+        localStorage.removeItem(key); // purge corrupt session
+        return null;
+      }
+      return s;
     } catch { return null; }
   },
   clearSession(module) {
