@@ -3375,7 +3375,7 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   const [showMargins, setShowMargins] = useState(false);
   const [busyMsg,     setBusyMsg]     = useState("");
   const [debugInfo,   setDebugInfo]   = useState("");
-  const [markup, setMarkup] = useState({ materials: 0, labor: 0, overhead: 10, contingency: 5 });
+  const [bomMarkup, setBomMarkup] = useState({ materials: 0, labor: 0, overhead: 10, contingency: 5 });
   const [showMarkup, setShowMarkup] = useState(false);
 
   const planRef = useRef(null);
@@ -3434,7 +3434,7 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   const addBomFiles2  = useCallback(fs => setBomFiles2(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
 
   const applyMarkup = (base) => {
-    const m = markup;
+    const m = bomMarkup;
     return base
       * (1 + (m.materials   || 0) / 100)
       * (1 + (m.labor       || 0) / 100)
@@ -4107,7 +4107,7 @@ CRITICAL OUTPUT RULES:
               <Card>
                 <Label>Markup in Submitted BOM</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
-                  {[{l:"Contingency",found:markup.contingencyFound,pct:markup.contingencyPercent,std:"5–10%"},{l:"Overhead",found:markup.overheadFound,pct:markup.overheadPercent,std:"5–10%"},{l:"Profit",found:markup.profitFound,pct:markup.profitPercent,std:"8–15%"}].map(r=>(
+                  {[{l:"Contingency",found:bomMarkup.contingencyFound,pct:bomMarkup.contingencyPercent,std:"5–10%"},{l:"Overhead",found:bomMarkup.overheadFound,pct:bomMarkup.overheadPercent,std:"5–10%"},{l:"Profit",found:bomMarkup.profitFound,pct:bomMarkup.profitPercent,std:"8–15%"}].map(r=>(
                     <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:r.found?"rgba(16,185,129,0.06)":"rgba(239,68,68,0.06)",border:`1px solid ${r.found?"rgba(16,185,129,0.25)":"rgba(239,68,68,0.2)"}`,borderRadius:9}}>
                       <div style={{display:"flex",alignItems:"center",gap:9}}>
                         <span style={{fontSize:15}}>{r.found?"✅":"❌"}</span>
@@ -4119,8 +4119,8 @@ CRITICAL OUTPUT RULES:
                       <div style={{fontSize:15,fontWeight:800,color:r.found?"#10b981":"#ef4444"}}>{r.found?`${r.pct}%`:"Not found"}</div>
                     </div>
                   ))}
-                  <div style={{padding:"7px 12px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>VAT Status: <strong style={{color:T.text}}>{markup.vatStatus||"NOT STATED"}</strong></div>
-                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:12,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
+                  <div style={{padding:"7px 12px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>VAT Status: <strong style={{color:T.text}}>{bomMarkup.vatStatus||"NOT STATED"}</strong></div>
+                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:12,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{bomMarkup.recommendation}</div>
                 </div>
               </Card>
               <Card>
@@ -4225,9 +4225,9 @@ CRITICAL OUTPUT RULES:
         const g = generateResult;
         const s = g.summary || {};
         const fmt = n => "\u20b1" + (+n||0).toLocaleString("en-PH");
-        const mfn = n => { const m=markup; return (+n||0)*(1+(m.materials||0)/100)*(1+(m.labor||0)/100)*(1+(m.overhead||0)/100)*(1+(m.contingency||0)/100); };
+        const mfn = n => { const m=bomMarkup; return (+n||0)*(1+(m.materials||0)/100)*(1+(m.labor||0)/100)*(1+(m.overhead||0)/100)*(1+(m.contingency||0)/100); };
         const mf  = n => fmt(mfn(n));
-        const totalMarkupPct = ((1+(markup.materials||0)/100)*(1+(markup.labor||0)/100)*(1+(markup.overhead||0)/100)*(1+(markup.contingency||0)/100)-1)*100;
+        const totalMarkupPct = ((1+(bomMarkup.materials||0)/100)*(1+(bomMarkup.labor||0)/100)*(1+(bomMarkup.overhead||0)/100)*(1+(bomMarkup.contingency||0)/100)-1)*100;
         const confColor = c => c==="HIGH" ? "#16a34a" : c==="LOW" ? "#ef4444" : "#d97706";
         return (
           <div style={{marginTop:20}}>
@@ -4382,13 +4382,13 @@ CRITICAL OUTPUT RULES:
                       <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:9,padding:"12px 14px"}}>
                         <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <input type="number" min="0" max="100" step="0.5" value={markup[key]}
-                            onChange={e=>setMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                          <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
+                            onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
                             style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
                           <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
                         </div>
-                        <input type="range" min="0" max="50" step="0.5" value={markup[key]}
-                          onChange={e=>setMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
+                        <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
+                          onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
                           style={{width:"100%",marginTop:6,accentColor:color}}/>
                       </div>
                     ))}
