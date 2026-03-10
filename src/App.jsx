@@ -613,6 +613,122 @@ const ComplianceGauge = ({ pct, limit, label }) => {
 };
 
 // ─── VOLTAGE DROP CALCULATOR ──────────────────────────────────────────────────
+
+// ─── APPLIANCE DATABASE ───────────────────────────────────────────────────────
+const APPLIANCE_CATEGORIES = [
+  {
+    category: "💡 Lighting",
+    items: [
+      { name: "LED Bulb (9W)",            watts: 9,    pct: 100 },
+      { name: "LED Bulb (15W)",           watts: 15,   pct: 100 },
+      { name: "Fluorescent Lamp (40W)",   watts: 40,   pct: 100 },
+      { name: "Downlight / Recessed LED", watts: 12,   pct: 100 },
+      { name: "Tube Light (LED T8)",      watts: 18,   pct: 100 },
+      { name: "Outdoor Floodlight",       watts: 50,   pct: 100 },
+      { name: "Emergency Light",          watts: 10,   pct: 100 },
+    ]
+  },
+  {
+    category: "❄️ Air Conditioning",
+    items: [
+      { name: "Window AC 0.5HP",          watts: 450,  pct: 80 },
+      { name: "Window AC 1HP",            watts: 746,  pct: 80 },
+      { name: "Window AC 1.5HP",          watts: 1119, pct: 80 },
+      { name: "Split-Type AC 1HP",        watts: 900,  pct: 80 },
+      { name: "Split-Type AC 1.5HP",      watts: 1300, pct: 80 },
+      { name: "Split-Type AC 2HP",        watts: 1800, pct: 80 },
+      { name: "Inverter AC 1HP",          watts: 700,  pct: 80 },
+      { name: "Inverter AC 1.5HP",        watts: 1000, pct: 80 },
+      { name: "Cassette-Type AC 2HP",     watts: 1800, pct: 80 },
+    ]
+  },
+  {
+    category: "🍳 Kitchen Appliances",
+    items: [
+      { name: "Electric Range / Stove",   watts: 2000, pct: 65 },
+      { name: "Microwave Oven",           watts: 1000, pct: 50 },
+      { name: "Rice Cooker",              watts: 700,  pct: 50 },
+      { name: "Electric Kettle",          watts: 1500, pct: 20 },
+      { name: "Refrigerator (Small)",     watts: 100,  pct: 100 },
+      { name: "Refrigerator (Medium)",    watts: 150,  pct: 100 },
+      { name: "Refrigerator (Large)",     watts: 250,  pct: 100 },
+      { name: "Electric Oven / Toaster",  watts: 1200, pct: 25 },
+      { name: "Dishwasher",               watts: 1500, pct: 25 },
+      { name: "Blender / Mixer",          watts: 350,  pct: 15 },
+      { name: "Coffee Maker",             watts: 800,  pct: 15 },
+      { name: "Food Processor",           watts: 500,  pct: 15 },
+      { name: "Electric Grill / Griddle", watts: 1500, pct: 20 },
+    ]
+  },
+  {
+    category: "🛁 Bathroom / Utility",
+    items: [
+      { name: "Electric Water Heater (Instant)", watts: 3500, pct: 25 },
+      { name: "Electric Water Heater (Storage)", watts: 1500, pct: 30 },
+      { name: "Washing Machine (Auto)",   watts: 500,  pct: 35 },
+      { name: "Washing Machine (Semi-Auto)", watts: 350, pct: 35 },
+      { name: "Clothes Dryer",            watts: 2000, pct: 25 },
+      { name: "Vacuum Cleaner",           watts: 1000, pct: 10 },
+      { name: "Electric Fan (Stand)",     watts: 60,   pct: 80 },
+      { name: "Electric Fan (Desk)",      watts: 35,   pct: 80 },
+      { name: "Exhaust Fan",              watts: 30,   pct: 60 },
+      { name: "Hair Dryer",               watts: 1200, pct: 10 },
+      { name: "Electric Iron",            watts: 1000, pct: 15 },
+    ]
+  },
+  {
+    category: "📺 Entertainment & Office",
+    items: [
+      { name: "LED TV 32\"",              watts: 50,   pct: 60 },
+      { name: "LED TV 43\"",              watts: 80,   pct: 60 },
+      { name: "LED TV 55\"",              watts: 120,  pct: 60 },
+      { name: "Desktop Computer",         watts: 250,  pct: 50 },
+      { name: "Laptop / Notebook",        watts: 65,   pct: 60 },
+      { name: "Wi-Fi Router / Modem",     watts: 15,   pct: 100 },
+      { name: "Printer / Scanner",        watts: 200,  pct: 10 },
+      { name: "Gaming Console",           watts: 150,  pct: 30 },
+      { name: "Sound System / Speaker",   watts: 100,  pct: 40 },
+      { name: "Set-Top Box / Receiver",   watts: 20,   pct: 70 },
+    ]
+  },
+  {
+    category: "🔌 General / Other",
+    items: [
+      { name: "General Receptacle Outlet",watts: 180,  pct: 100 },
+      { name: "Water Pump (0.5HP)",       watts: 370,  pct: 30 },
+      { name: "Water Pump (1HP)",         watts: 746,  pct: 30 },
+      { name: "Sump Pump",                watts: 500,  pct: 20 },
+      { name: "Gate Motor / Garage Door", watts: 400,  pct: 5  },
+      { name: "Security Camera (per unit)",watts: 15,  pct: 100 },
+      { name: "Electric Vehicle Charger", watts: 7200, pct: 30 },
+      { name: "UPS / Battery Backup",     watts: 500,  pct: 50 },
+      { name: "Custom / Other",           watts: 100,  pct: 100 },
+    ]
+  }
+];
+
+// Flat lookup map: name → { watts, pct }
+const APPLIANCE_MAP = {};
+APPLIANCE_CATEGORIES.forEach(cat => cat.items.forEach(item => { APPLIANCE_MAP[item.name] = { watts: item.watts, pct: item.pct }; }));
+const CUSTOM_OPTION = "Custom / Other";
+
+
+// ─── PLAN CHECKER ────────────────────────────────────────────────────────────
+const SEV_CFG = {
+  CRITICAL: { bg:"rgba(239,68,68,0.08)",  border:"rgba(239,68,68,0.25)",  text:"#ef4444", badge:"#ef4444" },
+  WARNING:  { bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.25)", text:"#f59e0b", badge:"#f59e0b" },
+  INFO:     { bg:"rgba(59,130,246,0.08)", border:"rgba(59,130,246,0.25)", text:"#3b82f6", badge:"#3b82f6" },
+};
+const STATUS_COL = { "NON-COMPLIANT":"#ef4444","COMPLIANT WITH WARNINGS":"#f59e0b","COMPLIANT":"#10b981" };
+const CL_LABELS = {
+  wireSizing:{l:"Wire Sizing",a:"Art. 2.30"},overcurrentProtection:{l:"Overcurrent",a:"Art. 2.40"},
+  grounding:{l:"Grounding",a:"Art. 2.50"},loadCalculation:{l:"Load Calc",a:"Art. 2.20"},
+  branchCircuits:{l:"Branch Circuits",a:"Art. 2.10"},panelboard:{l:"Panelboards",a:"Art. 3.84"},
+  serviceEntrance:{l:"Service Entrance",a:"Art. 2.30"},lighting:{l:"Lighting",a:"Art. 3.30"},
+  fsic:{l:"Fire Code",a:"RA 9514"},greenBuilding:{l:"Green Building",a:"PGBC"},shortCircuit:{l:"Short Circuit",a:"Art. 2.40"},
+};
+
+
 function VoltageDropCalc() {
   const [phase, setPhase]       = useState("single");
   const [voltage, setVoltage]   = useState(230);
@@ -943,104 +1059,6 @@ function ShortCircuitCalc() {
   );
 }
 
-// ─── APPLIANCE DATABASE ───────────────────────────────────────────────────────
-const APPLIANCE_CATEGORIES = [
-  {
-    category: "💡 Lighting",
-    items: [
-      { name: "LED Bulb (9W)",            watts: 9,    pct: 100 },
-      { name: "LED Bulb (15W)",           watts: 15,   pct: 100 },
-      { name: "Fluorescent Lamp (40W)",   watts: 40,   pct: 100 },
-      { name: "Downlight / Recessed LED", watts: 12,   pct: 100 },
-      { name: "Tube Light (LED T8)",      watts: 18,   pct: 100 },
-      { name: "Outdoor Floodlight",       watts: 50,   pct: 100 },
-      { name: "Emergency Light",          watts: 10,   pct: 100 },
-    ]
-  },
-  {
-    category: "❄️ Air Conditioning",
-    items: [
-      { name: "Window AC 0.5HP",          watts: 450,  pct: 80 },
-      { name: "Window AC 1HP",            watts: 746,  pct: 80 },
-      { name: "Window AC 1.5HP",          watts: 1119, pct: 80 },
-      { name: "Split-Type AC 1HP",        watts: 900,  pct: 80 },
-      { name: "Split-Type AC 1.5HP",      watts: 1300, pct: 80 },
-      { name: "Split-Type AC 2HP",        watts: 1800, pct: 80 },
-      { name: "Inverter AC 1HP",          watts: 700,  pct: 80 },
-      { name: "Inverter AC 1.5HP",        watts: 1000, pct: 80 },
-      { name: "Cassette-Type AC 2HP",     watts: 1800, pct: 80 },
-    ]
-  },
-  {
-    category: "🍳 Kitchen Appliances",
-    items: [
-      { name: "Electric Range / Stove",   watts: 2000, pct: 65 },
-      { name: "Microwave Oven",           watts: 1000, pct: 50 },
-      { name: "Rice Cooker",              watts: 700,  pct: 50 },
-      { name: "Electric Kettle",          watts: 1500, pct: 20 },
-      { name: "Refrigerator (Small)",     watts: 100,  pct: 100 },
-      { name: "Refrigerator (Medium)",    watts: 150,  pct: 100 },
-      { name: "Refrigerator (Large)",     watts: 250,  pct: 100 },
-      { name: "Electric Oven / Toaster",  watts: 1200, pct: 25 },
-      { name: "Dishwasher",               watts: 1500, pct: 25 },
-      { name: "Blender / Mixer",          watts: 350,  pct: 15 },
-      { name: "Coffee Maker",             watts: 800,  pct: 15 },
-      { name: "Food Processor",           watts: 500,  pct: 15 },
-      { name: "Electric Grill / Griddle", watts: 1500, pct: 20 },
-    ]
-  },
-  {
-    category: "🛁 Bathroom / Utility",
-    items: [
-      { name: "Electric Water Heater (Instant)", watts: 3500, pct: 25 },
-      { name: "Electric Water Heater (Storage)", watts: 1500, pct: 30 },
-      { name: "Washing Machine (Auto)",   watts: 500,  pct: 35 },
-      { name: "Washing Machine (Semi-Auto)", watts: 350, pct: 35 },
-      { name: "Clothes Dryer",            watts: 2000, pct: 25 },
-      { name: "Vacuum Cleaner",           watts: 1000, pct: 10 },
-      { name: "Electric Fan (Stand)",     watts: 60,   pct: 80 },
-      { name: "Electric Fan (Desk)",      watts: 35,   pct: 80 },
-      { name: "Exhaust Fan",              watts: 30,   pct: 60 },
-      { name: "Hair Dryer",               watts: 1200, pct: 10 },
-      { name: "Electric Iron",            watts: 1000, pct: 15 },
-    ]
-  },
-  {
-    category: "📺 Entertainment & Office",
-    items: [
-      { name: "LED TV 32\"",              watts: 50,   pct: 60 },
-      { name: "LED TV 43\"",              watts: 80,   pct: 60 },
-      { name: "LED TV 55\"",              watts: 120,  pct: 60 },
-      { name: "Desktop Computer",         watts: 250,  pct: 50 },
-      { name: "Laptop / Notebook",        watts: 65,   pct: 60 },
-      { name: "Wi-Fi Router / Modem",     watts: 15,   pct: 100 },
-      { name: "Printer / Scanner",        watts: 200,  pct: 10 },
-      { name: "Gaming Console",           watts: 150,  pct: 30 },
-      { name: "Sound System / Speaker",   watts: 100,  pct: 40 },
-      { name: "Set-Top Box / Receiver",   watts: 20,   pct: 70 },
-    ]
-  },
-  {
-    category: "🔌 General / Other",
-    items: [
-      { name: "General Receptacle Outlet",watts: 180,  pct: 100 },
-      { name: "Water Pump (0.5HP)",       watts: 370,  pct: 30 },
-      { name: "Water Pump (1HP)",         watts: 746,  pct: 30 },
-      { name: "Sump Pump",                watts: 500,  pct: 20 },
-      { name: "Gate Motor / Garage Door", watts: 400,  pct: 5  },
-      { name: "Security Camera (per unit)",watts: 15,  pct: 100 },
-      { name: "Electric Vehicle Charger", watts: 7200, pct: 30 },
-      { name: "UPS / Battery Backup",     watts: 500,  pct: 50 },
-      { name: "Custom / Other",           watts: 100,  pct: 100 },
-    ]
-  }
-];
-
-// Flat lookup map: name → { watts, pct }
-const APPLIANCE_MAP = {};
-APPLIANCE_CATEGORIES.forEach(cat => cat.items.forEach(item => { APPLIANCE_MAP[item.name] = { watts: item.watts, pct: item.pct }; }));
-const CUSTOM_OPTION = "Custom / Other";
-
 // ─── LOAD CALCULATOR ─────────────────────────────────────────────────────────
 function LoadCalc() {
   const [occupancy, setOccupancy] = useState("residential");
@@ -1293,21 +1311,6 @@ function LoadCalc() {
     </div>
   );
 }
-
-// ─── PLAN CHECKER ────────────────────────────────────────────────────────────
-const SEV_CFG = {
-  CRITICAL: { bg:"rgba(239,68,68,0.08)",  border:"rgba(239,68,68,0.25)",  text:"#ef4444", badge:"#ef4444" },
-  WARNING:  { bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.25)", text:"#f59e0b", badge:"#f59e0b" },
-  INFO:     { bg:"rgba(59,130,246,0.08)", border:"rgba(59,130,246,0.25)", text:"#3b82f6", badge:"#3b82f6" },
-};
-const STATUS_COL = { "NON-COMPLIANT":"#ef4444","COMPLIANT WITH WARNINGS":"#f59e0b","COMPLIANT":"#10b981" };
-const CL_LABELS = {
-  wireSizing:{l:"Wire Sizing",a:"Art. 2.30"},overcurrentProtection:{l:"Overcurrent",a:"Art. 2.40"},
-  grounding:{l:"Grounding",a:"Art. 2.50"},loadCalculation:{l:"Load Calc",a:"Art. 2.20"},
-  branchCircuits:{l:"Branch Circuits",a:"Art. 2.10"},panelboard:{l:"Panelboards",a:"Art. 3.84"},
-  serviceEntrance:{l:"Service Entrance",a:"Art. 2.30"},lighting:{l:"Lighting",a:"Art. 3.30"},
-  fsic:{l:"Fire Code",a:"RA 9514"},greenBuilding:{l:"Green Building",a:"PGBC"},shortCircuit:{l:"Short Circuit",a:"Art. 2.40"},
-};
 
 // Shown at top of any AI checker when no API key is set
 function NoKeyBanner() {
@@ -2954,23 +2957,46 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
   const aiBase       = result?.summary?.aiAdjustedEstimate || 0;
   const adjustedTotal= computeAdjusted(aiBase);
   const bomTotal     = result?.summary?.bomTotalEstimate || 0;
-  const tradeScores  = result?.summary?.tradeCompleteness || {};
+  const tradeScores  = result?.costBreakdown || {};  // keyed by trade, value is PHP amount
   const risk         = result?.summary?.contractorRisk;
 
   const exportReport = () => {
     if (!result) return;
     const date = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
-    const riskColor = RISK_COL[risk] || "#64748b";
+    const RISK_COL_MAP = { "ACCURATE":"#22c55e","UNDER-ESTIMATED":"#ef4444","OVER-ESTIMATED":"#f59e0b","INCOMPLETE":"#64748b" };
+    const overallStatus = result.summary?.overallStatus || "INCOMPLETE";
+    const riskColor = RISK_COL_MAP[overallStatus] || "#64748b";
+    const ITEM_STATUS_COL = { "OK":"#22c55e","OVER":"#f59e0b","UNDER":"#ef4444","MISSING":"#ef4444","EXCESS":"#94a3b8" };
+    const SEV_COL = { "CRITICAL":"#ef4444","WARNING":"#f59e0b" };
     const mRows = Object.entries(marginsState).map(([k,m]) =>
       `<tr><td>${m.label}</td><td style="text-align:right">${m.pct}%</td><td style="text-align:right">${fmt(aiBase*(m.pct/100))}</td></tr>`).join("");
-    const liRows = lineItems.map(li =>
-      `<tr><td>${li.description}</td><td>${li.category}</td><td>${li.unit}</td><td style="text-align:right">${fmtN(li.qtyBOM)}</td><td style="text-align:right">${fmtN(li.qtyAI)}</td><td style="color:${QTY_COL[li.qtyStatus]||"#64748b"};font-weight:700;text-align:center">${li.qtyStatus}</td><td style="text-align:right">${fmt(li.unitCostBOM)}</td><td style="text-align:right">${fmt(li.unitCostAI)}</td><td style="color:${COST_COL[li.costStatus]||"#64748b"};font-weight:700;text-align:center">${li.costStatus}</td><td style="text-align:right">${fmt(li.totalBOM)}</td><td style="text-align:right">${fmt(li.totalAI)}</td><td style="font-size:11px">${li.remarks}</td></tr>`).join("");
+    const liRows = lineItems.map(li => {
+      const costStatus = (li.unitCostBom && li.unitCostMarket)
+        ? (li.unitCostBom > li.unitCostMarket*1.1 ? "HIGH" : li.unitCostBom < li.unitCostMarket*0.9 ? "LOW" : "OK")
+        : "—";
+      const costColor = costStatus==="HIGH"?"#f59e0b":costStatus==="LOW"?"#ef4444":"#22c55e";
+      return `<tr>
+        <td>${li.description||"—"}</td>
+        <td>${li.trade||"—"}</td>
+        <td>${li.unit||"—"}</td>
+        <td style="text-align:right">${fmtN(li.qtyBom)}</td>
+        <td style="text-align:right">${fmtN(li.qtyPlans)}</td>
+        <td style="color:${ITEM_STATUS_COL[li.status]||"#64748b"};font-weight:700;text-align:center">${li.status||"—"}</td>
+        <td style="text-align:right">${fmt(li.unitCostBom)}</td>
+        <td style="text-align:right">${fmt(li.unitCostMarket)}</td>
+        <td style="color:${costColor};font-weight:700;text-align:center">${costStatus}</td>
+        <td style="text-align:right">${fmt(li.totalBom)}</td>
+        <td style="text-align:right">${fmt(li.totalMarket)}</td>
+        <td style="font-size:11px">${li.remark||"—"}</td>
+      </tr>`;
+    }).join("");
     const missRows = missingItems.map(m =>
-      `<tr><td><span style="color:${MISS_COL[m.priority||"WARNING"]};font-weight:700">${m.priority||"WARNING"}</span></td><td>${m.description}</td><td>${m.category}</td><td>${m.estimatedQty}</td><td style="text-align:right">${fmt(m.estimatedCost)}</td><td>${m.basis}</td></tr>`).join("");
-    const tradeRows = Object.entries(tradeScores).map(([t,s]) =>
-      `<tr><td style="text-transform:capitalize">${t}</td><td style="text-align:right;font-weight:700;color:${s>=80?"#16a34a":s>=50?"#d97706":"#dc2626"}">${s}%</td><td>${s>=80?"Complete":s>=50?"Incomplete":"Major Gaps"}</td></tr>`).join("");
+      `<tr><td><span style="color:${SEV_COL[m.severity||"WARNING"]||"#f59e0b"};font-weight:700">${m.severity||"WARNING"}</span></td><td>${m.description||"—"}</td><td>${m.trade||"—"}</td><td>${m.estimatedQty||"—"} ${m.unit||""}</td><td style="text-align:right">${fmt(m.estimatedCost)}</td></tr>`).join("");
+    const costBk = result.costBreakdown || {};
+    const tradeRows = Object.entries(costBk).filter(([,v])=>v>0).map(([t,v]) =>
+      `<tr><td style="text-transform:capitalize">${t.replace(/_/g," ")}</td><td style="text-align:right;font-weight:700;color:#0696d7">${fmt(v)}</td></tr>`).join("");
     const w = window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><title>BOM Review — ${result.summary.projectName}</title>
+    w.document.write(`<!DOCTYPE html><html><head><title>BOM Review — ${result.summary.projectName||"Project"}</title>
     <style>body{font-family:Arial,sans-serif;margin:40px;color:#111;font-size:12px}
     table{border-collapse:collapse;width:100%;margin-bottom:24px}
     th{background:#1e3a5f;color:#fff;padding:8px 6px;text-align:left;font-size:11px}
@@ -2983,27 +3009,31 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
     @media print{button{display:none}}</style></head><body>
     <button onclick="window.print()" style="float:right;padding:8px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Print / PDF</button>
     <h1>📋 BOM Review Report</h1>
-    <p style="color:#6b7280">Project: <strong>${result.summary.projectName}</strong> &nbsp;·&nbsp; ${result.summary.projectType} &nbsp;·&nbsp; ${date}</p>
+    <p style="color:#6b7280">Project: <strong>${result.summary.projectName||"—"}</strong> &nbsp;·&nbsp; ${result.summary.projectType||"—"} &nbsp;·&nbsp; ${date}</p>
     <p style="color:#6b7280;font-size:11px;margin-bottom:12px">${result.summary.projectScope||""}</p>
-    <table style="width:auto"><tr><th>Overall Status</th><td><span class="badge" style="background:${STATUS_COL[result.summary.overallStatus]}22;color:${STATUS_COL[result.summary.overallStatus]};border:1px solid ${STATUS_COL[result.summary.overallStatus]}">${result.summary.overallStatus}</span></td></tr>
-    <tr><th>Contractor Risk</th><td><span class="badge" style="background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}">${risk}</span> &nbsp; <span style="font-size:11px;color:#6b7280">${result.summary.contractorRiskReason||""}</span></td></tr></table>
-    <p style="color:#6b7280;font-size:12px;margin:8px 0 16px">${result.summary.notes}</p>
+    <table style="width:auto"><tr><th>Overall Status</th><td><span class="badge" style="background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}">${overallStatus}</span></td></tr>
+    <tr><th>Contractor Risk Note</th><td style="font-size:11px;color:#6b7280">${result.summary.contractorRiskReason||"—"}</td></tr>
+    <tr><th>BOM Total</th><td><strong>${fmt(bomTotal)}</strong></td></tr>
+    <tr><th>AI Adjusted Estimate</th><td><strong style="color:#0696d7">${fmt(aiBase)}</strong></td></tr>
+    <tr><th>Variance</th><td>${fmt(result.summary.variance||0)} (${(result.summary.variancePercent||0).toFixed(1)}%)</td></tr></table>
+    <p style="color:#6b7280;font-size:12px;margin:8px 0 16px">${result.summary.notes||""}</p>
     ${result.summary.bomDateWarning ? `<p style="color:#d97706;background:#fef3c7;padding:8px 12px;border-radius:4px;margin-bottom:8px">📅 ${result.summary.bomDateWarning}</p>` : ""}
     ${result.priceEscalationWarning ? `<p style="color:#dc2626;background:#fee2e2;padding:8px 12px;border-radius:4px;margin-bottom:8px">📈 ${result.priceEscalationWarning}</p>` : ""}
-    <h2>Cost Summary</h2>
+    <h2>Cost Summary with Margins</h2>
     <table style="width:360px"><tr><th>Item</th><th style="text-align:right">Amount</th></tr>
     <tr><td>BOM Submitted Total</td><td style="text-align:right">${fmt(bomTotal)}</td></tr>
     <tr><td>AI Validated Base</td><td style="text-align:right">${fmt(aiBase)}</td></tr>
     ${mRows}
     <tr class="total-row"><td>ADJUSTED TOTAL (with margins)</td><td style="text-align:right">${fmt(adjustedTotal)}</td></tr></table>
-    ${tradeRows ? `<h2>Scope Completeness by Trade</h2><table style="width:400px"><tr><th>Trade</th><th>Score</th><th>Status</th></tr>${tradeRows}</table>` : ""}
-    <h2>Line Items (${lineItems.length})</h2>
-    <table><tr><th>Description</th><th>Category</th><th>Unit</th><th style="text-align:right">Qty BOM</th><th style="text-align:right">Qty AI</th><th>Qty</th><th style="text-align:right">UC BOM</th><th style="text-align:right">UC AI</th><th>Cost</th><th style="text-align:right">Total BOM</th><th style="text-align:right">Total AI</th><th>Remarks</th></tr>
-    ${liRows}</table>
-    ${missingItems.length ? `<h2>Missing Items (${missingItems.length})</h2><table><tr><th>Priority</th><th>Description</th><th>Category</th><th>Est. Qty</th><th>Est. Cost</th><th>Plan Basis</th></tr>${missRows}</table>` : ""}
+    ${tradeRows ? `<h2>Cost Breakdown by Trade</h2><table style="width:400px"><tr><th>Trade</th><th style="text-align:right">Amount (PHP)</th></tr>${tradeRows}</table>` : ""}
     <h2>Markup Assessment</h2>
-    <p style="font-style:italic;color:#6b7280">${markup?.recommendation||""}</p>
-    <p style="margin-top:28px;font-size:10px;color:#9ca3af">AI-assisted BOM review. All findings must be verified by a licensed QS or Engineer before submission. · Buildify · Powered by Claude AI</p>
+    <p>Observed: <strong>${markup?.observedMarkup||"—"}%</strong> &nbsp;·&nbsp; Recommended: <strong>${markup?.recommendedMarkup||"—"}%</strong> &nbsp;·&nbsp; Flag: <strong>${markup?.flag||"—"}</strong></p>
+    <p style="font-style:italic;color:#6b7280">${markup?.note||""}</p>
+    <h2>Line Items (${lineItems.length})</h2>
+    <table><tr><th>Description</th><th>Trade</th><th>Unit</th><th style="text-align:right">Qty BOM</th><th style="text-align:right">Qty Plans</th><th>Status</th><th style="text-align:right">UC BOM</th><th style="text-align:right">UC Market</th><th>Cost</th><th style="text-align:right">Total BOM</th><th style="text-align:right">Total Market</th><th>Remarks</th></tr>
+    ${liRows}</table>
+    ${missingItems.length ? `<h2>Missing Items (${missingItems.length})</h2><table><tr><th>Severity</th><th>Description</th><th>Trade</th><th>Est. Qty</th><th>Est. Cost</th></tr>${missRows}</table>` : ""}
+    <p style="margin-top:28px;font-size:10px;color:#9ca3af">AI-assisted BOM review · All findings must be verified by a licensed QS or Engineer before submission · Buildify · Powered by Claude AI</p>
     </body></html>`);
     w.document.close(); setTimeout(()=>w.print(), 400);
   };
@@ -3241,19 +3271,18 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
           {activeTab==="scope" && (
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <Card>
-                <Label>Trade Completeness Scores</Label>
-                <div style={{fontSize:12,color:T.muted,marginTop:4,marginBottom:16,lineHeight:1.5}}>How complete is the BOM for each trade based on what is shown in the plan. Missing scope, unpriced items, and unexplained omissions reduce the score.</div>
+                <Label>Cost Breakdown by Trade</Label>
+                <div style={{fontSize:12,color:T.muted,marginTop:4,marginBottom:16,lineHeight:1.5}}>Estimated cost distribution across trades based on AI analysis of the BOM and plans.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   {Object.entries(tradeScores).map(([trade,score])=>{
-                    const col = score>=80?"#10b981":score>=50?"#f59e0b":"#ef4444";
-                    const lbl = score>=80?"Complete":score>=50?"Incomplete":"Major Gaps";
+                    const col = "#0696d7";
+                    const lbl = fmt(score);
                     return (
                       <div key={trade} style={{background:T.dim,borderRadius:12,padding:"14px 16px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                           <span style={{fontWeight:700,fontSize:14,color:T.text,textTransform:"capitalize"}}>{trade}</span>
                           <div style={{display:"flex",alignItems:"center",gap:10}}>
-                            <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,padding:"2px 10px",borderRadius:5}}>{lbl}</span>
-                            <span style={{fontSize:18,fontWeight:900,color:col}}>{score}%</span>
+                            <span style={{fontSize:14,fontWeight:800,color:col,fontFamily:"monospace"}}>{lbl}</span>
                           </div>
                         </div>
                         <div style={{background:T.border,borderRadius:99,height:8,overflow:"hidden"}}>
@@ -3297,32 +3326,32 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
                   <thead><tr style={{background:"rgba(59,130,246,0.1)"}}>
-                    {["Description","Category","Unit","Qty BOM","Qty AI","Qty","Unit Cost BOM","Unit Cost AI","Cost","Total BOM","Total AI","Remarks"].map(h=>(
-                      <th key={h} style={{padding:"9px 10px",textAlign:["Total BOM","Total AI","Unit Cost BOM","Unit Cost AI","Qty BOM","Qty AI"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                    {["Description","Category","Unit","Qty BOM","Qty Plans","Qty","Unit Cost BOM","Unit Cost Market","Cost","Total BOM","Total Market","Remarks"].map(h=>(
+                      <th key={h} style={{padding:"9px 10px",textAlign:["Total BOM","Total Market","Unit Cost BOM","Unit Cost Market","Qty BOM","Qty Plans"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {lineItems.map((li,i)=>(
                       <tr key={li.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
                         <td style={{padding:"8px 10px",fontSize:12,color:T.text,fontWeight:600,maxWidth:180}}>{li.description}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,color:T.muted}}>{li.category}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:T.muted}}>{li.trade}</td>
                         <td style={{padding:"8px 10px",fontSize:11,color:T.muted,textAlign:"center"}}>{li.unit}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyBOM)}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyAI)}</td>
-                        <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${QTY_COL[li.qtyStatus]||"#64748b"}18`,color:QTY_COL[li.qtyStatus]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.qtyStatus}</span></td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostBOM)}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostAI)}</td>
-                        <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${COST_COL[li.costStatus]||"#64748b"}18`,color:COST_COL[li.costStatus]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.costStatus}</span></td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:"#f59e0b"}}>{fmt(li.totalBOM)}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:STR,fontWeight:700}}>{fmt(li.totalAI)}</td>
-                        <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:180,lineHeight:1.4}}>{li.remarks}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyBom)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyPlans)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${QTY_COL[li.status]||"#64748b"}18`,color:QTY_COL[li.status]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.status}</span></td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostBom)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostMarket)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${COST_COL[li.unitCostBom>li.unitCostMarket*1.1?"HIGH":li.unitCostBom<li.unitCostMarket*0.9?"LOW":"OK"]||"#64748b"}18`,color:COST_COL[li.unitCostBom>li.unitCostMarket*1.1?"HIGH":li.unitCostBom<li.unitCostMarket*0.9?"LOW":"OK"]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.unitCostBom>li.unitCostMarket*1.1?"HIGH":li.unitCostBom<li.unitCostMarket*0.9?"LOW":"OK"}</span></td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:"#f59e0b"}}>{fmt(li.totalBom)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:STR,fontWeight:700}}>{fmt(li.totalMarket)}</td>
+                        <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:180,lineHeight:1.4}}>{li.remark}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot><tr style={{background:`rgba(59,130,246,0.08)`,borderTop:`2px solid ${STR}44`}}>
                     <td colSpan={9} style={{padding:"9px 10px",fontSize:12,fontWeight:800,color:T.text}}>TOTALS</td>
-                    <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalBOM||0),0))}</td>
-                    <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:STR,textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalAI||0),0))}</td>
+                    <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalBom||0),0))}</td>
+                    <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:STR,textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalMarket||0),0))}</td>
                     <td/>
                   </tr></tfoot>
                 </table>
@@ -3336,11 +3365,11 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
               {missingItems.length===0
                 ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No missing items detected</div></Card>
                 : missingItems.map((m,i)=>(
-                  <div key={i} style={{background:`${MISS_COL[m.priority||"WARNING"]}09`,border:`1.5px solid ${MISS_COL[m.priority||"WARNING"]}33`,borderRadius:12,padding:"12px 16px"}}>
+                  <div key={i} style={{background:`${MISS_COL[m.severity||"WARNING"]}09`,border:`1.5px solid ${MISS_COL[m.severity||"WARNING"]}33`,borderRadius:12,padding:"12px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                       <div>
                         <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
-                          <span style={{background:`${MISS_COL[m.priority||"WARNING"]}22`,color:MISS_COL[m.priority||"WARNING"],fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{m.priority||"WARNING"}</span>
+                          <span style={{background:`${MISS_COL[m.severity||"WARNING"]}22`,color:MISS_COL[m.severity||"WARNING"],fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{m.priority||"WARNING"}</span>
                           <span style={{fontSize:10,color:T.muted,background:T.dim,padding:"2px 7px",borderRadius:4}}>{m.category}</span>
                         </div>
                         <div style={{fontWeight:700,fontSize:14,color:T.text}}>{m.description}</div>
@@ -3348,7 +3377,7 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
                       </div>
                       <div style={{textAlign:"right"}}>
                         <div style={{fontSize:9,color:T.muted,marginBottom:2}}>EST. COST</div>
-                        <div style={{fontSize:16,fontWeight:800,color:MISS_COL[m.priority||"WARNING"],fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</div>
+                        <div style={{fontSize:16,fontWeight:800,color:MISS_COL[m.severity||"WARNING"],fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</div>
                       </div>
                     </div>
                   </div>
@@ -6266,6 +6295,152 @@ function StormDrainage() {
 }
 
 // ─── SANICODE: MAIN WRAPPER ───────────────────────────────────────────────────
+// ─── ELECCODE: MAIN ELECTRICAL MODULE ───────────────────────────────────────
+function ElecCode({ apiKey }) {
+  const ACCENT = "#ff6b2b";
+  const ACCENT_DIM = "rgba(255,107,43,0.1)";
+  const ACCENT_BORDER = "rgba(255,107,43,0.25)";
+
+  const MAIN_TABS = [
+    { key:"checker", icon:"checker", label:"AI Plan Checker" },
+    { key:"tools",   icon:"electrical", label:"Calculators" },
+  ];
+
+  const CALC_TOOLS = [
+    { key:"vdrop",  icon:"vdrop",  label:"Voltage Drop",     code:"PEC Art. 2.30" },
+    { key:"fault",  icon:"fault",  label:"Short Circuit",    code:"PEC Art. 2.40" },
+    { key:"load",   icon:"load",   label:"Load Calculator",  code:"PEC Art. 2.20" },
+  ];
+
+  const [mainTab,  setMainTab]  = useState("checker");
+  const [calcTool, setCalcTool] = useState(null);  // null = show tool picker
+
+  const ElecTabBtn = ({ tab }) => {
+    const active = mainTab === tab.key;
+    return (
+      <button onClick={() => { setMainTab(tab.key); if(tab.key==="tools") setCalcTool(null); }}
+        style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 18px",
+          borderRadius:9, border:`1.5px solid ${active ? ACCENT : T.border}`,
+          background: active ? ACCENT_DIM : "transparent",
+          color: active ? ACCENT : T.muted,
+          cursor:"pointer", fontSize:13, fontWeight:700, transition:"all 0.15s" }}>
+        <Icon name={tab.icon} size={14} color={active ? ACCENT : T.muted}/>
+        {tab.label}
+      </button>
+    );
+  };
+
+  return (
+    <div>
+      {/* Module header */}
+      <div style={{ marginBottom:20 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(135deg,#ff6b2b,#e85520)",
+              display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Icon name="electrical" size={20} color="#fff"/>
+            </div>
+            <div>
+              <div style={{ fontWeight:900, fontSize:20, color:T.text, letterSpacing:"-0.5px" }}>Electrical</div>
+              <div style={{ fontSize:11, color:T.muted, marginTop:1 }}>PEC 2017 · RA 9514 (FSIC) · Philippine Green Building Code</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main tabs */}
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {MAIN_TABS.map(t => <ElecTabBtn key={t.key} tab={t}/>)}
+        </div>
+      </div>
+
+      {/* ── AI PLAN CHECKER TAB ── */}
+      {mainTab === "checker" && (
+        <Card>
+          <PlanChecker apiKey={apiKey}/>
+        </Card>
+      )}
+
+      {/* ── CALCULATORS TAB ── */}
+      {mainTab === "tools" && (
+        <>
+          {/* Tool picker (no tool selected) */}
+          {!calcTool && (
+            <div>
+              <div style={{ fontSize:12, color:T.muted, marginBottom:16, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                Select a Calculator
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14 }}>
+                {CALC_TOOLS.map(t => (
+                  <button key={t.key} onClick={() => setCalcTool(t.key)}
+                    style={{ background:T.card, border:`1.5px solid ${T.border}`, borderRadius:14,
+                      padding:"20px 20px", cursor:"pointer", textAlign:"left", transition:"all 0.15s",
+                      display:"flex", flexDirection:"column", gap:10 }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.background = ACCENT_DIM; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.card; }}>
+                    <div style={{ width:40, height:40, borderRadius:10, background:"rgba(255,107,43,0.1)",
+                      display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <Icon name={t.icon} size={20} color={ACCENT}/>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight:800, fontSize:15, color:T.text }}>{t.label}</div>
+                      <div style={{ fontSize:11, color:T.muted, marginTop:3 }}>{t.code}</div>
+                    </div>
+                    <div style={{ fontSize:12, color:ACCENT, fontWeight:700 }}>Open →</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Active tool */}
+          {calcTool && (
+            <>
+              {/* Breadcrumb */}
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+                <button onClick={() => setCalcTool(null)}
+                  style={{ background:"transparent", border:"none", color:T.muted, cursor:"pointer",
+                    fontSize:13, padding:0, display:"flex", alignItems:"center", gap:4 }}>
+                  ← Calculators
+                </button>
+                <span style={{ color:T.border }}>›</span>
+                <span style={{ fontSize:13, fontWeight:700, color:ACCENT }}>
+                  {CALC_TOOLS.find(t=>t.key===calcTool)?.label}
+                </span>
+                <span style={{ marginLeft:"auto", fontSize:11, color:T.muted, background:T.dim,
+                  padding:"3px 10px", borderRadius:6 }}>
+                  {CALC_TOOLS.find(t=>t.key===calcTool)?.code}
+                </span>
+              </div>
+
+              {/* Tool strip */}
+              <div style={{ display:"flex", gap:6, marginBottom:20, overflowX:"auto", paddingBottom:4 }}>
+                {CALC_TOOLS.map(t => (
+                  <button key={t.key} onClick={() => setCalcTool(t.key)}
+                    style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px",
+                      borderRadius:8, border:`1.5px solid ${calcTool===t.key ? ACCENT : T.border}`,
+                      background: calcTool===t.key ? ACCENT_DIM : "transparent",
+                      color: calcTool===t.key ? ACCENT : T.muted,
+                      cursor:"pointer", fontSize:12, fontWeight:700, whiteSpace:"nowrap", transition:"all 0.15s" }}>
+                    <Icon name={t.icon} size={13} color={calcTool===t.key ? ACCENT : T.muted}/>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <Card>
+                {calcTool === "vdrop" && <VoltageDropCalc/>}
+                {calcTool === "fault" && <ShortCircuitCalc/>}
+                {calcTool === "load"  && <LoadCalc/>}
+              </Card>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+
 function SaniCode({ apiKey }) {
   const [tool,setTool]=useState("checker");
   const TOOLS=[
@@ -7220,31 +7395,8 @@ function Dashboard({ user, onLogout }) {
         {/* Page content */}
         <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
           {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
-          {module==="electrical" && (
-            <>
-              <div style={{ marginBottom:20 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-                  <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#ff6b2b,#e85520)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="electrical" size={16} color="#ff6b2b"/></div>
-                  <div>
-                    <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Electrical</div>
-                    <div style={{ fontSize:11, color:T.muted }}>PEC 2017 · FSIC RA 9514 · Philippine Green Building Code</div>
-                  </div>
-                </div>
-                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                  {ETABS.map(t => (
-                    <button key={t.key} onClick={() => setEtab(t.key)} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:8, border:`1.5px solid ${etab===t.key?"#ff6b2b":T.border}`, background:etab===t.key?"rgba(255,107,43,0.1)":"transparent", color:etab===t.key?"#ff6b2b":T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>
-                      <Icon name={t.icon||"report"} size={13} color={etab===t.key?"#ff6b2b":T.muted}/><span>{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Card>
-                {etab==="checker" && <PlanChecker apiKey={apiKey}/>}
-                {etab==="vdrop"   && <VoltageDropCalc/>}
-                {etab==="fault"   && <ShortCircuitCalc/>}
-                {etab==="load"    && <LoadCalc/>}
-              </Card>
-            </>
+                    {module==="electrical" && (
+            <ElecCode apiKey={apiKey}/>
           )}
           {module==="structural" && (
             <>
