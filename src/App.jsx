@@ -1407,7 +1407,7 @@ function NoKeyBanner() {
   );
 }
 
-function PlanChecker({ apiKey, externalResult=null, onResultChange=null }) {
+function PlanChecker({ apiKey, externalResult=null, onResultChange=null, onDataExtracted=null }) {
   const [files, setFiles]   = useState([]);
   const [busy, setBusy]     = useState(false);
   const [busyMsg, setBusyMsg] = useState("");
