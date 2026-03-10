@@ -5655,7 +5655,7 @@ function RebarSchedule({ structuralData, structuralResults }) {
 }
 
 
-function StructiCode({ apiKey, initialTool }) {
+function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
   // ── Top-level 3 tools ──
   const [tab, setTab] = useState("checker");
   useEffect(()=>{ if(initialTool==="bom") setTab("bom"); else if(initialTool==="estimate") setTab("estimate"); },[initialTool]);
@@ -5673,7 +5673,22 @@ function StructiCode({ apiKey, initialTool }) {
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null);
 
-  // ── Restore last session on mount ──
+  // ── Restore session on mount AND whenever navigated to from a history card ──
+  useEffect(() => {
+    if (sessionTick === 0) return; // 0 = initial mount already handled below
+    try {
+      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      if (!s?.checkerResult?.summary?.projectName) return;
+      setCheckerResult(s.checkerResult);
+      if (s.checkerExtracted?.building) { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
+      if (s.structuralResults?.items)   setStructuralResults(s.structuralResults);
+      if (s.runState)                   setRunState(s.runState);
+      if (s.bomResult?.summary)         setBomResult(s.bomResult);
+      if (s.estimateResult?.summary)    setEstimateResult(s.estimateResult);
+    } catch {}
+  }, [sessionTick]); // eslint-disable-line
+
+  // ── Also restore on first mount (tick=0) ──
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
@@ -7745,7 +7760,7 @@ function ElecComputationSummary({ results, data, onNavigate }) {
 
 
 
-function ElecCode({ apiKey }) {
+function ElecCode({ apiKey, sessionTick=0 }) {
   const ACCENT     = "#ff6b2b";
   const ACCENT_DIM = "rgba(255,107,43,0.1)";
 
@@ -7762,8 +7777,8 @@ function ElecCode({ apiKey }) {
   // ── Navigation ──
   const [mainTab,  setMainTab]  = useState("checker");
 
-  // ── Restore last session on mount ──
-  useEffect(() => {
+  // ── Restore session on mount AND on navigation from history ──
+  const _loadElecSession = () => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_electrical") || "null");
       if (!s?.checkerResult?.summary?.projectName) return;
@@ -7774,7 +7789,9 @@ function ElecCode({ apiKey }) {
       if (s.calcStates)     setCalcStates(s.calcStates);
       if (s._mainTab)       setMainTab(s._mainTab);
     } catch {}
-  }, []); // eslint-disable-line
+  };
+  useEffect(() => { _loadElecSession(); }, []); // eslint-disable-line
+  useEffect(() => { if (sessionTick > 0) _loadElecSession(); }, [sessionTick]); // eslint-disable-line
   const [calcTool, setCalcTool] = useState(null);
 
   const CALC_TOOLS = [
@@ -8080,19 +8097,21 @@ function ElecCode({ apiKey }) {
 
 
 
-function SaniCode({ apiKey }) {
+function SaniCode({ apiKey, sessionTick=0 }) {
   const [tool,          setTool]          = useState("checker");
   const [checkerResult, setCheckerResult] = useState(null);
 
-  // ── Restore last session on mount ──
-  useEffect(() => {
+  // ── Restore session on mount AND on navigation from history ──
+  const _loadSaniSession = () => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_sanitary") || "null");
       if (!s?.checkerResult?.summary?.projectName) return;
       setCheckerResult(s.checkerResult);
       if (s._tool) setTool(s._tool);
     } catch {}
-  }, []); // eslint-disable-line
+  };
+  useEffect(() => { _loadSaniSession(); }, []); // eslint-disable-line
+  useEffect(() => { if (sessionTick > 0) _loadSaniSession(); }, [sessionTick]); // eslint-disable-line
 
   const TOOLS=[
     {key:"checker",  icon:"🤖", label:"AI Plan Checker"},
@@ -9128,6 +9147,8 @@ function Dashboard({ user, onLogout }) {
   const [sidebarOpen,    setSidebarOpen]    = useState(() => {
     try { return localStorage.getItem("buildify_sidebar") !== "collapsed"; } catch { return true; }
   });
+  // sessionTick: incremented each time user navigates to a module (triggers session reload in child)
+  const [sessionTick, setSessionTick] = useState({ structural:0, electrical:0, sanitary:0 });
 
 
 
@@ -9147,6 +9168,8 @@ function Dashboard({ user, onLogout }) {
   const navigateTo = (mod, tool) => {
     setModule(mod);
     if (mod === "structural" && tool) setStructTool(tool === "checker" ? "checker" : tool);
+    // Increment tick to trigger session reload in the module
+    if (mod !== "home") setSessionTick(p => ({ ...p, [mod]: (p[mod]||0) + 1 }));
   };
 
   const [apiKey, setApiKey] = useState(() => {
@@ -9388,7 +9411,7 @@ function Dashboard({ user, onLogout }) {
         <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
           {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
           {module==="electrical" && (
-            <ElecCode apiKey={apiKey}/>
+            <ElecCode apiKey={apiKey} sessionTick={sessionTick.electrical}/>
           )}
           {module==="structural" && (
             <>
@@ -9403,6 +9426,7 @@ function Dashboard({ user, onLogout }) {
                 <StructiCode
                   apiKey={apiKey}
                   initialTool={structTool}
+                  sessionTick={sessionTick.structural}
                 />
               </Card>
             </>
@@ -9417,7 +9441,7 @@ function Dashboard({ user, onLogout }) {
                 </div>
               </div>
               <Card>
-                <SaniCode apiKey={apiKey}/>
+                <SaniCode apiKey={apiKey} sessionTick={sessionTick.sanitary}/>
               </Card>
             </>
           )}
