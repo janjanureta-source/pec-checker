@@ -1455,6 +1455,8 @@ function PlanChecker({ apiKey, externalResult=null, onResultChange=null, onDataE
         if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
         setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"electrical", module:"electrical", projectName:parsed?.summary?.projectName||"Electrical Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
+      // Direct save — no React state, no callbacks, always works
+      try { localStorage.setItem("buildify_session_electrical", JSON.stringify({ checkerResult: parsed, _savedAt: new Date().toISOString(), _module: "electrical", userId: "local" })); } catch(e) { console.warn("Session save failed", e); }
     } catch(e) { setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
@@ -1934,20 +1936,22 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
       const raw = complianceResp.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed=JSON.parse(raw); } catch { throw new Error("Could not parse AI response."); }
 
-      // Parse and store extracted data
+      // Parse and store extracted data — hoist to outer scope for save
+      let extracted = null;
       try {
         const rawExtract = extractionResp.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
-        const extracted = JSON.parse(rawExtract);
+        extracted = JSON.parse(rawExtract);
         if (onDataExtracted) onDataExtracted(extracted);
-              setExtractedData(extracted);
+        setExtractedData(extracted);
       } catch { /* extraction failed silently - compliance result still shown */ }
 
       setResult(parsed);
       if(onResultChange) onResultChange(parsed);
-        if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
-        setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
+      setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"structural", module:"structural", projectName:parsed?.summary?.projectName||"Structural Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
-      if(onSessionSave) onSessionSave({ checkerResult: parsed, checkerExtracted: extractedData });;
+      // Direct save — no React state, no callbacks, always works
+      try { localStorage.setItem("buildify_session_structural", JSON.stringify({ checkerResult: parsed, checkerExtracted: extracted, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" })); } catch(e) { console.warn("Session save failed", e); }
     } catch(e){ setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
@@ -3019,7 +3023,11 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
       try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed1);
       addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.notes||"" } });
-      if(onSessionSave) onSessionSave({ bomResult: parsed1 });
+      // Direct save — merge with existing structural session
+      try {
+        const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+        localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult: parsed1, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
+      } catch(e) { console.warn("Session save failed", e); }
 
       // Comparison BOM
       if (mode === "compare" && bomFiles2.length) {
@@ -3868,7 +3876,11 @@ INSTRUCTIONS:
           summary: `${parsed?.project?.type||""} · ${parsed?.project?.finishLevel||""} · ${(parsed?.project?.estimatedGFA||0).toLocaleString()} sqm`,
         }
       });
-      if(onSessionSave) onSessionSave({ estimateResult: parsed });
+      // Direct save — merge with existing structural session
+      try {
+        const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
+        localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, estimateResult: parsed, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
+      } catch(e) { console.warn("Session save failed", e); }
     } catch(e) {
       setError(e.message || "Estimation failed. Please try again.");
     } finally {
@@ -5587,31 +5599,37 @@ function StructiCode({ apiKey, initialTool, restoredSession, onSessionConsumed }
   const [tab, setTab] = useState("checker");
   useEffect(()=>{ if(initialTool==="bom") setTab("bom"); else if(initialTool==="estimate") setTab("estimate"); },[initialTool]);
 
+  // ── Load saved session from localStorage on mount ──
+  const _initStructSession = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("buildify_session_structural") || "null"); } catch { return null; }
+  }, []);
+
   // ── Structural data (lives here, never lost on tool switch) ──
-  const [structuralData, setStructuralData]       = useState(null);
+  const [structuralData, setStructuralData]       = useState(_initStructSession?.checkerExtracted || null);
   // ── Plan Checker results — lifted here so they survive sub-tool navigation ──
-  const [checkerResult,     setCheckerResult]     = useState(null);
-  const [checkerExtracted,  setCheckerExtracted]  = useState(null);
-  const [structuralResults, setStructuralResults] = useState(null);
-  const [runState,          setRunState]          = useState(null);
+  const [checkerResult,     setCheckerResult]     = useState(_initStructSession?.checkerResult || null);
+  const [checkerExtracted,  setCheckerExtracted]  = useState(_initStructSession?.checkerExtracted || null);
+  const [structuralResults, setStructuralResults] = useState(_initStructSession?.structuralResults || null);
+  const [runState,          setRunState]          = useState(_initStructSession?.runState || null);
   // ── BOM + Estimate results — lifted so session can save them ──
-  const [bomResult,         setBomResult]         = useState(null);
-  const [estimateResult,    setEstimateResult]    = useState(null);
+  const [bomResult,         setBomResult]         = useState(_initStructSession?.bomResult || null);
+  const [estimateResult,    setEstimateResult]    = useState(_initStructSession?.estimateResult || null);
 
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null); // null = show checker+summary, else show that calc
 
-  // ── Session restore — fires once when restoredSession arrives ──
+  // ── Session restore — fires when restoredSession prop arrives ──
   useEffect(() => {
     if (!restoredSession) return;
-    if (restoredSession.checkerResult)     setCheckerResult(restoredSession.checkerResult);
-    if (restoredSession.structuralData)    setStructuralData(restoredSession.structuralData);
-    if (restoredSession.checkerExtracted)  setCheckerExtracted(restoredSession.checkerExtracted);
-    if (restoredSession.structuralResults) setStructuralResults(restoredSession.structuralResults);
-    if (restoredSession.runState)          setRunState(restoredSession.runState);
-    if (restoredSession.bomResult)         setBomResult(restoredSession.bomResult);
-    if (restoredSession.estimateResult)    setEstimateResult(restoredSession.estimateResult);
-    if (restoredSession._tab)              setTab(restoredSession._tab);
+    const s = restoredSession;
+    if (s.checkerResult)     setCheckerResult(s.checkerResult);
+    if (s.structuralData)    setStructuralData(s.structuralData);
+    if (s.checkerExtracted)  { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
+    if (s.structuralResults) setStructuralResults(s.structuralResults);
+    if (s.runState)          setRunState(s.runState);
+    if (s.bomResult)         setBomResult(s.bomResult);
+    if (s.estimateResult)    setEstimateResult(s.estimateResult);
+    if (s._tab)              setTab(s._tab);
     if (onSessionConsumed) onSessionConsumed();
   }, [restoredSession]);
 
@@ -5623,18 +5641,28 @@ function StructiCode({ apiKey, initialTool, restoredSession, onSessionConsumed }
   });
   useEffect(() => {
     if (!checkerResult && !bomResult && !estimateResult) return;
-    DB.saveSession("structural", _structSessionRef.current);
+    // setTimeout(0) ensures _structSessionRef has been updated this render cycle
+    setTimeout(() => {
+      DB.saveSession("structural", _structSessionRef.current);
+    }, 0);
   }, [checkerResult, structuralData, structuralResults, bomResult, estimateResult]);
 
   // ── onSessionSave handler passed down to children ──
+  // Called with fresh data from child's local scope — save immediately
   const handleSessionSave = (partial) => {
+    // Update StructiCode state
     if (partial.checkerResult)    setCheckerResult(partial.checkerResult);
-    if (partial.checkerExtracted) setCheckerExtracted(partial.checkerExtracted);
+    if (partial.checkerExtracted) { setCheckerExtracted(partial.checkerExtracted); setStructuralData(partial.checkerExtracted); }
     if (partial.bomResult)        setBomResult(partial.bomResult);
     if (partial.estimateResult)   setEstimateResult(partial.estimateResult);
-    // Save immediately with merged state
-    const merged = { ..._structSessionRef.current, ...partial };
-    DB.saveSession("structural", merged);
+    // Save to DB immediately using the fresh partial data merged with ref
+    // Use setTimeout(0) so React state above has flushed before we read the ref
+    setTimeout(() => {
+      DB.saveSession("structural", {
+        ..._structSessionRef.current,
+        ...partial,
+      });
+    }, 0);
   };
 
   const handleDataExtracted = (d) => {
@@ -5979,7 +6007,8 @@ function PlumbingChecker({ apiKey, onSessionSave }) {
       setResult(parsed);
       if(onResultChange) onResultChange(parsed);setOpen({});setTab("all");setChecked({});setCorrections(null);
       addHistoryEntry({ tool:"plumbing", module:"sanitary", projectName:parsed?.summary?.projectName||"Plumbing Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
-      if(onSessionSave) onSessionSave({ checkerResult: parsed });
+      // Direct save — no React state, no callbacks, always works
+      try { localStorage.setItem("buildify_session_sanitary", JSON.stringify({ checkerResult: parsed, _savedAt: new Date().toISOString(), _module: "sanitary", userId: "local" })); } catch(e) { console.warn("Session save failed", e); }
     }catch(e){setError(e.message||"Analysis failed.");}finally{setBusy(false);setBusyMsg("");}
   };
   const findings=result?.findings||[];
@@ -7672,14 +7701,19 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   const ACCENT     = "#ff6b2b";
   const ACCENT_DIM = "rgba(255,107,43,0.1)";
 
+  // ── Load saved session from localStorage on mount ──
+  const _initElecSession = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("buildify_session_electrical") || "null"); } catch { return null; }
+  }, []);
+
   // ── All state lives here — never lost on tab switch ──
-  const [checkerResult,  setCheckerResult]  = useState(null);
-  const [electricalData, setElectricalData] = useState(null);
-  const [elecResults,    setElecResults]    = useState(null);
-  const [runState,       setRunState]       = useState(null);
+  const [checkerResult,  setCheckerResult]  = useState(_initElecSession?.checkerResult  || null);
+  const [electricalData, setElectricalData] = useState(_initElecSession?.electricalData || null);
+  const [elecResults,    setElecResults]    = useState(_initElecSession?.elecResults    || null);
+  const [runState,       setRunState]       = useState(_initElecSession?.runState       || null);
 
   // ── Sticky calculator states ──
-  const [calcStates, setCalcStates] = useState({});
+  const [calcStates, setCalcStates] = useState(_initElecSession?.calcStates || {});
   const updateCalcState = (key, state) => setCalcStates(p => ({ ...p, [key]: state }));
 
   // ── Navigation ──
@@ -7689,12 +7723,13 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   // ── Session restore ──
   useEffect(() => {
     if (!restoredSession) return;
-    if (restoredSession.checkerResult)  setCheckerResult(restoredSession.checkerResult);
-    if (restoredSession.electricalData) setElectricalData(restoredSession.electricalData);
-    if (restoredSession.elecResults)    setElecResults(restoredSession.elecResults);
-    if (restoredSession.runState)       setRunState(restoredSession.runState);
-    if (restoredSession.calcStates)     setCalcStates(restoredSession.calcStates);
-    if (restoredSession._mainTab)       setMainTab(restoredSession._mainTab);
+    const s = restoredSession;
+    if (s.checkerResult)  setCheckerResult(s.checkerResult);
+    if (s.electricalData) setElectricalData(s.electricalData);
+    if (s.elecResults)    setElecResults(s.elecResults);
+    if (s.runState)       setRunState(s.runState);
+    if (s.calcStates)     setCalcStates(s.calcStates);
+    if (s._mainTab)       setMainTab(s._mainTab);
     if (onSessionConsumed) onSessionConsumed();
   }, [restoredSession]);
 
@@ -7705,7 +7740,10 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
   });
   useEffect(() => {
     if (!checkerResult && !electricalData) return;
-    DB.saveSession("electrical", _elecSessionRef.current);
+    // setTimeout(0) ensures ref has been updated this render cycle
+    setTimeout(() => {
+      DB.saveSession("electrical", _elecSessionRef.current);
+    }, 0);
   }, [checkerResult, electricalData, elecResults, calcStates]);
 
   const CALC_TOOLS = [
@@ -8000,8 +8038,12 @@ function ElecCode({ apiKey, restoredSession, onSessionConsumed }) {
 
 
 function SaniCode({ apiKey, restoredSession, onSessionConsumed }) {
-  const [tool,       setTool]       = useState("checker");
-  const [checkerResult, setCheckerResult] = useState(null);
+  const _initSaniSession = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("buildify_session_sanitary") || "null"); } catch { return null; }
+  }, []);
+
+  const [tool,          setTool]          = useState(_initSaniSession?._tool || "checker");
+  const [checkerResult, setCheckerResult] = useState(_initSaniSession?.checkerResult || null);
 
   // ── Session restore ──
   useEffect(() => {
