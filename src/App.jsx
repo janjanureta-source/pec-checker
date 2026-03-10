@@ -3372,7 +3372,6 @@ function BOMReview({ apiKey, sessionTick=0 }) {
     contingency: { label:"Contingency", pct:5  },
     profit:      { label:"Profit",      pct:10 },
   });
-  const [showMargins, setShowMargins] = useState(false);
   const [busyMsg,     setBusyMsg]     = useState("");
   const [debugInfo,   setDebugInfo]   = useState("");
   const [bomMarkup,   setBomMarkup]   = useState({ materials: 0, labor: 0, overhead: 10, contingency: 5 });
@@ -3722,7 +3721,9 @@ CRITICAL OUTPUT RULES:
       <NoKeyBanner/>
 
       {/* ── New BOM Review button when result is loaded ── */}
-                  {/* ── Shared Markup & Contingency panel ── */}
+                  {(result || generateResult || compareResult) && (
+      <div style={{marginBottom:0}}>
+{/* ── Shared Markup & Contingency panel ── */}
             <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
               <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3759,7 +3760,10 @@ CRITICAL OUTPUT RULES:
                 </div>
               )}
             </div>
-{result && (
+      </div>
+      )}
+
+      {result && (
         <div style={{display:"flex",justifyContent:"flex-end"}}>
           <button onClick={handleNewBOM}
             style={{display:"flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:9,
@@ -3844,48 +3848,7 @@ CRITICAL OUTPUT RULES:
           )}
         </div>
 
-        {mode !== "generate" && (<div style={{marginBottom:14}}>
-          <button onClick={()=>setShowMargins(!showMargins)} style={{display:"flex",alignItems:"center",gap:8,background:showMargins?"rgba(59,130,246,0.1)":T.dim,border:`1.5px solid ${showMargins?STR:T.border}`,color:showMargins?STR:T.muted,borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:12,transition:"all 0.15s"}}>
-            <Icon name="settings" size={13}/>
-            <span>{showMargins?"▲":"▼"}</span>
-            <span style={{background:`${STR}22`,color:STR,padding:"1px 7px",borderRadius:14,fontSize:11,fontWeight:800}}>Markup & Margins</span>
-            {Object.values(marginsState).some(m=>m.pct>0) && (
-              <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:12,background:"rgba(6,150,215,0.15)",color:STR}}>
-                +{(((1+(marginsState.materials.pct||0)/100)*(1+(marginsState.labor.pct||0)/100)*(1+(marginsState.overhead.pct||0)/100)*(1+(marginsState.contingency.pct||0)/100)*(1+(marginsState.profit.pct||0)/100))-1)*100 |0}% applied
-              </span>
-            )}
-          </button>
-          {showMargins && (
-            <div style={{marginTop:10,background:"rgba(255,255,255,0.02)",border:`1.5px solid ${T.border}`,borderRadius:12,padding:14}}>
-              <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Applied to all cost totals in the UI, PDFs, and exports. Compounds multiplicatively.</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9}}>
-                {[
-                  {key:"materials",  label:"Materials / Price Escalation", color:"#0696d7"},
-                  {key:"labor",      label:"Labor Markup",                  color:"#06b6d4"},
-                  {key:"overhead",   label:"Overhead & Profit",             color:"#ff6b2b"},
-                  {key:"contingency",label:"Contingency",                   color:"#a78bfa"},
-                  {key:"profit",     label:"Net Profit",                    color:"#10b981"},
-                ].map(({key,label,color})=>(
-                  <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${color}33`,borderRadius:9,padding:"12px 14px"}}>
-                    <div style={{fontSize:9,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <input type="number" min="0" max="100" step="0.5"
-                        value={marginsState[key]?.pct||0}
-                        onChange={e=>setMarginsState(p=>({...p,[key]:{...p[key],pct:+e.target.value||0}}))}
-                        style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
-                      <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
-                    </div>
-                    <input type="range" min="0" max="50" step="0.5"
-                      value={marginsState[key]?.pct||0}
-                      onChange={e=>setMarginsState(p=>({...p,[key]:{...p[key],pct:+e.target.value||0}}))}
-                      style={{width:"100%",marginTop:6,accentColor:color}}/>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>)}
-
+        
         {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
         {error && debugInfo && (
           <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontFamily:"monospace",fontSize:11,color:"#94a3b8",lineHeight:1.6,wordBreak:"break-all"}}>
