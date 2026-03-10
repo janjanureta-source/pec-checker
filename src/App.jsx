@@ -4025,7 +4025,7 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
   ]
 }`;
 
-function CostEstimator({ apiKey }) {
+function CostEstimator({ apiKey, onResultChange=null }) {
   const [files,       setFiles]       = useState([]);
   const [drag,        setDrag]        = useState(false);
   const [result,      setResult]      = useState(null);
@@ -6291,7 +6291,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
       {tab==="bom" && <BOMReview apiKey={apiKey}/>}
 
       {/* ── Cost Estimator ── */}
-      {tab==="estimate" && <CostEstimator apiKey={apiKey}/>}
+      {tab==="estimate" && <CostEstimator apiKey={apiKey} onResultChange={setEstimateResult}/>}
 
       {/* ── AI Plan Checker (main tab with embedded sub-tools) ── */}
       {tab==="checker" && (
