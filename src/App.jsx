@@ -3880,73 +3880,100 @@ Return ONLY the JSON structure specified. No markdown, no explanation.`;
 
 
 // ─── STRUCTICODE: COST ESTIMATOR ──────────────────────────────────────────────
-const COST_ESTIMATOR_PROMPT = `You are a senior Cost Estimator and Project Manager in the Philippines with deep expertise in construction cost benchmarking, parametric estimating, and NCR/regional market rates (2025). You produce pre-design project cost estimates for Filipino engineers and architects.
+const COST_ESTIMATOR_PROMPT = `You are a senior Cost Estimator and Project Manager in the Philippines with deep expertise in:
+- DPWH Blue Book 2024 (Standard Specifications for Public Works)
+- DPWH Unit Cost Reference and PhilGEPS benchmark rates (2024–2025)
+- CIAP (Construction Industry Authority of the Philippines) cost guides
+- PSA construction cost indices — NCR and regional
+- Current NCR labor rates: mason ₱700–900/day, carpenter ₱700–900/day, electrician ₱900–1,100/day, foreman ₱1,200–1,500/day
+- Current NCR material benchmarks (Q1 2025): Ready-mix concrete ₱5,500–7,000/m³, steel rebar ₱55–65/kg, CHB ₱18–22/pc, cement ₱270–310/bag, sand ₱1,200–1,800/m³, gravel ₱1,500–2,200/m³, ceramic tiles ₱350–600/sqm, aluminum windows ₱2,500–4,000/sqm
 
-You will be given one or more plan images or PDFs, plus project context (type, finish level, location, scope mode, any special items). Read the plans carefully to identify scope, approximate floor areas, number of floors, structural system, and visible finishes.
+Your output serves TWO audiences simultaneously:
+1. ENGINEERS AND ARCHITECTS who need technical accuracy and code-compliant scope
+2. REGULAR HOMEOWNERS AND CLIENTS who need plain-language explanations they can act on
 
-RATE REFERENCES (2025, inclusive of labor + materials unless noted):
+REVIEW PROCESS — follow all steps:
+1. Read ALL uploaded plan pages. Note title block, floor plans, sections, schedules, dimensions.
+2. Estimate gross floor area from plans (measure or note if user-provided).
+3. Identify EVERY work trade visible in the plans — structural, MEP, finishes, site work.
+4. Compute quantities where possible (concrete volume, wall area, roof area, fixture count).
+5. Apply trade rates from references above. Show your range (low = basic, high = better quality).
+6. Identify what is NOT shown or excluded from scope — these are risks to flag.
+7. Generate plain-language descriptions so a non-engineer client understands each trade.
+8. Suggest 3–5 specific cost-saving options with realistic savings estimates and quality impact.
+9. Add next steps a client should take after receiving this estimate.
+
+RATE BENCHMARKS (2025 all-in, inclusive of labor + materials unless noted):
 - Basic residential: ₱18,000–₱22,000/sqm
-- Standard residential: ₱23,000–₱30,000/sqm  
+- Standard residential: ₱23,000–₱30,000/sqm
 - High-end residential: ₱32,000–₱55,000/sqm
 - Basic commercial: ₱22,000–₱28,000/sqm
 - Standard commercial: ₱30,000–₱45,000/sqm
 - High-end commercial: ₱48,000–₱70,000/sqm
 - Warehouse/industrial: ₱14,000–₱20,000/sqm
 - School/institutional: ₱20,000–₱30,000/sqm
-- Road (concrete, 150mm): ₱2,500–₱3,500/sqm
-- Renovation (light): 20–40% of new-build rate for affected area
-- Renovation (moderate): 40–65% of new-build rate for affected area
-- Renovation (heavy/gut): 65–85% of new-build rate for affected area
+- Renovation (light): 20–40% of new-build rate
+- Renovation (moderate): 40–65% of new-build rate
+- Renovation (heavy/gut): 65–85% of new-build rate
 
-Always break the estimate into these trade categories where applicable:
+LOCATION ADJUSTMENTS (vs. NCR baseline):
+- Antipolo / Rizal: +3–5% transport premium
+- Cavite / Laguna: +2–4%
+- Cebu City: -5–10% vs NCR
+- Davao / Mindanao: -10–15% vs NCR
+- Remote provinces: +10–20% vs NCR
+
+TRADE CATEGORIES (always use these exact names):
 1. Site Development & Earthworks
 2. Concrete & Structural Works
 3. Masonry & Blockworks
 4. Roofing & Waterproofing
 5. Doors, Windows & Glazing
-6. Architectural Finishes (floors, walls, ceilings)
+6. Architectural Finishes
 7. Plumbing & Sanitary Works
 8. Electrical Works
-9. HVAC & Mechanical (if applicable)
-10. Landscaping & Outdoor Works (if applicable)
+9. HVAC & Mechanical
+10. Landscaping & Outdoor Works
 11. Contingency & Miscellaneous
-12. Owner-Supplied Items / Allowances (if mentioned)
-
-For RENOVATION or ADHOC projects: only include trades affected. Add a "Scope of Work" field describing what was identified as included vs. excluded.
-
-For each trade item provide a low and high estimate (range) reflecting market variability.
+12. Owner-Supplied Items / Allowances
 
 Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
 {
   "project": {
-    "name": "string — infer from plan title block if visible",
+    "name": "string from plan title block or null",
     "type": "New Construction|Renovation|Addition|Fit-out|Infrastructure|Ad-hoc",
     "subtype": "Residential|Commercial|Industrial|Institutional|Mixed",
-    "location": "string",
+    "location": "city/province string",
+    "locationPremiumNote": "e.g. Antipolo: +3-5% transport premium applied or null",
     "finishLevel": "Basic|Standard|High-end",
     "estimatedGFA": 0,
-    "gfaNote": "how GFA was determined (from plan / estimated from drawings / user-provided)",
+    "gfaBreakdown": "e.g. Ground 259sqm + 2nd Floor 176sqm = 435sqm or null",
     "floors": 1,
-    "scopeSummary": "2–3 sentence description of visible scope",
-    "scopeIncluded": ["list of what is included"],
-    "scopeExcluded": ["list of what is explicitly excluded or not visible in plan"],
-    "assumptions": ["key assumptions made"],
+    "scopeSummary": "2–3 sentence plain-language description of what is being built — write as if explaining to a homeowner",
+    "scopeIncluded": ["plain-language list of what is included"],
+    "scopeExcluded": ["plain-language list of what is not included"],
+    "assumptions": ["key assumptions made in this estimate"],
+    "clientNote": "1–2 sentence message to the client explaining what this estimate is and what to do next — warm, professional tone",
     "validityNote": "Rates valid as of Q1 2025. Escalate by 5–8% per year.",
-    "accuracyNote": "Parametric estimate ±20–35%. For contract purposes, commission a full QS."
+    "accuracyNote": "Parametric estimate ±20–35%. A formal Bill of Quantities is needed for contractor tender."
   },
   "trades": [
     {
       "id": 1,
-      "trade": "trade name",
-      "description": "brief scope description",
-      "unit": "sqm|lot|lump sum|m|set",
+      "trade": "exact trade name from list above",
+      "description": "technical scope description for engineers",
+      "plainDescription": "plain-language explanation for homeowners — what this covers in simple terms",
+      "icon": "emoji representing this trade e.g. 🏗 🧱 ⚡ 🔧 🎨 🚪 🏡 🌊",
+      "unit": "sqm|lot|lump sum|m|set|pc",
       "qty": 0,
       "rateLow": 0,
       "rateHigh": 0,
       "totalLow": 0,
       "totalHigh": 0,
-      "basis": "brief note on how this was estimated",
-      "included": true
+      "percentOfTotal": 0,
+      "basis": "brief note on how this was computed — what dimensions or quantities from the plans",
+      "included": true,
+      "isMajor": true
     }
   ],
   "summary": {
@@ -3959,19 +3986,43 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
     "totalHigh": 0,
     "costPerSqmLow": 0,
     "costPerSqmHigh": 0,
+    "marketSqmRangeLow": 0,
+    "marketSqmRangeHigh": 0,
+    "marketSqmNote": "e.g. Standard residential in NCR: ₱23,000–₱30,000/sqm",
     "midpoint": 0,
-    "professionalFeesPct": 0,
-    "professionalFeesNote": "string — based on PRC/PICE fee schedule for project type and size",
+    "professionalFeesPct": 8,
+    "professionalFeesNote": "Based on PRC/PICE fee schedule. Covers Architect, Engineer, and project management.",
     "professionalFeesLow": 0,
     "professionalFeesHigh": 0,
-    "vatNote": "VAT (12%) not yet included unless stated",
+    "vatNote": "VAT (12%) not included. Add ₱X–₱Y if contractor is VAT-registered.",
+    "permitFeeNote": "Building permit fees: estimate ₱X–₱Y separately (based on project type and LGU).",
     "grandTotalLow": 0,
     "grandTotalHigh": 0
   },
   "valueEngineering": [
-    { "item": "suggestion", "potentialSaving": "estimated saving" }
+    {
+      "suggestion": "specific actionable suggestion",
+      "plainExplanation": "plain-language explanation of what this means and how to do it",
+      "savingLow": 0,
+      "savingHigh": 0,
+      "qualityImpact": "None|Minimal|Moderate|Significant",
+      "qualityNote": "brief note on what changes or stays the same"
+    }
   ],
-  "marketWarnings": []
+  "nextSteps": [
+    {
+      "step": 1,
+      "action": "short action title",
+      "detail": "plain-language explanation of what the client should do and why"
+    }
+  ],
+  "marketWarnings": [
+    {
+      "level": "HIGH|MEDIUM|LOW",
+      "item": "item name",
+      "warning": "plain-language warning the client needs to know"
+    }
+  ]
 }`;
 
 function CostEstimator({ apiKey }) {
@@ -4141,176 +4192,365 @@ INSTRUCTIONS:
   };
 
   // ── Export client-facing document ──
-  const exportDocument = () => {
+const exportDocument = () => {
     if (!result) return;
-    const p   = result.project;
-    const s   = result.summary;
-    const date = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
-    const tradeRows = (result.trades||[]).filter(t=>t.included!==false).map(t => `
-      <tr>
-        <td style="font-weight:600">${t.trade}</td>
-        <td style="color:#6b7280;font-size:11px">${t.description}</td>
-        <td style="text-align:right;white-space:nowrap">${fmtN(t.qty)} ${t.unit}</td>
-        <td style="text-align:right;font-family:monospace">₱${fmtR(t.rateLow)}–₱${fmtR(t.rateHigh)}</td>
-        <td style="text-align:right;font-family:monospace">₱${fmtR(t.totalLow)}</td>
-        <td style="text-align:right;font-family:monospace;font-weight:700">₱${fmtR(t.totalHigh)}</td>
+    const p   = result.project  || {};
+    const s   = result.summary  || {};
+    const trades = result.trades || [];
+    const ve  = result.valueEngineering || [];
+    const mw  = result.marketWarnings   || [];
+    const ns  = result.nextSteps        || [];
+    const refId = `EST-${Date.now().toString().slice(-6)}`;
+    const date  = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
+    const fmt   = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+    const fmtR  = n => `₱${(+n||0).toLocaleString("en-PH",{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+    const pct   = n => `${(+n||0).toFixed(1)}%`;
+
+    const included  = (p.scopeIncluded  || []).map(i => `<li>✓ ${i}</li>`).join("");
+    const excluded  = (p.scopeExcluded  || []).map(i => `<li>✗ ${i}</li>`).join("");
+    const majorTrades = trades.filter(t => t.included !== false);
+
+    const tradeRows = majorTrades.map((t,i) => `
+      <tr class="${i%2===0?'even':'odd'}${t.isMajor?' major':''}">
+        <td><span class="trade-icon">${t.icon||'🏗'}</span> <strong>${t.trade}</strong><br><span class="small">${t.plainDescription||t.description||''}</span></td>
+        <td class="center">${t.qty||''} ${t.unit||''}</td>
+        <td class="right">${fmtR(t.totalLow)}</td>
+        <td class="right bold">${fmtR(t.totalHigh)}</td>
+        <td class="center chip">${t.percentOfTotal?pct(t.percentOfTotal):''}</td>
       </tr>`).join("");
-    const assumptionRows = (p.assumptions||[]).map(a => `<li style="margin-bottom:4px;color:#374151">${a}</li>`).join("");
-    const excludedRows   = (p.scopeExcluded||[]).map(e => `<li style="margin-bottom:4px;color:#374151">${e}</li>`).join("");
-    const veRows         = (result.valueEngineering||[]).map(v => `<tr><td>${v.item}</td><td style="text-align:right;color:#16a34a;font-weight:600">${v.potentialSaving}</td></tr>`).join("");
-    const warnings       = (result.marketWarnings||[]).map(w => `<li>${w}</li>`).join("");
+
+    const veRows = ve.map(v => `
+      <tr>
+        <td>${v.suggestion||v.item||''}<br><span class="small muted">${v.plainExplanation||''}</span></td>
+        <td class="center impact-${(v.qualityImpact||'').toLowerCase()}">${v.qualityImpact||'—'}</td>
+        <td class="right green bold">${fmtR(v.savingLow||0)} – ${fmtR(v.savingHigh||0)}</td>
+      </tr>`).join("");
+
+    const warnItems = mw.map(w => `
+      <div class="warn-item warn-${(w.level||'').toLowerCase()}">
+        <span class="warn-dot"></span>
+        <div><strong>${w.item||''}</strong><br><span class="small">${w.warning||''}</span></div>
+      </div>`).join("");
+
+    const stepItems = ns.map(n => `
+      <div class="step-item">
+        <div class="step-num">${n.step||''}</div>
+        <div><strong>${n.action||''}</strong><br><span class="small muted">${n.detail||''}</span></div>
+      </div>`).join("");
+
+    const totalVeSaveLow  = ve.reduce((a,v)=>a+(+v.savingLow||0),0);
+    const totalVeSaveHigh = ve.reduce((a,v)=>a+(+v.savingHigh||0),0);
 
     const w = window.open("","_blank");
-    w.document.write(`<!DOCTYPE html><html><head><title>Cost Estimate — ${p.name||projectName||"Project"}</title>
+    w.document.write(`<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"/><title>Cost Estimate — ${p.name||projectName||"Project"}</title>
 <style>
-  * { box-sizing:border-box; margin:0; padding:0 }
-  body { font-family:'Segoe UI',Arial,sans-serif; color:#111; background:#fff; padding:0 }
-  .page { max-width:860px; margin:0 auto; padding:48px 48px 60px }
-  .header { border-bottom:3px solid #1e3a5f; padding-bottom:20px; margin-bottom:28px; display:flex; justify-content:space-between; align-items:flex-start }
-  .logo-block h1 { font-size:22px; color:#1e3a5f; font-weight:800; letter-spacing:-0.5px }
-  .logo-block p  { font-size:12px; color:#6b7280; margin-top:3px }
-  .doc-meta { text-align:right; font-size:12px; color:#6b7280; line-height:1.8 }
-  .doc-meta strong { color:#1e3a5f }
-  .section-title { font-size:13px; font-weight:800; color:#1e3a5f; text-transform:uppercase; letter-spacing:1px; margin:28px 0 10px; border-bottom:1.5px solid #e5e7eb; padding-bottom:5px }
-  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-bottom:20px }
-  .info-row { display:flex; gap:8px; font-size:12px }
-  .info-label { color:#6b7280; min-width:120px; flex-shrink:0 }
-  .info-value { color:#111; font-weight:600 }
-  .scope-box { background:#f0f7ff; border:1px solid #bfdbfe; border-radius:6px; padding:14px 16px; font-size:12px; color:#1e3a5f; line-height:1.7; margin-bottom:16px }
-  table { width:100%; border-collapse:collapse; margin-bottom:16px }
-  th { background:#1e3a5f; color:#fff; padding:8px 10px; text-align:left; font-size:11px; font-weight:700 }
-  td { padding:8px 10px; border-bottom:1px solid #e5e7eb; font-size:12px; vertical-align:top }
-  tr:nth-child(even) td { background:#f9fafb }
-  .total-row td { background:#1e3a5f!important; color:#fff!important; font-weight:700; font-size:13px }
-  .subtotal-row td { background:#dbeafe!important; color:#1e3a5f!important; font-weight:700 }
-  .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px }
-  .summary-card { border:1.5px solid #e5e7eb; border-radius:8px; padding:16px; text-align:center }
-  .summary-card .num { font-size:22px; font-weight:900; color:#1e3a5f; letter-spacing:-0.5px; font-family:monospace }
-  .summary-card .lbl { font-size:11px; color:#6b7280; margin-top:4px }
-  .range-card { border:2px solid #1e3a5f; border-radius:8px; padding:18px; text-align:center; background:#f0f7ff }
-  .range-card .big { font-size:28px; font-weight:900; color:#1e3a5f; font-family:monospace }
-  .range-card .sub { font-size:12px; color:#6b7280; margin-top:6px }
-  .disclaimer { background:#fef9c3; border:1px solid #fde047; border-radius:6px; padding:14px 16px; font-size:11px; color:#713f12; line-height:1.6; margin-top:24px }
-  .disclaimer strong { color:#92400e }
-  .sig-block { margin-top:40px; display:grid; grid-template-columns:1fr 1fr; gap:40px }
-  .sig-line { border-top:1.5px solid #374151; padding-top:8px; font-size:12px; color:#374151 }
-  .ve-card { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:14px 16px; margin-bottom:16px }
-  .ve-card h4 { color:#15803d; font-size:12px; margin-bottom:8px; font-weight:800 }
-  @media print { button { display:none } .page { padding:32px } }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px;line-height:1.5}
+  .page{max-width:900px;margin:0 auto;background:#fff}
+  @media print{body{background:#fff}.no-print{display:none!important}.page{max-width:100%}}
+
+  /* HEADER */
+  .header{background:#0f2444;padding:28px 36px;display:flex;justify-content:space-between;align-items:center}
+  .header-left .brand{font-size:20px;font-weight:900;color:#0696d7;letter-spacing:-0.5px}
+  .header-left .brand-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+  .header-right{text-align:right}
+  .header-right .doc-label{font-size:11px;color:#94a3b8}
+  .header-right .doc-ref{font-size:13px;color:#fff;font-weight:700;margin-top:2px}
+  .header-right .doc-date{font-size:11px;color:#94a3b8;margin-top:2px}
+
+  /* CONTENT PADDING */
+  .content{padding:28px 36px}
+  section{margin-bottom:28px}
+
+  /* PROJECT TITLE */
+  .project-title{font-size:26px;font-weight:900;color:#0f2444;letter-spacing:-0.5px;line-height:1.2;margin-bottom:6px}
+  .project-sub{font-size:13px;color:#64748b}
+
+  /* FACT CARDS */
+  .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+  .fact-card{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}
+  .fact-val{font-size:18px;font-weight:800;color:#0f2444}
+  .fact-lbl{font-size:11px;color:#64748b;margin-top:4px;line-height:1.4}
+
+  /* BIG NUMBER */
+  .cost-hero{border:2px solid #e2e8f0;border-radius:12px;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:20px;margin:16px 0}
+  .cost-main .cost-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+  .cost-main .cost-range{font-size:30px;font-weight:900;color:#0f2444;line-height:1.1;margin:4px 0}
+  .cost-main .cost-mid{font-size:13px;color:#64748b;margin-top:4px}
+  .cost-sqm{background:#e8f4fc;border-radius:10px;padding:14px 20px;text-align:center;min-width:160px}
+  .cost-sqm .sqm-val{font-size:18px;font-weight:800;color:#0696d7}
+  .cost-sqm .sqm-lbl{font-size:11px;color:#64748b;margin-top:2px}
+  .cost-sqm .sqm-mkt{font-size:10px;color:#94a3b8;margin-top:6px;line-height:1.4}
+
+  /* SECTION HEADINGS */
+  h2{font-size:15px;font-weight:800;color:#0f2444;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+
+  /* WHAT'S INCLUDED GRID */
+  .includes-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .include-card{background:#f8fafc;border-radius:8px;padding:12px;border-left:3px solid #0696d7}
+  .include-card .inc-title{font-size:12px;font-weight:700;color:#0f2444;margin-bottom:3px}
+  .include-card .inc-desc{font-size:11.5px;color:#64748b;line-height:1.4}
+
+  /* TRADE TABLE */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  thead th{background:#0f2444;color:#fff;padding:9px 10px;text-align:left;font-size:11px;font-weight:700}
+  th.right,td.right{text-align:right}
+  th.center,td.center{text-align:center}
+  tr.even td{background:#fff}
+  tr.odd td{background:#f8fafc}
+  tr.major td{background:#f0f7ff}
+  td{padding:9px 10px;vertical-align:middle;border-bottom:1px solid #f1f5f9}
+  .trade-icon{font-size:14px;margin-right:4px}
+  .small{font-size:11px;color:#94a3b8;line-height:1.4}
+  .muted{color:#94a3b8}
+  .bold{font-weight:700}
+  .green{color:#16a34a}
+  .chip{font-size:11px;font-weight:700;color:#0696d7}
+  tr.subtotal td{background:#e8f0fb;font-weight:700;color:#0f2444;border-top:2px solid #0f2444}
+  tr.contingency td{background:#f8fafc;color:#64748b}
+  tr.grand-total td{background:#0f2444;color:#fff;font-weight:800;font-size:13px;padding:12px 10px}
+
+  /* FEES BOX */
+  .fees-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:10px;overflow:hidden}
+  .fees-left{background:#fef3c7;padding:16px 18px}
+  .fees-right{background:#fffbeb;padding:16px 18px;border-left:2px solid #d97706}
+  .fees-lbl{font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.5px}
+  .fees-val{font-size:20px;font-weight:900;color:#0f2444;margin:4px 0}
+  .fees-sub{font-size:11.5px;color:#64748b;line-height:1.4}
+  .fees-q{font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px}
+  .fees-a{font-size:11.5px;color:#64748b;line-height:1.5}
+
+  /* INCLUDE/EXCLUDE */
+  .ie-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:10px;overflow:hidden}
+  .ie-incl{background:#dcfce7;padding:16px 18px}
+  .ie-excl{background:#fee2e2;padding:16px 18px}
+  .ie-hdr{font-size:11px;font-weight:800;padding:8px 12px;margin:-16px -18px 10px;display:block}
+  .ie-incl .ie-hdr{background:#166534;color:#fff}
+  .ie-excl .ie-hdr{background:#7f1d1d;color:#fff}
+  .ie-incl ul,.ie-excl ul{list-style:none;padding:0}
+  .ie-incl li{font-size:12px;color:#166534;padding:3px 0}
+  .ie-excl li{font-size:12px;color:#991b1b;padding:3px 0}
+
+  /* SAVINGS TABLE */
+  .impact-none{color:#16a34a;font-weight:700;font-size:11px}
+  .impact-minimal{color:#16a34a;font-weight:700;font-size:11px}
+  .impact-moderate{color:#d97706;font-weight:700;font-size:11px}
+  .impact-significant{color:#dc2626;font-weight:700;font-size:11px}
+
+  /* WARNINGS */
+  .warn-item{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:8px;margin-bottom:8px;background:#fef3c7}
+  .warn-item.warn-high{background:#fee2e2}
+  .warn-item.warn-low{background:#f0fdf4}
+  .warn-dot{width:10px;height:10px;border-radius:50%;background:#d97706;margin-top:4px;flex-shrink:0}
+  .warn-high .warn-dot{background:#dc2626}
+  .warn-low .warn-dot{background:#16a34a}
+  .warn-item strong{font-size:12.5px;color:#0f2444}
+
+  /* NEXT STEPS */
+  .step-item{display:flex;gap:14px;align-items:flex-start;padding:12px;background:#eff6ff;border-radius:8px;margin-bottom:8px}
+  .step-num{width:28px;height:28px;border-radius:50%;background:#0696d7;color:#fff;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-item strong{font-size:13px;color:#0f2444}
+
+  /* CLIENT NOTE */
+  .client-note{background:#eff6ff;border-left:4px solid #0696d7;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:20px;font-size:13px;color:#0f2444;line-height:1.6}
+
+  /* DISCLAIMER */
+  .disclaimer{background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 36px;font-size:11px;color:#94a3b8;line-height:1.6}
+
+  /* FOOTER */
+  .footer{background:#0f2444;padding:14px 36px;display:flex;justify-content:space-between;font-size:11px;color:#64748b}
+  .footer a{color:#0696d7;text-decoration:none}
+
+  /* PRINT BUTTON */
+  .print-btn{position:fixed;top:20px;right:20px;padding:10px 22px;background:#0696d7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:999}
+  .print-btn:hover{background:#0578b5}
 </style></head><body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print / Save PDF</button>
+
 <div class="page">
-  <button onclick="window.print()" style="position:fixed;top:20px;right:20px;padding:9px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.2)">🖨️ Print / Save PDF</button>
 
+  <!-- HEADER -->
   <div class="header">
-    <div class="logo-block">
-      <h1>📋 PROJECT COST ESTIMATE</h1>
-      <p>Parametric Pre-Design Estimate · PH Engineering Suite</p>
+    <div class="header-left">
+      <div class="brand">BUILDIFY</div>
+      <div class="brand-sub">by Jon Ureta · PH Engineering Suite</div>
     </div>
-    <div class="doc-meta">
-      <div>Date: <strong>${date}</strong></div>
-      ${clientName ? `<div>Prepared for: <strong>${clientName}</strong></div>` : ""}
-      ${engineerName ? `<div>Prepared by: <strong>${engineerName}</strong></div>` : ""}
-      <div>Ref: EST-${Date.now().toString().slice(-6)}</div>
-    </div>
-  </div>
-
-  <div class="section-title">Project Information</div>
-  <div class="info-grid">
-    <div class="info-row"><span class="info-label">Project Name</span><span class="info-value">${p.name||projectName||"—"}</span></div>
-    <div class="info-row"><span class="info-label">Project Type</span><span class="info-value">${p.type} — ${p.subtype}</span></div>
-    <div class="info-row"><span class="info-label">Location</span><span class="info-value">${p.location||LOCATIONS.find(l=>l.v===location)?.l||"—"}</span></div>
-    <div class="info-row"><span class="info-label">Finish Level</span><span class="info-value">${p.finishLevel}</span></div>
-    <div class="info-row"><span class="info-label">Est. Gross Floor Area</span><span class="info-value">${fmtN(p.estimatedGFA)} sqm &nbsp;·&nbsp; <em style="color:#6b7280;font-weight:400;font-size:11px">${p.gfaNote}</em></span></div>
-    <div class="info-row"><span class="info-label">Number of Floors</span><span class="info-value">${p.floors}</span></div>
-  </div>
-
-  <div class="scope-box">
-    <strong style="display:block;margin-bottom:4px">Scope Summary</strong>
-    ${p.scopeSummary}
-  </div>
-
-  <div class="section-title">Cost Estimate by Trade</div>
-  <table>
-    <tr>
-      <th style="width:18%">Trade</th>
-      <th style="width:28%">Scope Description</th>
-      <th style="text-align:right;width:12%">Qty</th>
-      <th style="text-align:right;width:16%">Rate Range</th>
-      <th style="text-align:right;width:13%">Low Estimate</th>
-      <th style="text-align:right;width:13%">High Estimate</th>
-    </tr>
-    ${tradeRows}
-    <tr class="subtotal-row">
-      <td colspan="4">Construction Cost Subtotal</td>
-      <td style="text-align:right;font-family:monospace">₱${fmtR(s.constructionCostLow)}</td>
-      <td style="text-align:right;font-family:monospace">₱${fmtR(s.constructionCostHigh)}</td>
-    </tr>
-    <tr style="background:#fffbeb">
-      <td colspan="4" style="color:#92400e">Contingency (${s.contingencyPct}%)</td>
-      <td style="text-align:right;font-family:monospace;color:#92400e">₱${fmtR(s.contingencyLow)}</td>
-      <td style="text-align:right;font-family:monospace;color:#92400e">₱${fmtR(s.contingencyHigh)}</td>
-    </tr>
-    <tr class="total-row">
-      <td colspan="4">TOTAL CONSTRUCTION COST (excl. VAT & Pro. Fees)</td>
-      <td style="text-align:right;font-family:monospace">₱${fmtR(s.totalLow)}</td>
-      <td style="text-align:right;font-family:monospace">₱${fmtR(s.totalHigh)}</td>
-    </tr>
-    ${inclProfFees && s.professionalFeesLow ? `
-    <tr style="background:#f0fdf4">
-      <td colspan="4" style="color:#15803d">Professional Fees (${s.professionalFeesPct}% — ${s.professionalFeesNote})</td>
-      <td style="text-align:right;font-family:monospace;color:#15803d">₱${fmtR(s.professionalFeesLow)}</td>
-      <td style="text-align:right;font-family:monospace;color:#15803d">₱${fmtR(s.professionalFeesHigh)}</td>
-    </tr>
-    <tr class="total-row">
-      <td colspan="4">GRAND TOTAL (incl. Pro. Fees, excl. VAT)</td>
-      <td style="text-align:right;font-family:monospace">₱${fmtR(s.grandTotalLow)}</td>
-      <td style="text-align:right;font-family:monospace">₱${fmtR(s.grandTotalHigh)}</td>
-    </tr>` : ""}
-  </table>
-
-  <div class="summary-grid">
-    <div class="range-card">
-      <div class="big">₱${fmtR(s.totalLow)} – ₱${fmtR(s.totalHigh)}</div>
-      <div class="sub">Estimated Construction Cost Range</div>
-      <div style="font-size:13px;margin-top:8px;color:#1e3a5f;font-weight:700">Midpoint: ₱${fmtR(s.midpoint)}</div>
-    </div>
-    <div class="summary-card" style="display:flex;flex-direction:column;justify-content:center;gap:12px">
-      <div><div class="num">₱${fmtR(s.costPerSqmLow)}–₱${fmtR(s.costPerSqmHigh)}</div><div class="lbl">Per sqm range</div></div>
-      <div><div class="num">${fmtN(p.estimatedGFA)} sqm</div><div class="lbl">Estimated GFA</div></div>
+    <div class="header-right">
+      <div class="doc-label">COST ESTIMATE</div>
+      <div class="doc-ref">${refId}</div>
+      <div class="doc-date">${date}</div>
     </div>
   </div>
 
-  ${veRows ? `
-  <div class="section-title">Value Engineering Opportunities</div>
-  <div class="ve-card">
-    <h4>💡 Potential Cost Reduction Strategies</h4>
-    <table style="margin:0"><tr><th>Suggestion</th><th style="text-align:right;width:180px">Potential Saving</th></tr>${veRows}</table>
-  </div>` : ""}
+  <div class="content">
 
-  <div class="section-title">Scope Notes</div>
-  ${p.scopeIncluded?.length ? `<p style="font-size:12px;color:#374151;font-weight:700;margin-bottom:4px">Included in this estimate:</p><ul style="font-size:12px;padding-left:20px;margin-bottom:12px;line-height:1.8">${(p.scopeIncluded||[]).map(i=>`<li>${i}</li>`).join("")}</ul>` : ""}
-  ${excludedRows ? `<p style="font-size:12px;color:#374151;font-weight:700;margin-bottom:4px">Excluded / Not in scope:</p><ul style="font-size:12px;padding-left:20px;margin-bottom:12px;line-height:1.8">${excludedRows}</ul>` : ""}
-  ${assumptionRows ? `<p style="font-size:12px;color:#374151;font-weight:700;margin-bottom:4px">Key Assumptions:</p><ul style="font-size:12px;padding-left:20px;margin-bottom:12px;line-height:1.8">${assumptionRows}</ul>` : ""}
-  ${warnings ? `<p style="font-size:12px;color:#b45309;font-weight:700;margin-bottom:4px">Market Warnings:</p><ul style="font-size:12px;padding-left:20px;color:#b45309;margin-bottom:12px;line-height:1.8">${warnings}</ul>` : ""}
+    <!-- PROJECT TITLE -->
+    <section>
+      <div class="project-title">${p.name||projectName||"Project Cost Estimate"}</div>
+      <div class="project-sub">${p.location||""} &nbsp;·&nbsp; ${p.type||""} &nbsp;·&nbsp; ${p.finishLevel||""} Finish</div>
+      ${p.clientNote ? `<div class="client-note">${p.clientNote}</div>` : ""}
+      <div class="facts">
+        <div class="fact-card"><div class="fact-val">${(+p.estimatedGFA||0).toLocaleString()} sqm</div><div class="fact-lbl">${p.gfaBreakdown||"Total Floor Area"}</div></div>
+        <div class="fact-card"><div class="fact-val">${p.floors||"—"} ${+p.floors===1?"Storey":"Storeys"}</div><div class="fact-lbl">${p.subtype||""}</div></div>
+        <div class="fact-card"><div class="fact-val">${p.finishLevel||"Standard"}</div><div class="fact-lbl">Finish Level</div></div>
+      </div>
+    </section>
 
+    <!-- BIG COST NUMBER -->
+    <section>
+      <div class="cost-hero">
+        <div class="cost-main">
+          <div class="cost-label">Estimated Construction Cost</div>
+          <div class="cost-range">${fmt(s.totalLow)} – ${fmt(s.totalHigh)}</div>
+          <div class="cost-mid">Midpoint: <strong>${fmt(s.midpoint)}</strong> &nbsp;·&nbsp; ±20–35% parametric accuracy</div>
+        </div>
+        <div class="cost-sqm">
+          <div class="sqm-val">${fmt(s.costPerSqmLow)} – ${fmt(s.costPerSqmHigh)}</div>
+          <div class="sqm-lbl">per square meter</div>
+          ${s.marketSqmNote ? `<div class="sqm-mkt">${s.marketSqmNote}</div>` : ""}
+        </div>
+      </div>
+    </section>
+
+    <!-- WHAT'S INCLUDED IN PLAIN LANGUAGE -->
+    <section>
+      <h2>What's included in this estimate?</h2>
+      <div class="includes-grid">
+        ${majorTrades.filter(t=>t.icon).map(t=>`
+          <div class="include-card">
+            <div class="inc-title">${t.icon} ${t.trade}</div>
+            <div class="inc-desc">${t.plainDescription||t.description||""}</div>
+          </div>`).join("")}
+      </div>
+    </section>
+
+    <!-- TRADE BREAKDOWN TABLE -->
+    <section>
+      <h2>Cost Breakdown by Work Category</h2>
+      <p style="font-size:12px;color:#64748b;margin-bottom:12px">Each range shows low (basic materials) to high (better quality). Highlighted rows are your biggest cost items.</p>
+      <table>
+        <thead><tr>
+          <th>Work Category</th>
+          <th class="center">Scope</th>
+          <th class="right">Low Estimate</th>
+          <th class="right">High Estimate</th>
+          <th class="center">% of Total</th>
+        </tr></thead>
+        <tbody>
+          ${tradeRows}
+          <tr class="subtotal">
+            <td colspan="2">Construction Subtotal</td>
+            <td class="right">${fmt(s.constructionCostLow)}</td>
+            <td class="right">${fmt(s.constructionCostHigh)}</td>
+            <td></td>
+          </tr>
+          <tr class="contingency">
+            <td colspan="2">+ ${s.contingencyPct||10}% Contingency Fund <span class="small">(buffer for surprises)</span></td>
+            <td class="right">${fmt(s.contingencyLow)}</td>
+            <td class="right">${fmt(s.contingencyHigh)}</td>
+            <td></td>
+          </tr>
+          <tr class="grand-total">
+            <td colspan="2">TOTAL CONSTRUCTION COST</td>
+            <td class="right">${fmt(s.totalLow)}</td>
+            <td class="right">${fmt(s.totalHigh)}</td>
+            <td class="center">100%</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- PROFESSIONAL FEES -->
+    <section>
+      <h2>Including Professional Fees</h2>
+      <div class="fees-grid">
+        <div class="fees-left">
+          <div class="fees-lbl">Grand Total with Fees (${s.professionalFeesPct||8}%)</div>
+          <div class="fees-val">${fmt(s.grandTotalLow)} – ${fmt(s.grandTotalHigh)}</div>
+          <div class="fees-sub">${s.professionalFeesNote||"Professional fees cover your Architect and Engineer."}</div>
+          ${s.permitFeeNote ? `<div class="fees-sub" style="margin-top:6px;font-size:11px">${s.permitFeeNote}</div>` : ""}
+          ${s.vatNote ? `<div class="fees-sub" style="margin-top:4px;font-size:11px">${s.vatNote}</div>` : ""}
+        </div>
+        <div class="fees-right">
+          <div class="fees-q">What are professional fees?</div>
+          <div class="fees-a">These are fees paid to your licensed Architect and Engineer for designing the house, getting permits, and supervising construction. Think of it like a doctor's fee — it's separate from the cost of medicine (construction).</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INCLUDED / EXCLUDED -->
+    <section>
+      <h2>Included &amp; Not Included</h2>
+      <div class="ie-grid">
+        <div class="ie-incl"><span class="ie-hdr">INCLUDED IN THIS ESTIMATE</span><ul>${included}</ul></div>
+        <div class="ie-excl"><span class="ie-hdr">NOT INCLUDED — add separately</span><ul>${excluded}</ul></div>
+      </div>
+    </section>
+
+    ${ve.length ? `
+    <!-- COST SAVING IDEAS -->
+    <section>
+      <h2>Ways to Reduce Cost</h2>
+      <p style="font-size:12px;color:#64748b;margin-bottom:12px">Ask your contractor about these options before finalizing materials.</p>
+      <table>
+        <thead><tr><th>What to Change</th><th class="center">Quality Impact</th><th class="right">Potential Saving</th></tr></thead>
+        <tbody>
+          ${veRows}
+          <tr class="subtotal">
+            <td>Total Possible Savings (if all applied)</td>
+            <td></td>
+            <td class="right green">${fmtR(totalVeSaveLow)} – ${fmtR(totalVeSaveHigh)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>` : ""}
+
+    ${mw.length ? `
+    <!-- MARKET WARNINGS -->
+    <section>
+      <h2>Market Conditions to Watch</h2>
+      ${warnItems}
+    </section>` : ""}
+
+    ${ns.length ? `
+    <!-- NEXT STEPS -->
+    <section>
+      <h2>Your Next Steps</h2>
+      ${stepItems}
+    </section>` : ""}
+
+    <!-- ASSUMPTIONS -->
+    ${p.assumptions && p.assumptions.length ? `
+    <section>
+      <h2>Assumptions &amp; Notes</h2>
+      <ul style="font-size:12px;color:#64748b;padding-left:18px;line-height:1.8">
+        ${p.assumptions.map(a=>`<li>${a}</li>`).join("")}
+      </ul>
+    </section>` : ""}
+
+  </div><!-- /content -->
+
+  <!-- DISCLAIMER -->
   <div class="disclaimer">
-    <strong>⚠️ IMPORTANT DISCLAIMER</strong><br/>
-    This is a <strong>parametric pre-design cost estimate</strong> prepared for budgeting and client guidance purposes only. Accuracy is ±20–35% of actual construction cost. This estimate is <strong>NOT a contract document, bill of quantities, or formal tender</strong> and shall not be used as the basis for contract award without a full quantity survey by a licensed Quantity Surveyor.<br/><br/>
-    ${p.validityNote} ${s.vatNote}. Professional fees are indicative based on PRC/IIEE/PICE fee schedules and subject to separate negotiation.
+    <strong>IMPORTANT DISCLAIMER:</strong> This is a parametric pre-design cost estimate (±20–35% accuracy) for budgeting and client guidance purposes only.
+    It is NOT a contract, Bill of Quantities, or formal tender document. Actual costs will vary based on final material choices, site conditions,
+    contractor rates, and market prices at time of construction. ${p.validityNote||""} ${p.accuracyNote||""}
+    A formal Bill of Quantities by a licensed Quantity Surveyor is required before awarding any contract. VAT (12%) is not included unless stated.
   </div>
 
-  <div class="sig-block">
-    <div>
-      <div class="sig-line">${engineerName||"________________________________"}<br/><span style="color:#6b7280">Prepared by</span></div>
-    </div>
-    <div>
-      <div class="sig-line">________________________________<br/><span style="color:#6b7280">Client / Owner Acknowledged</span></div>
-    </div>
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>Prepared by <strong style="color:#0696d7">Buildify</strong> · PH Engineering Suite</span>
+    <span>${refId} · Valid 90 days from date of issue</span>
   </div>
 
-</div></body></html>`);
+</div><!-- /page -->
+</body></html>`);
     w.document.close();
-    setTimeout(() => w.print(), 500);
+    setTimeout(() => w.print(), 600);
   };
 
   const trades   = result?.trades?.filter(t=>t.included!==false) || [];
