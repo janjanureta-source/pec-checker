@@ -1929,7 +1929,7 @@ function validateExtractedData(raw) {
       if (!col || (!col.width && !col.height)) { warnings.push(`Column ${col?.id||"?"}: no dimensions — removed.`); return false; }
       if (col.width && (col.width < 100 || col.width > 2000)) { warnings.push(`Col ${col.id}: width ${col.width}mm out of range. Nulled.`); col.width = null; }
       if (col.height && (col.height < 100 || col.height > 2000)) { warnings.push(`Col ${col.id}: height ${col.height}mm out of range. Nulled.`); col.height = null; }
-      if (col.mainBars?.dia && (col.mainBars.dia < 10 || col.mainBars.dia > 40)) { warnings.push(`Col ${col.id}: bar dia ${col.mainBars.dia}mm out of range (10-40). Nulled.`); col.mainBars.dia = null; }
+      if (col.mainBarDia && (col.mainBarDia < 10 || col.mainBarDia > 40)) { warnings.push(`Col ${col.id}: bar dia ${col.mainBarDia}mm out of range (10-40). Nulled.`); col.mainBarDia = null; }
       return col.width || col.height;
     });
   }
@@ -2013,17 +2013,25 @@ function validateExtractedData(raw) {
   return { data: d, warnings };
 }
 
-const NSCP_EXTRACTION_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE) reviewing structural drawings. Extract the AS-DESIGNED member schedules and reinforcement details from the uploaded structural plans.
+const NSCP_EXTRACTION_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE) reviewing Philippine structural drawings. Extract member schedules and reinforcement details.
 
 CRITICAL RULES:
-1. Extract ONLY what is EXPLICITLY shown in the plans — schedules, details, notes, dimensions.
-2. NEVER guess, infer, or estimate values. Use null if not clearly visible.
-3. Focus on REINFORCEMENT SCHEDULES — bar count, bar diameter (mm), stirrup size/spacing.
-4. Extract ALL members listed in each schedule, not just the first one.
-5. Pay attention to UNITS: dimensions in mm, spans in meters, bar diameters in mm.
-6. For bar notation like "3-25mmØ", extract as: count=3, barDia=25.
-7. For stirrup notation like "12mmØ @ 150mm O.C.", extract as: stirrupDia=12, stirrupSpacing=150.
-8. Do NOT fabricate members that don't appear in the schedule or drawings.
+1. Extract ONLY what is EXPLICITLY shown — schedules, details, notes, dimensions.
+2. NEVER guess or estimate. Use null if not clearly visible.
+3. Extract ALL members listed in each schedule table, not just the first one.
+4. UNITS: dimensions in mm, spans in meters, bar diameters in mm, spacing in mm.
+
+WHERE TO FIND DATA IN TYPICAL PH STRUCTURAL PLANS:
+- BEAM SCHEDULE: Usually a table near beam details showing mark, width×depth, top bars, bottom bars, stirrups
+- COLUMN SCHEDULE: Table showing mark, dimensions, main bars, ties
+- SLAB SCHEDULE: Table showing mark, thickness, reinforcement spacing
+- FOOTING SCHEDULE: Table or detail showing mark, dimensions, reinforcement
+- GENERAL NOTES: f'c, fy, concrete cover, soil bearing capacity (SBC), seismic zone
+- STRUCTURAL ELEVATION: Floor heights, total building height
+
+For bar notation like "3-25mmØ" → topBarCount=3, topBarDia=25
+For stirrups like "12mmØ 1@50mm, 4@100mm, rest@150mm" → stirrupDia=12, stirrupSpacingRest=150
+For "12mmØ @ 150mm O.C." → barDia=12, spacing=150
 
 Return ONLY valid JSON — no markdown, no preamble.
 
@@ -2031,12 +2039,12 @@ Return ONLY valid JSON — no markdown, no preamble.
   "building": {
     "name": "project name from title block or null",
     "occupancy": "Residential|Commercial|Industrial|Institutional|null",
-    "floors": "integer number of floors or null",
+    "floors": null,
     "floorHeight": "floor-to-floor height in METERS or null",
     "totalHeight": "total building height in METERS or null"
   },
   "materials": {
-    "fc": "concrete compressive strength in MPa or null",
+    "fc": "concrete strength in MPa or null",
     "fy": "steel yield strength in MPa or null",
     "coverBeam": "beam cover in mm or null",
     "coverColumn": "column cover in mm or null",
@@ -2044,15 +2052,17 @@ Return ONLY valid JSON — no markdown, no preamble.
   },
   "beams": [
     {
-      "id": "beam mark (B1, GB, RB, etc.)",
-      "width": "beam width b in mm or null",
-      "depth": "total beam depth h in mm or null",
-      "span": "clear span in METERS or null",
-      "botBars": { "count": "number of bottom bars at midspan or null", "dia": "bar diameter in mm or null" },
-      "topBars": { "count": "number of top bars at support or null", "dia": "bar diameter in mm or null" },
-      "stirrupDia": "stirrup bar diameter in mm or null",
-      "stirrupSpacingSupport": "stirrup spacing at support in mm or null",
-      "stirrupSpacingMidspan": "stirrup spacing at midspan in mm or null"
+      "id": "beam mark from schedule (B1, B2, GB, RB, etc.)",
+      "width": "beam width in mm or null",
+      "depth": "beam TOTAL depth h in mm (not effective depth) or null",
+      "span": "span in METERS or null",
+      "topBarCount": "number of top bars at support or null",
+      "topBarDia": "top bar diameter in mm or null",
+      "botBarCount": "number of bottom bars at midspan or null",
+      "botBarDia": "bottom bar diameter in mm or null",
+      "stirrupDia": "stirrup diameter in mm or null",
+      "stirrupSpacingSupport": "first stirrup zone spacing in mm or null",
+      "stirrupSpacingRest": "rest of stirrup spacing in mm or null"
     }
   ],
   "columns": [
@@ -2060,8 +2070,9 @@ Return ONLY valid JSON — no markdown, no preamble.
       "id": "column mark (C1, C2, etc.)",
       "width": "shorter dimension in mm or null",
       "height": "longer dimension in mm or null",
-      "mainBars": { "count": "total number of longitudinal bars or null", "dia": "bar diameter in mm or null" },
-      "tieDia": "tie/hoop bar diameter in mm or null",
+      "mainBarCount": "total number of longitudinal bars or null",
+      "mainBarDia": "main bar diameter in mm or null",
+      "tieDia": "tie bar diameter in mm or null",
       "tieSpacing": "tie spacing in mm or null",
       "type": "tied|spiral|null"
     }
@@ -2071,12 +2082,14 @@ Return ONLY valid JSON — no markdown, no preamble.
       "id": "footing mark (F1, MF, IF-1, etc.)",
       "type": "isolated|mat|combined|wall|null",
       "length": "footing length in METERS or null",
-      "width_ft": "footing width in METERS or null",
+      "widthFt": "footing width in METERS or null",
       "thickness": "footing thickness in mm or null",
-      "topBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
-      "botBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
-      "soilBearing": "allowable soil bearing capacity in kPa — MUST be kPa not Pa — or null",
-      "depthOfExcavation": "depth of excavation in METERS or null"
+      "topBarDia": "top bar dia in mm or null",
+      "topBarSpacing": "top bar spacing in mm or null",
+      "botBarDia": "bottom bar dia in mm or null",
+      "botBarSpacing": "bottom bar spacing in mm or null",
+      "soilBearing": "SBC in kPa (NOT Pa) or null",
+      "depthOfExcavation": "depth in METERS (NOT mm) or null"
     }
   ],
   "slabs": [
@@ -2085,9 +2098,10 @@ Return ONLY valid JSON — no markdown, no preamble.
       "thickness": "slab thickness in mm or null",
       "type": "one-way|two-way|null",
       "span": "clear span in METERS or null",
-      "topBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
-      "botBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
-      "tempBars": { "dia": "mm or null", "spacing": "mm O.C. or null" }
+      "mainBarDia": "main bar diameter in mm or null",
+      "mainBarSpacing": "main bar spacing in mm or null",
+      "tempBarDia": "temperature bar diameter in mm or null",
+      "tempBarSpacing": "temperature bar spacing in mm or null"
     }
   ],
   "seismic": {
@@ -2103,7 +2117,7 @@ Return ONLY valid JSON — no markdown, no preamble.
     "roofDL": "roof dead load in kPa or null",
     "roofLL": "roof live load in kPa or null"
   },
-  "notes": "any relevant general/structural notes verbatim or null"
+  "notes": "any relevant structural general notes verbatim or null"
 }`;
 
 const NSCP_SYSTEM_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE) with deep expertise in:
@@ -6159,8 +6173,8 @@ function runAllComputations(sd) {
     }
 
     // 1b. Steel ratio (if bars extracted)
-    if (b && d && bm.botBars?.count && bm.botBars?.dia && fc && fy) {
-      const As = bm.botBars.count * barArea(bm.botBars.dia);
+    if (b && d && bm.botBarCount && bm.botBarDia && fc && fy) {
+      const As = bm.botBarCount * barArea(bm.botBarDia);
       const rho = As / (b * d);
       const rho_min = Math.max(0.25 * Math.sqrt(fc) / fy, 1.4 / fy);
       const rho_max = 0.75 * 0.85 * (fc >= 28 ? Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7) : 0.85) * (fc / fy) * (600 / (600 + fy));
@@ -6168,27 +6182,27 @@ function runAllComputations(sd) {
       const rhoMinP = (rho_min * 100).toFixed(3);
       const rhoMaxP = (rho_max * 100).toFixed(3);
       checks.push(check("beam", id, "Min Steel Ratio ρ", "Sec. 410.5.1", rho >= rho_min * 0.95, `${rhoP}%`, `≥${rhoMinP}%`,
-        rho >= rho_min * 0.95 ? `ρ = ${rhoP}% ≥ ρ_min = ${rhoMinP}% — OK. As_prov = ${As.toFixed(0)}mm² (${bm.botBars.count}-${bm.botBars.dia}mmØ)` : `ρ = ${rhoP}% < ρ_min = ${rhoMinP}%. Increase bottom reinforcement.`));
+        rho >= rho_min * 0.95 ? `ρ = ${rhoP}% ≥ ρ_min = ${rhoMinP}% — OK. As_prov = ${As.toFixed(0)}mm² (${bm.botBarCount}-${bm.botBarDia}mmØ)` : `ρ = ${rhoP}% < ρ_min = ${rhoMinP}%. Increase bottom reinforcement.`));
       checks.push(check("beam", id, "Max Steel Ratio ρ", "Sec. 406.3.3", rho <= rho_max * 1.05, `${rhoP}%`, `≤${rhoMaxP}%`,
         rho <= rho_max * 1.05 ? `ρ = ${rhoP}% ≤ ρ_max = ${rhoMaxP}% — Under-reinforced (ductile). OK` : `ρ = ${rhoP}% > ρ_max = ${rhoMaxP}%. OVER-REINFORCED — non-ductile failure. Increase section or reduce steel.`));
-      results.memberData.beams.push({ id, b, h, d, As: +As.toFixed(0), rho: +rho.toFixed(5), rho_min: +rho_min.toFixed(5), rho_max: +rho_max.toFixed(5), botBars: bm.botBars, topBars: bm.topBars });
+      results.memberData.beams.push({ id, b, h, d, As: +As.toFixed(0), rho: +rho.toFixed(5), rho_min: +rho_min.toFixed(5), rho_max: +rho_max.toFixed(5), botBarCount: bm.botBarCount, botBarDia: bm.botBarDia, topBarCount: bm.topBarCount, topBarDia: bm.topBarDia });
     }
 
     // 1c. Top bars (min 1/3 of bottom per NSCP Sec. 412.3)
-    if (bm.botBars?.count && bm.botBars?.dia && bm.topBars?.count && bm.topBars?.dia) {
-      const AsBot = bm.botBars.count * barArea(bm.botBars.dia);
-      const AsTop = bm.topBars.count * barArea(bm.topBars.dia);
+    if (bm.botBarCount && bm.botBarDia && bm.topBarCount && bm.topBarDia) {
+      const AsBot = bm.botBarCount * barArea(bm.botBarDia);
+      const AsTop = bm.topBarCount * barArea(bm.topBarDia);
       const ratio = AsTop / AsBot;
       checks.push(check("beam", id, "Top Bars ≥ 1/3 Bottom", "Sec. 412.3", ratio >= 0.30, `${(ratio*100).toFixed(0)}%`, "≥33%",
         ratio >= 0.30 ? `Top As = ${AsTop.toFixed(0)}mm² = ${(ratio*100).toFixed(0)}% of bottom — OK` : `Top As = ${AsTop.toFixed(0)}mm² = only ${(ratio*100).toFixed(0)}% of bottom. Need ≥33%.`));
     }
 
     // 1d. Stirrup spacing
-    if (bm.stirrupSpacingMidspan && d) {
+    if (bm.stirrupSpacingRest && d) {
       const maxS = Math.min(d / 2, 600);
-      checks.push(check("beam", id, "Stirrup Spacing (midspan)", "Sec. 406.6.3", bm.stirrupSpacingMidspan <= maxS * 1.05,
-        `${bm.stirrupSpacingMidspan}mm`, `≤${maxS.toFixed(0)}mm (d/2)`,
-        bm.stirrupSpacingMidspan <= maxS * 1.05 ? "OK" : `Spacing ${bm.stirrupSpacingMidspan}mm > d/2 = ${maxS.toFixed(0)}mm. Reduce stirrup spacing.`));
+      checks.push(check("beam", id, "Stirrup Spacing (midspan)", "Sec. 406.6.3", bm.stirrupSpacingRest <= maxS * 1.05,
+        `${bm.stirrupSpacingRest}mm`, `≤${maxS.toFixed(0)}mm (d/2)`,
+        bm.stirrupSpacingRest <= maxS * 1.05 ? "OK" : `Spacing ${bm.stirrupSpacingRest}mm > d/2 = ${maxS.toFixed(0)}mm. Reduce stirrup spacing.`));
     }
     if (bm.stirrupSpacingSupport && d) {
       const maxS_support = Math.min(d / 4, 200); // seismic zone
@@ -6232,31 +6246,31 @@ function runAllComputations(sd) {
     }
 
     // 2b. Steel ratio
-    if (Ag && col.mainBars?.count && col.mainBars?.dia && fc && fy) {
-      const Ast = col.mainBars.count * barArea(col.mainBars.dia);
+    if (Ag && col.mainBarCount && col.mainBarDia && fc && fy) {
+      const Ast = col.mainBarCount * barArea(col.mainBarDia);
       const rho = Ast / Ag;
       const rhoP = (rho * 100).toFixed(2);
       checks.push(check("column", id, "Steel Ratio ρ ≥ 1%", "Sec. 410.3.1", rho >= 0.0095, `${rhoP}%`, "≥1%",
-        rho >= 0.0095 ? `ρ = ${rhoP}% ≥ 1%. As = ${Ast.toFixed(0)}mm² (${col.mainBars.count}-${col.mainBars.dia}mmØ)` : `ρ = ${rhoP}% < 1% minimum. Add more longitudinal bars.`));
+        rho >= 0.0095 ? `ρ = ${rhoP}% ≥ 1%. As = ${Ast.toFixed(0)}mm² (${col.mainBarCount}-${col.mainBarDia}mmØ)` : `ρ = ${rhoP}% < 1% minimum. Add more longitudinal bars.`));
       checks.push(check("column", id, "Steel Ratio ρ ≤ 8%", "Sec. 410.3.1", rho <= 0.084, `${rhoP}%`, "≤8%",
         rho <= 0.084 ? `ρ = ${rhoP}% ≤ 8% — OK. ${rho > 0.04 ? "Note: >4% may cause congestion." : "Good constructability."}` : `ρ = ${rhoP}% > 8% maximum. Reduce steel or increase section.`));
-      results.memberData.columns.push({ id, b, h, Ag, Ast: +Ast.toFixed(0), rho: +rho.toFixed(5), mainBars: col.mainBars, tieDia: col.tieDia, tieSpacing: col.tieSpacing });
+      results.memberData.columns.push({ id, b, h, Ag, Ast: +Ast.toFixed(0), rho: +rho.toFixed(5), mainBarCount: col.mainBarCount, mainBarDia: col.mainBarDia, tieDia: col.tieDia, tieSpacing: col.tieSpacing });
     }
 
     // 2c. Min number of bars
-    if (col.mainBars?.count) {
+    if (col.mainBarCount) {
       const minBars = (col.type === "spiral") ? 6 : 4;
-      checks.push(check("column", id, "Min Bar Count", "Sec. 410.3.2", col.mainBars.count >= minBars,
-        `${col.mainBars.count} bars`, `≥${minBars}`,
-        col.mainBars.count >= minBars ? "OK" : `Only ${col.mainBars.count} bars. Need ≥${minBars} for ${col.type||"tied"} column.`));
+      checks.push(check("column", id, "Min Bar Count", "Sec. 410.3.2", col.mainBarCount >= minBars,
+        `${col.mainBarCount} bars`, `≥${minBars}`,
+        col.mainBarCount >= minBars ? "OK" : `Only ${col.mainBarCount} bars. Need ≥${minBars} for ${col.type||"tied"} column.`));
     }
 
     // 2d. Tie spacing
-    if (col.tieSpacing && col.mainBars?.dia) {
-      const maxTie = Math.min(16 * col.mainBars.dia, 48 * (col.tieDia || 10), Math.min(b || 400, h || 400));
+    if (col.tieSpacing && col.mainBarDia) {
+      const maxTie = Math.min(16 * col.mainBarDia, 48 * (col.tieDia || 10), Math.min(b || 400, h || 400));
       checks.push(check("column", id, "Tie Spacing", "Sec. 407.10.5", col.tieSpacing <= maxTie * 1.05,
         `${col.tieSpacing}mm`, `≤${maxTie}mm`,
-        col.tieSpacing <= maxTie * 1.05 ? `${col.tieSpacing}mm ≤ min(16db=${16*col.mainBars.dia}mm, 48dt=${48*(col.tieDia||10)}mm, least dim=${Math.min(b||400,h||400)}mm) — OK` : `Tie spacing ${col.tieSpacing}mm exceeds limit. Reduce spacing.`));
+        col.tieSpacing <= maxTie * 1.05 ? `${col.tieSpacing}mm ≤ min(16db=${16*col.mainBarDia}mm, 48dt=${48*(col.tieDia||10)}mm, least dim=${Math.min(b||400,h||400)}mm) — OK` : `Tie spacing ${col.tieSpacing}mm exceeds limit. Reduce spacing.`));
     }
 
     if (!checks.length) {
@@ -6288,23 +6302,23 @@ function runAllComputations(sd) {
     }
 
     // 3b. Min reinforcement (ρ ≥ 0.0018 for Grade 40 / 0.0020 for Grade 60)
-    if (t && sl.botBars?.dia && sl.botBars?.spacing && fy) {
-      const As_per_m = barArea(sl.botBars.dia) * (1000 / sl.botBars.spacing);
+    if (t && sl.mainBarDia && sl.mainBarSpacing && fy) {
+      const As_per_m = barArea(sl.mainBarDia) * (1000 / sl.mainBarSpacing);
       const d_slab = t - 25; // cover
       const rho = As_per_m / (1000 * d_slab);
       const rho_min = fy <= 300 ? 0.0020 : 0.0018;
       checks.push(check("slab", id, "Min Reinforcement", "Sec. 407.12", rho >= rho_min * 0.9,
         `ρ=${(rho*100).toFixed(3)}%`, `≥${(rho_min*100).toFixed(2)}%`,
-        rho >= rho_min * 0.9 ? `As = ${As_per_m.toFixed(0)}mm²/m (${sl.botBars.dia}mmØ@${sl.botBars.spacing}mm). ρ = ${(rho*100).toFixed(3)}% — OK` : `ρ = ${(rho*100).toFixed(3)}% < ${(rho_min*100).toFixed(2)}%. Increase bar size or reduce spacing.`));
-      results.memberData.slabs.push({ id, t, type: sl.type, span: sl.span, As_per_m: +As_per_m.toFixed(0), rho: +rho.toFixed(5), botBars: sl.botBars });
+        rho >= rho_min * 0.9 ? `As = ${As_per_m.toFixed(0)}mm²/m (${sl.mainBarDia}mmØ@${sl.mainBarSpacing}mm). ρ = ${(rho*100).toFixed(3)}% — OK` : `ρ = ${(rho*100).toFixed(3)}% < ${(rho_min*100).toFixed(2)}%. Increase bar size or reduce spacing.`));
+      results.memberData.slabs.push({ id, t, type: sl.type, span: sl.span, As_per_m: +As_per_m.toFixed(0), rho: +rho.toFixed(5), mainBarDia: sl.mainBarDia, mainBarSpacing: sl.mainBarSpacing });
     }
 
     // 3c. Max spacing
-    if (sl.botBars?.spacing && t) {
+    if (sl.mainBarSpacing && t) {
       const maxSpacing = Math.min(3 * t, 450);
-      checks.push(check("slab", id, "Max Bar Spacing", "Sec. 407.6.5", sl.botBars.spacing <= maxSpacing * 1.05,
-        `${sl.botBars.spacing}mm`, `≤${maxSpacing}mm (3t or 450)`,
-        sl.botBars.spacing <= maxSpacing * 1.05 ? "OK" : `Spacing ${sl.botBars.spacing}mm > ${maxSpacing}mm. Reduce spacing.`));
+      checks.push(check("slab", id, "Max Bar Spacing", "Sec. 407.6.5", sl.mainBarSpacing <= maxSpacing * 1.05,
+        `${sl.mainBarSpacing}mm`, `≤${maxSpacing}mm (3t or 450)`,
+        sl.mainBarSpacing <= maxSpacing * 1.05 ? "OK" : `Spacing ${sl.mainBarSpacing}mm > ${maxSpacing}mm. Reduce spacing.`));
     }
 
     if (!checks.length) {
@@ -6326,14 +6340,14 @@ function runAllComputations(sd) {
     const id = ft.id || "F?";
 
     // 4a. Min reinforcement
-    if (ft.botBars?.dia && ft.botBars?.spacing && ft.thickness) {
-      const As_per_m = barArea(ft.botBars.dia) * (1000 / ft.botBars.spacing);
+    if (ft.botBarDia && ft.botBarSpacing && ft.thickness) {
+      const As_per_m = barArea(ft.botBarDia) * (1000 / ft.botBarSpacing);
       const d = ft.thickness - 75; // cover for footing
       const rho = As_per_m / (1000 * d);
       checks.push(check("footing", id, "Bottom Reinforcement", "Sec. 407.12", rho >= 0.0016,
         `ρ=${(rho*100).toFixed(3)}%`, "≥0.18%",
-        rho >= 0.0016 ? `As = ${As_per_m.toFixed(0)}mm²/m (${ft.botBars.dia}mmØ@${ft.botBars.spacing}mm) — OK` : `ρ = ${(rho*100).toFixed(3)}% below minimum. Increase reinforcement.`));
-      results.memberData.footings.push({ id, type: ft.type, thickness: ft.thickness, As_per_m: +As_per_m.toFixed(0), rho: +rho.toFixed(5), botBars: ft.botBars, soilBearing: ft.soilBearing });
+        rho >= 0.0016 ? `As = ${As_per_m.toFixed(0)}mm²/m (${ft.botBarDia}mmØ@${ft.botBarSpacing}mm) — OK` : `ρ = ${(rho*100).toFixed(3)}% below minimum. Increase reinforcement.`));
+      results.memberData.footings.push({ id, type: ft.type, thickness: ft.thickness, As_per_m: +As_per_m.toFixed(0), rho: +rho.toFixed(5), botBarDia: ft.botBarDia, botBarSpacing: ft.botBarSpacing, soilBearing: ft.soilBearing });
     }
 
     // 4b. Min thickness
