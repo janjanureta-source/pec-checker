@@ -2844,10 +2844,16 @@ function BeamDesign({ structuralData, structuralResults }) {
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
         {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill beam dimensions.</div>}
-        {sd && (!sd.beams?.length || !sd.beams?.[0]?.Mu) && (
+        {sd && !sd.beams?.length && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
-            <strong style={{fontSize:13}}>⚠ Unverifiable — {!sd.beams?.length ? "No beam data found in plans" : "Incomplete beam data (missing Mu/Vu)"}</strong><br/>
-            <span style={{color:T.muted}}>{!sd.beams?.length ? "The AI could not extract beam dimensions or schedule from the uploaded plans. Enter beam dimensions (b, d) and factored loads (Mu, Vu) manually below." : "Beam dimensions were extracted, but factored moment (Mu) and/or shear (Vu) are missing. These must come from structural analysis — enter them manually below."}</span>
+            <strong style={{fontSize:13}}>⚠ No beam schedule found in plans</strong><br/>
+            <span style={{color:T.muted}}>The AI could not extract beam dimensions or schedule from the uploaded plans. Enter beam dimensions manually below for a design check, or re-upload plans with the beam schedule visible.</span>
+          </div>
+        )}
+        {sd && sd.beams?.length > 0 && (
+          <div style={{padding:"12px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>✓ {sd.beams.length} beam(s) extracted — NSCP verification available via Run All</strong><br/>
+            <span style={{color:T.muted}}>Beam reinforcement was extracted from plans. Click "Run All" in the intelligence panel to verify against NSCP minimums. The manual calculator below is for additional analysis with factored loads (Mu, Vu) if available.</span>
           </div>
         )}
         <Label>Concrete Strength f'c (MPa) {fp.fc && <FromPlansBadge/>}</Label>
@@ -3147,33 +3153,14 @@ function ColumnDesign({ structuralData, structuralResults }) {
                 </Card>
                 {/* Engineering insights from Run All data */}
                 {colMemberData.length > 0 && colMemberData.map((col,idx)=>(
-                  <div key={idx} style={{padding:"14px 16px",background:col.status==="PASS"?"rgba(34,197,94,0.04)":"rgba(239,68,68,0.04)",border:`1px solid ${col.status==="PASS"?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"}`,borderRadius:10}}>
-                    <div style={{fontSize:11,fontWeight:800,color:col.status==="PASS"?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
-                      {col.status==="PASS" ? `✓ ${col.id} — Engineering Insight` : `⚠ ${col.id} — Why This Column Fails`}
+                  <div key={idx} style={{padding:"14px 16px",background:col.rho>=0.0095&&col.rho<=0.084?"rgba(34,197,94,0.04)":"rgba(239,68,68,0.04)",border:`1px solid ${col.rho>=0.0095&&col.rho<=0.084?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"}`,borderRadius:10}}>
+                    <div style={{fontSize:11,fontWeight:800,color:col.rho>=0.0095&&col.rho<=0.084?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
+                      {col.id} — {col.rho>=0.0095&&col.rho<=0.084?"✓ NSCP Compliant":"⚠ Check Required"}
                     </div>
                     <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
-                      {(() => {
-                        const ins = [];
-                        const rhoP = (col.rho_req*100).toFixed(2);
-                        if (col.rho_req > 0.08) ins.push({type:"fail",text:`Steel ratio ρ = ${rhoP}% exceeds the 8% maximum (NSCP Sec. 410.3.1). The ${col.b}mm × ${col.h}mm section is too small for Pu = ${col.Pu} kN. Increase section size or use higher-strength concrete.`});
-                        else if (col.rho_req < 0.01) ins.push({type:"warn",text:`Steel ratio ρ = ${rhoP}% is below 1% minimum. Use ρ = 1% min. Column is lightly loaded — section may be oversized.`});
-                        else if (col.rho_req > 0.04) ins.push({type:"warn",text:`Steel ratio ρ = ${rhoP}% is high (>4%). Expect rebar congestion. Consider a larger section.`});
-                        else ins.push({type:"pass",text:`Steel ratio ρ = ${rhoP}% is within 1–8% range. Good constructability.`});
-                        if (col.phiPn < col.Pu) {
-                          ins.push({type:"fail",text:`Capacity φPn = ${col.phiPn.toFixed(0)} kN < Pu = ${col.Pu} kN. Column cannot carry this load. Increase section, raise f'c, or add steel.`});
-                          const newSize = Math.max(Math.ceil(Math.sqrt(col.Ast_req/(0.04))*1.1/50)*50, Math.max(col.b,col.h)+50);
-                          ins.push({type:"fix",text:`Suggested fix: Increase column to ${newSize}mm × ${newSize}mm minimum, or upgrade to f'c = 27.6 MPa.`});
-                        } else {
-                          const util = (col.Pu/col.phiPn*100).toFixed(0);
-                          ins.push({type:"pass",text:`Capacity φPn = ${col.phiPn.toFixed(0)} kN > Pu = ${col.Pu} kN. Utilization: ${util}%.`});
-                        }
-                        return ins.map((x,j)=>(
-                          <div key={j} style={{display:"flex",gap:8,marginBottom:j<ins.length-1?6:0}}>
-                            <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:x.type==="fail"?"#ef4444":x.type==="warn"?"#f59e0b":x.type==="fix"?"#0696d7":"#22c55e"}}>{x.type==="fail"?"✗":x.type==="warn"?"⚠":x.type==="fix"?"→":"✓"}</span>
-                            <span>{x.text}</span>
-                          </div>
-                        ));
-                      })()}
+                      <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Section: {col.b}mm × {col.h}mm (Ag = {col.Ag?.toFixed(0)} mm²)</span></div>
+                      <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:col.rho>=0.0095?"#22c55e":"#ef4444"}}>{col.rho>=0.0095?"✓":"✗"}</span><span>ρ = {(col.rho*100).toFixed(2)}% — As = {col.Ast?.toFixed(0)}mm² ({col.mainBarCount}-{col.mainBarDia}mmØ)</span></div>
+                      {col.tieDia && col.tieSpacing && <div style={{display:"flex",gap:8}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#0696d7"}}>ℹ</span><span>Ties: {col.tieDia}mmØ @ {col.tieSpacing}mm</span></div>}
                     </div>
                   </div>
                 ))}
@@ -3203,9 +3190,9 @@ function FootingDesign({ structuralData, structuralResults }) {
   const [fy,setFy]=useState(sd?.materials?.fy??"");
   const [P,setP]=useState(f0?.columnLoad??"");
   const [qa,setQa]=useState(f0?.soilBearing??"");
-  const [Df,setDf]=useState(f0?.depth??"");
+  const [Df,setDf]=useState(f0?.depthOfExcavation??f0?.depth??"");
   const [result,setResult]=useState(null);
-  const [fp,setFp]=useState({fc:!!sd?.materials?.fc,fy:!!sd?.materials?.fy,P:!!f0?.columnLoad,qa:!!f0?.soilBearing,Df:!!f0?.depth});
+  const [fp,setFp]=useState({fc:!!sd?.materials?.fc,fy:!!sd?.materials?.fy,P:!!f0?.columnLoad,qa:!!f0?.soilBearing,Df:!!(f0?.depthOfExcavation||f0?.depth)});
 
   useEffect(()=>{
     if(!sd) return; const f1=sd?.footings?.[0];
@@ -3213,7 +3200,7 @@ function FootingDesign({ structuralData, structuralResults }) {
     if(sd.materials?.fy){setFy(sd.materials.fy);setFp(p=>({...p,fy:true}));}
     if(f1?.columnLoad){setP(f1.columnLoad);setFp(p=>({...p,P:true}));}
     if(f1?.soilBearing){setQa(f1.soilBearing);setFp(p=>({...p,qa:true}));}
-    if(f1?.depth){setDf(f1.depth);setFp(p=>({...p,Df:true}));}
+    if(f1?.depthOfExcavation||f1?.depth){setDf(f1.depthOfExcavation||f1.depth);setFp(p=>({...p,Df:true}));}
   },[sd]);
 
   const calc=()=>{
@@ -3368,26 +3355,12 @@ function FootingDesign({ structuralData, structuralResults }) {
                 {/* Engineering insights from Run All data */}
                 {ftgMemberData.length > 0 && ftgMemberData.map((ft,idx)=>(
                   <div key={idx} style={{padding:"14px 16px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10}}>
-                    <div style={{fontSize:11,fontWeight:800,color:"#22c55e",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ {ft.id} — Engineering Insight</div>
+                    <div style={{fontSize:11,fontWeight:800,color:"#22c55e",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ {ft.id} — Footing Reinforcement</div>
                     <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
-                      {(() => {
-                        const ins = [];
-                        const bearingUtil = (ft.P/(ft.qnet*ft.B*ft.B)*100).toFixed(0);
-                        ins.push({type:"pass",text:`Footing size: ${ft.B.toFixed(2)}m × ${ft.B.toFixed(2)}m, depth d = ${ft.d.toFixed(0)}mm. ${ft.B>3?"Large footing — consider combined/mat foundation.":ft.B<1?"Compact and economical.":"Typical size for this load level."}`});
-                        ins.push({type:+bearingUtil>90?"warn":"pass",text:`Soil bearing utilization: ${bearingUtil}% of net capacity (qnet = ${ft.qnet.toFixed(0)} kPa). ${+bearingUtil>90?"Near capacity — verify with geotech.":"Adequate margin."}`});
-                        ins.push({type:"pass",text:`Reinforcement: As = ${ft.As.toFixed(0)} mm²/m both ways. ${ft.rho_use<=0.0018?"Governed by minimum ρ = 0.18% (shrinkage/temperature).":"Flexure controls — use computed reinforcement."}`});
-                        // Punching shear
-                        const bo = 4*(400 + ft.d);
-                        const Vc_p = (1/3)*Math.sqrt(ft.fc)*bo*ft.d/1e6;
-                        const Vu_p = 1.2*ft.P - ft.qu*(0.4+ft.d/1000)*(0.4+ft.d/1000);
-                        ins.push({type:Vu_p>0.75*Vc_p?"warn":"pass",text:`Punching shear: Vu ≈ ${Vu_p.toFixed(0)} kN ${Vu_p>0.75*Vc_p?">":"<"} φVc ≈ ${(0.75*Vc_p).toFixed(0)} kN. ${Vu_p>0.75*Vc_p?"May need deeper footing.":"Two-way shear OK."}`});
-                        return ins.map((x,j)=>(
-                          <div key={j} style={{display:"flex",gap:8,marginBottom:j<ins.length-1?6:0}}>
-                            <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:x.type==="warn"?"#f59e0b":"#22c55e"}}>{x.type==="warn"?"⚠":"✓"}</span>
-                            <span>{x.text}</span>
-                          </div>
-                        ));
-                      })()}
+                      {ft.thickness && <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Thickness: {ft.thickness}mm</span></div>}
+                      {ft.As_per_m && <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Reinforcement: As = {ft.As_per_m}mm²/m ({ft.botBarDia}mmØ @ {ft.botBarSpacing}mm)</span></div>}
+                      {ft.rho && <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:ft.rho>=0.0016?"#22c55e":"#ef4444"}}>{ft.rho>=0.0016?"✓":"✗"}</span><span>ρ = {(ft.rho*100).toFixed(3)}% {ft.rho>=0.0016?"≥ 0.18% min — OK":"< 0.18% min — Increase reinforcement"}</span></div>}
+                      {ft.soilBearing && <div style={{display:"flex",gap:8}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#0696d7"}}>ℹ</span><span>SBC = {ft.soilBearing} kPa documented</span></div>}
                     </div>
                   </div>
                 ))}
@@ -6966,7 +6939,112 @@ function RebarSchedule({ structuralData, structuralResults }) {
   const [view, setView] = useState("beams"); // beams|columns|footings|slabs
 
   if (!res || !sd) {
+  
+  // ── NEW FORMAT: Show extracted reinforcement from plans ──
+  if (!hasOldFormat && sd) {
+    const allBeams = sd.beams || [];
+    const allCols = sd.columns || [];
+    const allFtgs = sd.footings || [];
+    const allSlabs = sd.slabs || [];
+    const tabs = [
+      { key:"beams", label:"Beams", count:allBeams.length },
+      { key:"columns", label:"Columns", count:allCols.length },
+      { key:"footings", label:"Footings", count:allFtgs.length },
+      { key:"slabs", label:"Slabs", count:allSlabs.length },
+    ];
     return (
+      <div>
+        <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+          {tabs.map(t=>(
+            <button key={t.key} onClick={()=>setView(t.key)}
+              style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${view===t.key?"#0696d7":T.border}`,
+                background:view===t.key?"rgba(6,150,215,0.12)":"transparent",
+                color:view===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
+              {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:"#0696d7",marginBottom:12,padding:"8px 12px",background:"rgba(6,150,215,0.06)",borderRadius:8}}>
+          Reinforcement extracted from plans. NSCP compliance checks are in the individual tool tabs above.
+        </div>
+
+        {view==="beams" && (allBeams.length ? (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {allBeams.map((bm,i)=>(
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{bm.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{bm.width}×{bm.depth}mm {bm.span?`· L=${bm.span}m`:""}</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>BOTTOM BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{bm.botBarCount?`${bm.botBarCount}-${bm.botBarDia}mmØ`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TOP BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{bm.topBarCount?`${bm.topBarCount}-${bm.topBarDia}mmØ`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>STIRRUPS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{bm.stirrupDia?`${bm.stirrupDia}mmØ @ ${bm.stirrupSpacingRest||"?"}mm`:"—"}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No beam data extracted from plans.</div>)}
+
+        {view==="columns" && (allCols.length ? (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {allCols.map((col,i)=>(
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{col.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{col.width}×{col.height}mm · {col.type||"tied"}</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>MAIN BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{col.mainBarCount?`${col.mainBarCount}-${col.mainBarDia}mmØ`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TIES</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{col.tieDia?`${col.tieDia}mmØ @ ${col.tieSpacing||"?"}mm`:"—"}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No column data extracted from plans.</div>)}
+
+        {view==="footings" && (allFtgs.length ? (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {allFtgs.map((ft,i)=>(
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{ft.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{ft.type||"—"} · {ft.thickness?`t=${ft.thickness}mm`:""} {ft.soilBearing?`· SBC=${ft.soilBearing}kPa`:""}</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>BOTTOM BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{ft.botBarDia?`${ft.botBarDia}mmØ @ ${ft.botBarSpacing}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TOP BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{ft.topBarDia?`${ft.topBarDia}mmØ @ ${ft.topBarSpacing}mm`:"—"}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No footing data extracted from plans.</div>)}
+
+        {view==="slabs" && (allSlabs.length ? (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {allSlabs.map((sl,i)=>(
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{sl.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{sl.type||"—"} · t={sl.thickness||"?"}mm {sl.span?`· L=${sl.span}m`:""}</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>MAIN BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{sl.mainBarDia?`${sl.mainBarDia}mmØ @ ${sl.mainBarSpacing}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TEMP BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{sl.tempBarDia?`${sl.tempBarDia}mmØ @ ${sl.tempBarSpacing}mm`:"—"}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No slab data extracted from plans.</div>)}
+
+        <div style={{marginTop:16,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
+          ⚠️ Reinforcement schedule extracted by AI from structural plans. All bar sizes, counts, and spacings must be verified against the original drawings by a licensed PSCE.
+        </div>
+      </div>
+    );
+  }
+
+  return (
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16,textAlign:"center"}}>
         <Icon name="report" size={48} color={T.muted}/>
         <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Computations Yet</div>
@@ -7519,10 +7597,10 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
   const hasData = (key) => {
     if (!structuralData) return false;
     if (key==="seismic") return !!(structuralData.seismic?.zone||structuralData.seismic?.seismicWeight);
-    if (key==="beam")    return !!(structuralData.beams?.length&&structuralData.materials?.fc);
-    if (key==="column")  return !!(structuralData.columns?.length&&structuralData.materials?.fc);
+    if (key==="beam")    return !!(structuralData.beams?.length);
+    if (key==="column")  return !!(structuralData.columns?.length);
     if (key==="footing") return !!(structuralData.footings?.length);
-    if (key==="slab")    return !!(structuralData.slabs?.length&&structuralData.materials?.fc);
+    if (key==="slab")    return !!(structuralData.slabs?.length);
     if (key==="loads")   return !!(structuralData.loads?.floorDL);
     if (key==="rebar")   return !!(structuralResults); // rebar needs computed results
     return false;
