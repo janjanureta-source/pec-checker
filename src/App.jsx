@@ -2539,7 +2539,7 @@ function SeismicCalc({ structuralData }) {
 }
 
 // ─── STRUCTICODE: BEAM DESIGN ────────────────────────────────────────────────
-function BeamDesign({ structuralData }) {
+function BeamDesign({ structuralData, structuralResults }) {
   const sd = structuralData;
   const b0 = sd?.beams?.[0];
   const [fc, setFc] = useState(sd?.materials?.fc ?? "");
@@ -2582,6 +2582,8 @@ function BeamDesign({ structuralData }) {
   const Hint = ({c}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc = [fc,fy,b,d,Mu,Vu].every(v=>v!=="");
 
+  const beamPriorItems = structuralResults?.items?.filter(i=>i.tool==="beam") || [];
+  const beamAnyFail = beamPriorItems.some(i=>i.status==="FAIL");
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
@@ -2634,6 +2636,32 @@ function BeamDesign({ structuralData }) {
             </div>
           ))}
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 — Singly reinforced. Verify bar selection and spacing per Sec. 406.4.</div>
+        </div>
+      ) : beamPriorItems.length > 0 ? (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <Card style={{background:beamAnyFail?"rgba(239,68,68,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${beamAnyFail?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.3)"}`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — BEAM DESIGN RESULT</div>
+            <div style={{fontSize:18,fontWeight:900,color:beamAnyFail?"#ef4444":"#22c55e",marginBottom:8}}>
+              {beamAnyFail?"✗ FAIL — Beam(s) do not satisfy NSCP Sec. 406":"✓ PASS — All beams satisfy NSCP requirements"}
+            </div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Results from last Run All. Enter Mu and Vu then click Calculate for a full detailed check on any member.</div>
+            {beamPriorItems.map((item,idx)=>(
+              <div key={idx} style={{padding:"8px 12px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id}</span>
+                  <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":"#0696d7",padding:"1px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
+                </div>
+                {item.value && <div style={{fontSize:11,color:T.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
+                {item.detail && <div style={{fontSize:11,color:T.muted,marginTop:2,fontFamily:"monospace"}}>{item.detail}</div>}
+                {item.failReason && <div style={{fontSize:11,color:"#ef4444",marginTop:5,padding:"5px 8px",background:"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:"2px solid #ef4444",lineHeight:1.5}}>⚠ Why it failed: {item.failReason}</div>}
+                {item.error && <div style={{fontSize:11,color:item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444",marginTop:5,padding:"5px 8px",background:item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.08)":"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:`2px solid ${item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444"}`,lineHeight:1.5}}>{item.status==="CANNOT VERIFY"?"⚠ Cannot verify: ":"⚠ "}{item.error}</div>}
+              </div>
+            ))}
+          </Card>
+          <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
+            <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>HOW TO DO A DETAILED CHECK</div>
+            <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>1. Enter the beam's Mu (factored moment) and Vu (factored shear) on the left.<br/>2. Verify fc, fy, width b, effective depth d for that member.<br/>3. Click Calculate for full Rn, ρ, As, Vc compliance check.</div>
+          </Card>
         </div>
       ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
@@ -2855,7 +2883,7 @@ function FootingDesign({ structuralData }) {
 }
 
 // ─── STRUCTICODE: SLAB DESIGN ────────────────────────────────────────────────
-function SlabDesign({ structuralData }) {
+function SlabDesign({ structuralData, structuralResults }) {
   const sd=structuralData, s0=sd?.slabs?.[0];
   const [fc,setFc]=useState(sd?.materials?.fc??"");
   const [fy,setFy]=useState(sd?.materials?.fy??"");
@@ -2956,7 +2984,33 @@ function SlabDesign({ structuralData }) {
           ))}
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 409 — Minimum h for deflection control. Bar spacing ≤ 3h or 450mm (Sec. 407.7.5).</div>
         </div>
-      ):(
+      ) : slabPriorItems.length > 0 ? (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <Card style={{background:slabAnyFail?"rgba(239,68,68,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${slabAnyFail?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.3)"}`}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — SLAB DESIGN RESULT</div>
+            <div style={{fontSize:18,fontWeight:900,color:slabAnyFail?"#ef4444":"#22c55e",marginBottom:8}}>
+              {slabAnyFail?"✗ FAIL — Slab(s) do not satisfy NSCP Sec. 409":"✓ PASS — All slabs satisfy NSCP requirements"}
+            </div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Results from last Run All. Fill in spans and loads then click Calculate for a full check.</div>
+            {slabPriorItems.map((item,idx)=>(
+              <div key={idx} style={{padding:"8px 12px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id}</span>
+                  <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":"#0696d7",padding:"1px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
+                </div>
+                {item.value && <div style={{fontSize:11,color:T.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
+                {item.detail && <div style={{fontSize:11,color:T.muted,marginTop:2,fontFamily:"monospace"}}>{item.detail}</div>}
+                {item.failReason && <div style={{fontSize:11,color:"#ef4444",marginTop:5,padding:"5px 8px",background:"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:"2px solid #ef4444",lineHeight:1.5}}>⚠ Why it failed: {item.failReason}</div>}
+                {item.error && <div style={{fontSize:11,color:item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444",marginTop:5,padding:"5px 8px",background:item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.08)":"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:`2px solid ${item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444"}`,lineHeight:1.5}}>{item.status==="CANNOT VERIFY"?"⚠ Cannot verify: ":"⚠ "}{item.error}</div>}
+              </div>
+            ))}
+          </Card>
+          <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
+            <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>HOW TO DO A DETAILED CHECK</div>
+            <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>1. Enter slab spans (S, L) and loads (DL, LL).<br/>2. Verify fc, fy, and slab type.<br/>3. Click Calculate for full thickness, reinforcement, and deflection check.</div>
+          </Card>
+        </div>
+      ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
           <Icon name="slab" size={40} color={T.muted}/>
           <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
@@ -5536,12 +5590,22 @@ function runAllComputations(sd) {
   } catch(e) { results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error:e.message }); }
 
   // ── 2. BEAMS ──
-  const beams = (sd.beams?.length ? sd.beams : [{ id:"B1", span:5.5, width:300, depth:500, Mu:150, Vu:120 }]);
+  const beams = sd.beams?.length ? sd.beams : [];
   results.memberData.beams = [];
+  if (!beams.length) {
+    results.items.push({ tool:"beam", id:"Beams", status:"CANNOT VERIFY",
+      error:"No beam data extracted from plans. Provide beam dimensions and loads to run design checks." });
+  } else {
   beams.forEach(bm => {
     try {
       const b=bm.width||300, d=bm.depth||500, span=bm.span||5.5;
+      const hasMu = !!(bm.Mu), hasVu = !!(bm.Vu);
       const Mu=bm.Mu||150, Vu=bm.Vu||120;
+      if (!hasMu || !hasVu) {
+        results.items.push({ tool:"beam", id:bm.id||"B?", status:"CANNOT VERIFY",
+          error:`Mu and/or Vu not extracted for ${bm.id||"this beam"}. Factored moment and shear are required — enter them manually in Beam Design tab.` });
+        return;
+      }
       const phi_b=0.90, phi_v=0.85;
       const beta1 = fc>=28 ? Math.max(0.65, 0.85-0.05*(fc-28)/7) : 0.85;
       const Rn  = (Mu*1e3)/(phi_b*(b/1000)*(d/1000)*(d/1000)*1e6);
@@ -5551,15 +5615,28 @@ function runAllComputations(sd) {
       const rho_use = Math.max(rho_req, rho_min);
       const As_req  = rho_use*b*d;
       const Vc = (1/6)*Math.sqrt(fc)*b*d/1000;
+      const phiVc = +(Vc*phi_v).toFixed(1);
       const Vs_req = Math.max(0, Vu/phi_v - Vc);
       const status_flex  = rho_req<=rho_max ? "PASS" : "FAIL";
-      const status_shear = Vc*phi_v>=Vu ? "Vc adequate" : "Stirrups required";
-      const overallStatus = (status_flex==="PASS" && status_shear!=="FAIL") ? "PASS" : "FAIL";
-      const memberRec = { id:bm.id||"B?", b, d, span, fc, fy, Mu, Vu, Rn, rho_req, rho_min, rho_max, rho_use, As_req, Vc, Vs_req, status_flex, status_shear, status:overallStatus };
+      const shear_ok = phiVc >= Vu;
+      const status_shear = shear_ok ? "Vc adequate (no stirrups by calc)" : "Stirrups required";
+      const overallStatus = (status_flex==="PASS") ? "PASS" : "FAIL";
+      // Build rich failure reason
+      const failReasons = [];
+      if (status_flex==="FAIL") failReasons.push(`Over-reinforced: ρ_req=${(rho_req*100).toFixed(3)}% > ρ_max=${(rho_max*100).toFixed(3)}% (NSCP Sec. 406.3.3)`);
+      if (!shear_ok) failReasons.push(`Shear demand Vu=${Vu}kN > φVc=${phiVc}kN — stirrups required (NSCP Sec. 406.6)`);
+      const memberRec = { id:bm.id||"B?", b, d, span, fc, fy, Mu, Vu, Rn:+Rn.toFixed(3), rho_req:+rho_req.toFixed(5), rho_min:+rho_min.toFixed(5), rho_max:+rho_max.toFixed(5), rho_use:+rho_use.toFixed(5), As_req:+As_req.toFixed(0), Vc:+Vc.toFixed(1), phiVc, Vs_req:+Vs_req.toFixed(1), status_flex, status_shear, status:overallStatus };
       results.memberData.beams.push(memberRec);
-      results.items.push({ tool:"beam", id:bm.id||"B?", value:`As=${As_req.toFixed(0)}mm²`, detail:`Flex:${status_flex} Shear:${status_shear}`, status:overallStatus, memberRec });
+      results.items.push({
+        tool:"beam", id:bm.id||"B?",
+        value:`b=${b}mm d=${d}mm | Mu=${Mu}kN·m Vu=${Vu}kN`,
+        detail:`As_req=${As_req.toFixed(0)}mm² | ρ=${(rho_use*100).toFixed(3)}% (max ${(rho_max*100).toFixed(3)}%) | φVc=${phiVc}kN`,
+        failReason: failReasons.length ? failReasons.join("; ") : null,
+        status:overallStatus, memberRec
+      });
     } catch(e) { results.items.push({ tool:"beam", id:bm.id||"B?", status:"ERROR", error:e.message }); }
   });
+  }
 
   // ── 3. COLUMNS ──
   const cols = (sd.columns?.length ? sd.columns : [{ id:"C1", width:400, height:400, Pu:1500, Mu:80, type:"tied" }]);
@@ -5604,11 +5681,22 @@ function runAllComputations(sd) {
   });
 
   // ── 5. SLABS ──
-  const slabs = (sd.slabs?.length ? sd.slabs : [{ id:"S1", span:4.0, type:"one-way", DL:3.0, LL:2.4 }]);
+  const slabs = sd.slabs?.length ? sd.slabs : [];
   results.memberData.slabs = [];
+  if (!slabs.length) {
+    results.items.push({ tool:"slab", id:"Slabs", status:"CANNOT VERIFY",
+      error:"No slab data extracted from plans. Enter slab span and loads manually in Slab Design tab to run thickness and reinforcement checks." });
+  } else {
   slabs.forEach(sl => {
     try {
-      const L=sl.span||4.0, wDL=sl.DL||sd.loads?.floorDL||3.0, wLL=sl.LL||sd.loads?.floorLL||2.4;
+      const L=sl.span||4.0;
+      const wDL=sl.DL||sd.loads?.floorDL||0;
+      const wLL=sl.LL||sd.loads?.floorLL||0;
+      if (!wDL || !wLL) {
+        results.items.push({ tool:"slab", id:sl.id||"S?", status:"CANNOT VERIFY",
+          error:`DL and/or LL not found for ${sl.id||"slab"}. Enter loads manually in Slab Design tab.` });
+        return;
+      }
       const wu=1.2*wDL+1.6*wLL;
       const h_min=L*1000/20;
       const h=Math.max(Math.ceil(h_min/10)*10,100);
@@ -5616,13 +5704,26 @@ function runAllComputations(sd) {
       const Mu=wu*L*L/8;
       const Rn=(Mu*1e6)/(0.90*1000*d*d);
       const rho=(0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
-      const rho_use=Math.max(rho,0.0018);
+      const rho_min=0.0018;
+      const rho_use=Math.max(rho,rho_min);
       const As=rho_use*1000*d;
-      const memberRec = { id:sl.id||"S?", L, wDL, wLL, fc, fy, wu, h, d, Mu, rho_use, As, status:"PASS" };
+      // Check if thickness satisfies deflection limit (NSCP Sec. 409)
+      const h_provided = sl.thickness || h;
+      const thick_ok = h_provided >= h_min;
+      const status = thick_ok ? "PASS" : "FAIL";
+      const failReason = !thick_ok ? `Slab thickness ${h_provided}mm < required minimum h_min=${h_min.toFixed(0)}mm per NSCP Sec. 409.3 (L/20 for simply supported)` : null;
+      const memberRec = { id:sl.id||"S?", L, wDL, wLL, fc, fy, wu, h_min:+h_min.toFixed(0), h_provided, h, d, Mu:+Mu.toFixed(2), rho_use:+rho_use.toFixed(5), As:+As.toFixed(0), status };
       results.memberData.slabs.push(memberRec);
-      results.items.push({ tool:"slab", id:sl.id||"S?", value:`h=${h}mm As=${As.toFixed(0)}mm²/m`, detail:`wu=${wu.toFixed(2)}kPa Mu=${Mu.toFixed(1)}kN·m/m`, status:"PASS", memberRec });
+      results.items.push({
+        tool:"slab", id:sl.id||"S?",
+        value:`h_min=${h_min.toFixed(0)}mm | As=${As.toFixed(0)}mm²/m`,
+        detail:`wu=${wu.toFixed(2)}kPa | Mu=${Mu.toFixed(1)}kN·m/m | ρ=${(rho_use*100).toFixed(4)}%`,
+        failReason,
+        status, memberRec
+      });
     } catch(e) { results.items.push({ tool:"slab", id:sl.id||"S?", status:"ERROR", error:e.message }); }
   });
+  }
 
   // ── 6. LOAD COMBINATIONS ──
   try {
@@ -5795,6 +5896,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
               {label:`${structuralResults.summary.pass} PASS`,   color:"#22c55e", bg:"rgba(34,197,94,0.1)"},
               {label:`${structuralResults.summary.fail} FAIL`,   color:"#ef4444", bg:"rgba(239,68,68,0.1)"},
               {label:`${structuralResults.summary.computed} COMPUTED`, color:"#0696d7", bg:"rgba(6,150,215,0.1)"},
+              ...(structuralResults.summary.unverifiable > 0 ? [{label:`${structuralResults.summary.unverifiable} NO DATA`, color:"#f59e0b", bg:"rgba(245,158,11,0.1)"}] : []),
             ].map(s=>(
               <span key={s.label} style={{fontSize:11,fontWeight:700,color:s.color,background:s.bg,padding:"3px 10px",borderRadius:6}}>{s.label}</span>
             ))}
@@ -6932,10 +7034,10 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
               </div>
 
               {subTool==="seismic" && <SeismicCalc   structuralData={structuralData}/>}
-              {subTool==="beam"    && <BeamDesign     structuralData={structuralData}/>}
+              {subTool==="beam"    && <BeamDesign     structuralData={structuralData} structuralResults={structuralResults}/>}
               {subTool==="column"  && <ColumnDesign   structuralData={structuralData}/>}
               {subTool==="footing" && <FootingDesign  structuralData={structuralData}/>}
-              {subTool==="slab"    && <SlabDesign     structuralData={structuralData}/>}
+              {subTool==="slab"    && <SlabDesign     structuralData={structuralData} structuralResults={structuralResults}/>}
               {subTool==="loads"   && <LoadCombinations structuralData={structuralData}/>}
               {subTool==="rebar"   && <RebarSchedule  structuralData={structuralData} structuralResults={structuralResults}/>}
             </div>
