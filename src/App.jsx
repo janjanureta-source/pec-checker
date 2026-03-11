@@ -6380,6 +6380,7 @@ function runAllComputations(sd) {
     total:    results.items.length,
     pass:     results.items.filter(i => i.status === "PASS").length,
     fail:     results.items.filter(i => i.status === "FAIL").length,
+    computed: results.items.filter(i => i.status === "COMPUTED").length,
     incomplete: results.items.filter(i => i.status === "INCOMPLETE").length,
     noData:   results.items.filter(i => i.status === "NO DATA").length,
   };
@@ -6670,6 +6671,7 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
   const md  = results.memberData || {};
 
   const exportFullReport = () => {
+    if (!results || !results.items || !results.summary) return;
     const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
 
     // ── member rows
