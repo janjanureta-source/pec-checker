@@ -2473,6 +2473,12 @@ function SeismicCalc({ structuralData }) {
             💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill these parameters, or enter values manually below.
           </div>
         )}
+        {sd && !sd.seismic?.seismicWeight && !sd.seismic?.zone && (
+          <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>⚠ Unverifiable — No seismic data found in plans</strong><br/>
+            <span style={{color:T.muted}}>The AI could not extract seismic parameters (zone, weight, period, soil type) from the uploaded structural plans. This is common when plans don't include a seismic analysis sheet. Enter values manually below to run the computation, or re-upload plans that include seismic design data.</span>
+          </div>
+        )}
         <Label>Seismic Zone (NSCP 2015 Sec. 208.4) {fp.zone && <FromPlansBadge/>}</Label>
         <Select value={zone} onChange={e=>setZone(e.target.value)} style={{marginBottom:4}}>
           <option value="">— Select zone —</option>
@@ -2595,6 +2601,12 @@ function BeamDesign({ structuralData, structuralResults }) {
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
         {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill beam dimensions.</div>}
+        {sd && (!sd.beams?.length || !sd.beams?.[0]?.Mu) && (
+          <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>⚠ Unverifiable — {!sd.beams?.length ? "No beam data found in plans" : "Incomplete beam data (missing Mu/Vu)"}</strong><br/>
+            <span style={{color:T.muted}}>{!sd.beams?.length ? "The AI could not extract beam dimensions or schedule from the uploaded plans. Enter beam dimensions (b, d) and factored loads (Mu, Vu) manually below." : "Beam dimensions were extracted, but factored moment (Mu) and/or shear (Vu) are missing. These must come from structural analysis — enter them manually below."}</span>
+          </div>
+        )}
         <Label>Concrete Strength f'c (MPa) {fp.fc && <FromPlansBadge/>}</Label>
         <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:4}}>
           <option value="">— Select grade —</option>
@@ -2723,6 +2735,12 @@ function ColumnDesign({ structuralData }) {
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
         {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill column schedule data.</div>}
+        {sd && !sd.columns?.length && (
+          <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>⚠ Unverifiable — No column data found in plans</strong><br/>
+            <span style={{color:T.muted}}>The AI could not extract column dimensions or schedule from the uploaded plans. Enter column dimensions (b, h) and factored axial load (Pu) manually below to run the design check.</span>
+          </div>
+        )}
         <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
         <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
           <option value="">— Select grade —</option>
@@ -2829,6 +2847,12 @@ function FootingDesign({ structuralData }) {
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
         {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill footing data.</div>}
+        {sd && !sd.footings?.length && (
+          <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>⚠ Unverifiable — No footing data found in plans</strong><br/>
+            <span style={{color:T.muted}}>The AI could not extract footing dimensions or soil bearing capacity from the uploaded plans. Enter column service load (P), allowable bearing (qa), and foundation depth (Df) manually below.</span>
+          </div>
+        )}
         <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
         <Select value={fc} onChange={e=>setFc(+e.target.value)} style={{marginBottom:16}}>
           <option value="">— Select grade —</option>
@@ -2941,6 +2965,12 @@ function SlabDesign({ structuralData, structuralResults }) {
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
         {!sd && <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>💡 Upload structural plans in <strong>AI Plan Checker</strong> to auto-fill slab data.</div>}
+        {sd && !sd.slabs?.length && (
+          <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>⚠ Unverifiable — No slab data found in plans</strong><br/>
+            <span style={{color:T.muted}}>The AI could not extract slab dimensions or loading data from the uploaded plans. Enter slab type, span, thickness, and loads manually below to run the design check.</span>
+          </div>
+        )}
         <Label>Slab Type</Label>
         <Select value={slabType} onChange={e=>setSlabType(e.target.value)} style={{marginBottom:4}}>
           <option value="one-way">One-Way Slab (L/S &gt; 2)</option>
@@ -3080,6 +3110,12 @@ function LoadCombinations({ structuralData }) {
         {!sd && (
           <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.6}}>
             💡 Upload plans in <strong>AI Plan Checker</strong> to auto-fill D and L, or run <strong>Seismic Load</strong> first to get E.
+          </div>
+        )}
+        {sd && !sd.loads?.floorDL && !sd.loads?.floorLL && (
+          <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+            <strong style={{fontSize:13}}>⚠ Unverifiable — No load data found in plans</strong><br/>
+            <span style={{color:T.muted}}>The AI could not extract dead load (DL) or live load (LL) values from the uploaded plans. Enter load values manually below to compute NSCP load combinations.</span>
           </div>
         )}
         <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:12,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 203 — Factored Load Combinations (LRFD)</div>
@@ -5598,7 +5634,7 @@ function runAllComputations(sd) {
     const V    = Math.max(Vmin, Math.min(Sa*I*W/R, Vmax));
     results.seismic = { zone, soil, occ, W, V:+V.toFixed(1), Cs:+(V/W*100).toFixed(2), Ca, Cv, I, R, status:"COMPUTED" };
     results.items.push({ tool:"seismic", id:"Seismic Base Shear", value:`V = ${V.toFixed(1)} kN`, Cs:`${(V/W*100).toFixed(2)}%`, status:"COMPUTED" });
-  } catch(e) { results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error:e.message }); }
+  } catch(e) { if (!results.items.some(i=>i.tool==="seismic"&&i.status==="CANNOT VERIFY")) results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error:e.message }); }
 
   // ── 2. BEAMS ──
   const beams = sd.beams?.length ? sd.beams : [];
@@ -5754,14 +5790,15 @@ function runAllComputations(sd) {
     const maxCombo=combos.reduce((a,b)=>a.val>b.val?a:b);
     results.loadCombos=combos;
     results.items.push({ tool:"loads", id:"Load Combinations", value:`Max: ${maxCombo.name}`, detail:`${maxCombo.val} kN/m²`, status:"COMPUTED" });
-  } catch(e) { results.items.push({ tool:"loads", id:"Load Combinations", status:"ERROR", error:e.message }); }
+  } catch(e) { if (!results.items.some(i=>i.tool==="loads"&&i.status==="CANNOT VERIFY")) results.items.push({ tool:"loads", id:"Load Combinations", status:"ERROR", error:e.message }); }
 
   results.summary = {
-    total:    results.items.length,
-    pass:     results.items.filter(i=>i.status==="PASS").length,
-    fail:     results.items.filter(i=>i.status==="FAIL").length,
-    computed: results.items.filter(i=>i.status==="COMPUTED").length,
-    error:    results.items.filter(i=>i.status==="ERROR").length,
+    total:        results.items.length,
+    pass:         results.items.filter(i=>i.status==="PASS").length,
+    fail:         results.items.filter(i=>i.status==="FAIL").length,
+    computed:     results.items.filter(i=>i.status==="COMPUTED").length,
+    error:        results.items.filter(i=>i.status==="ERROR").length,
+    unverifiable: results.items.filter(i=>i.status==="CANNOT VERIFY").length,
   };
   return results;
 }
@@ -5789,6 +5826,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
     { key:"footing", label:"Footing",       ok: !!(ftgs.length),                              detail: ftgs.length ? `${ftgs.length} member(s)` : "" },
     { key:"slab",    label:"Slab",          ok: !!(slbs.length),                              detail: slbs.length ? `${slbs.length} member(s)` : "" },
     { key:"loads",   label:"Load Combos",   ok: !!(lds.floorDL && lds.floorLL),               detail: lds.floorDL ? `DL=${lds.floorDL}` : "" },
+    { key:"rebar",   label:"Rebar Sched",   ok: false, isRebar: true,                         detail: "" },
   ];
 
   const readyCount = readiness.filter(r=>r.ok).length;
@@ -5870,29 +5908,34 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
         </div>
 
         {/* ── Computation readiness checklist ── */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,marginTop:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginTop:12}}>
           {readiness.map(r => {
             const computed = getItemStatus(r.key);
+            // Rebar schedule: available only after Run All
+            const isRebarReady = r.isRebar && structuralResults;
+            const rebarHasData = r.isRebar && structuralResults?.items?.length > 0;
+            const effectiveOk = r.isRebar ? isRebarReady : r.ok;
+            const effectiveComputed = r.isRebar ? (rebarHasData ? "computed" : null) : computed;
             return (
               <button key={r.key} onClick={()=>onNavigate&&onNavigate(r.key)}
                 style={{padding:"7px 8px",borderRadius:8,cursor:"pointer",textAlign:"center",border:"none",
-                  background: computed ? (computed==="fail"?"rgba(239,68,68,0.08)":"rgba(34,197,94,0.08)") : r.ok ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                  background: effectiveComputed ? (effectiveComputed==="fail"?"rgba(239,68,68,0.08)":effectiveComputed==="unverifiable"?"rgba(245,158,11,0.08)":"rgba(34,197,94,0.08)") : effectiveOk ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
                   transition:"all 0.15s"}}>
                 <div style={{fontSize:14,fontWeight:900,marginBottom:2,
-                  color: computed ? statusColor[computed] : r.ok ? "#0696d7" : T.muted}}>
-                  {computed ? statusIcon[computed] : r.ok ? "●" : "○"}
+                  color: effectiveComputed ? statusColor[effectiveComputed] : effectiveOk ? "#0696d7" : T.muted}}>
+                  {effectiveComputed ? statusIcon[effectiveComputed] : effectiveOk ? "●" : "○"}
                 </div>
-                <div style={{fontSize:10,fontWeight:700,color:computed?statusColor[computed]:r.ok?T.text:T.muted,lineHeight:1.2}}>{r.label}</div>
-                {computed && (
-                  <div style={{fontSize:9,color:statusColor[computed],fontWeight:700,marginTop:1,textTransform:"uppercase"}}>
-                    {computed}
+                <div style={{fontSize:10,fontWeight:700,color:effectiveComputed?statusColor[effectiveComputed]:effectiveOk?T.text:T.muted,lineHeight:1.2}}>{r.label}</div>
+                {effectiveComputed && (
+                  <div style={{fontSize:9,color:statusColor[effectiveComputed],fontWeight:700,marginTop:1,textTransform:"uppercase"}}>
+                    {effectiveComputed}
                   </div>
                 )}
-                {!computed && r.ok && r.detail && (
+                {!effectiveComputed && effectiveOk && r.detail && (
                   <div style={{fontSize:9,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.detail}</div>
                 )}
-                {!computed && !r.ok && (
-                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>no data</div>
+                {!effectiveComputed && !effectiveOk && (
+                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>{r.isRebar ? "run all first" : "no data"}</div>
                 )}
               </button>
             );
@@ -6031,8 +6074,8 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 function StructuralComputationSummary({ results, data, onNavigate }) {
   if (!results) return null;
 
-  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", COMPUTED:"#0696d7", ERROR:"#f59e0b" };
-  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)" };
+  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", COMPUTED:"#0696d7", ERROR:"#f59e0b", "CANNOT VERIFY":"#f59e0b" };
+  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)", "CANNOT VERIFY":"rgba(245,158,11,0.1)" };
   const toolLabel   = { seismic:"Seismic", beam:"Beam", column:"Column", footing:"Footing", slab:"Slab", loads:"Load Combos" };
 
   const fc  = data?.materials?.fc || "—";
@@ -6888,15 +6931,18 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     const items = getResult(toolKey);
     const hasDat = hasData(toolKey);
     if (items && items.length > 0) {
+      const anyUnverifiable = items.some(i=>i.status==="CANNOT VERIFY");
       const allPass  = items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
       const anyFail  = items.some(i=>i.status==="FAIL");
+      // Priority: FAIL > UNVERIFIABLE > PASS
+      const bg    = anyFail ? "rgba(239,68,68,0.12)" : anyUnverifiable ? "rgba(245,158,11,0.12)" : allPass ? "rgba(34,197,94,0.12)" : "rgba(6,150,215,0.12)";
+      const color = anyFail ? "#ef4444" : anyUnverifiable ? "#f59e0b" : allPass ? "#22c55e" : "#0696d7";
+      const border= anyFail ? "rgba(239,68,68,0.25)" : anyUnverifiable ? "rgba(245,158,11,0.25)" : allPass ? "rgba(34,197,94,0.25)" : "rgba(6,150,215,0.25)";
+      const label = anyFail ? "✗ FAIL" : anyUnverifiable ? "? NO DATA" : allPass ? "✓" : "✓";
       return (
         <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,
-          background: anyFail?"rgba(239,68,68,0.12)":allPass?"rgba(34,197,94,0.12)":"rgba(6,150,215,0.12)",
-          color:      anyFail?"#ef4444":allPass?"#22c55e":"#0696d7",
-          border:`1px solid ${anyFail?"rgba(239,68,68,0.25)":allPass?"rgba(34,197,94,0.25)":"rgba(6,150,215,0.25)"}`
-        }}>
-          {anyFail?"✗ FAIL":allPass?"✓ PASS":"✓"}
+          background:bg, color:color, border:`1px solid ${border}`}}>
+          {label}
         </span>
       );
     }
