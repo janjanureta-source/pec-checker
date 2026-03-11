@@ -5511,9 +5511,15 @@ function runAllComputations(sd) {
     const zone = sd.seismic?.zone || "Zone 4";
     const soil = sd.seismic?.soilTypeLabel || "SD - Stiff Soil";
     const occ  = sd.seismic?.occupancyCategory || "I - Standard";
-    const W    = sd.seismic?.seismicWeight || 5000;
+    const W    = sd.seismic?.seismicWeight || 0;
     const Tper = sd.seismic?.naturalPeriod || 0.3;
     const R    = sd.seismic?.responseFactor || 8.5;
+    // If seismic weight was not extracted from plans, flag as CANNOT VERIFY
+    if (!sd.seismic?.seismicWeight || W <= 0) {
+      results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"CANNOT VERIFY",
+        error:"Seismic weight (W) not found in plans. Provide building weight to compute base shear." });
+      throw new Error("missing seismicWeight");
+    }
     const Zv   = PH_SEISMIC_ZONES[zone]?.Z || 0.4;
     const soilKey = Object.keys(SOIL_TYPES).find(k=>k.startsWith(soil.split(" ")[0])) || "SD - Stiff Soil";
     const {Fa, Fv} = SOIL_TYPES[soilKey] || {Fa:1.2,Fv:1.7};
@@ -5620,6 +5626,11 @@ function runAllComputations(sd) {
 
   // ── 6. LOAD COMBINATIONS ──
   try {
+    if (!sd.loads?.floorDL || !sd.loads?.floorLL) {
+      results.items.push({ tool:"loads", id:"Load Combinations", status:"CANNOT VERIFY",
+        error:"Dead load (DL) and/or Live load (LL) not found in extracted plan data. Provide loads to compute combinations." });
+      throw new Error("missing loads");
+    }
     const flDL=sd.loads?.floorDL||3.0, flLL=sd.loads?.floorLL||2.4;
     const D=flDL*50, L=flLL*50, E=results.seismic?.V||60;
     const combos=[
@@ -5664,7 +5675,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
     { key:"beam",    label:"Beam",          ok: !!(beams.length && mat.fc),                   detail: beams.length ? `${beams.length} member(s)` : "" },
     { key:"column",  label:"Column",        ok: !!(cols.length && mat.fc),                    detail: cols.length ? `${cols.length} member(s)` : "" },
     { key:"footing", label:"Footing",       ok: !!(ftgs.length),                              detail: ftgs.length ? `${ftgs.length} member(s)` : "" },
-    { key:"slab",    label:"Slab",          ok: !!(slbs.length || (lds.floorDL && mat.fc)),   detail: slbs.length ? `${slbs.length} member(s)` : "" },
+    { key:"slab",    label:"Slab",          ok: !!(slbs.length),                              detail: slbs.length ? `${slbs.length} member(s)` : "" },
     { key:"loads",   label:"Load Combos",   ok: !!(lds.floorDL && lds.floorLL),               detail: lds.floorDL ? `DL=${lds.floorDL}` : "" },
   ];
 
@@ -5675,12 +5686,13 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
     if (!structuralResults) return null;
     const items = structuralResults.items.filter(i=>i.tool===key);
     if (!items.length) return null;
+    if (items.some(i=>i.status==="CANNOT VERIFY")) return "unverifiable";
     return items.every(i=>i.status==="PASS"||i.status==="COMPUTED") ? "pass"
          : items.some(i=>i.status==="FAIL") ? "fail" : "computed";
   };
 
-  const statusColor = { pass:"#22c55e", fail:"#ef4444", computed:"#0696d7" };
-  const statusIcon  = { pass:"✓", fail:"✗", computed:"✓" };
+  const statusColor = { pass:"#22c55e", fail:"#ef4444", computed:"#0696d7", unverifiable:"#f59e0b" };
+  const statusIcon  = { pass:"✓", fail:"✗", computed:"✓", unverifiable:"?" };
 
   // Inline field editor (only shown when expanded)
   const Field = ({label, value, path, type="number", fp=false}) => {
