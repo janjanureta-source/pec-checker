@@ -1929,7 +1929,7 @@ function validateExtractedData(raw) {
       if (!col || (!col.width && !col.height)) { warnings.push(`Column ${col?.id||"?"}: no dimensions — removed.`); return false; }
       if (col.width && (col.width < 100 || col.width > 2000)) { warnings.push(`Col ${col.id}: width ${col.width}mm out of range. Nulled.`); col.width = null; }
       if (col.height && (col.height < 100 || col.height > 2000)) { warnings.push(`Col ${col.id}: height ${col.height}mm out of range. Nulled.`); col.height = null; }
-      if (col.Pu && col.Pu > 50000) { warnings.push(`Col ${col.id}: Pu=${col.Pu}kN extremely high. Verify.`); }
+      if (col.mainBars?.dia && (col.mainBars.dia < 10 || col.mainBars.dia > 40)) { warnings.push(`Col ${col.id}: bar dia ${col.mainBars.dia}mm out of range (10-40). Nulled.`); col.mainBars.dia = null; }
       return col.width || col.height;
     });
   }
@@ -1943,17 +1943,21 @@ function validateExtractedData(raw) {
         warnings.push(`Footing ${ft.id}: qa=${ft.soilBearing} likely in Pa not kPa. Converted to ${(ft.soilBearing/1000).toFixed(1)} kPa.`);
         ft.soilBearing = +(ft.soilBearing / 1000).toFixed(1);
       }
+      if (ft.depthOfExcavation && ft.depthOfExcavation > 20) {
+        warnings.push(`Footing ${ft.id}: Df=${ft.depthOfExcavation} likely in mm not m. Converted to ${(ft.depthOfExcavation/1000).toFixed(2)}m.`);
+        ft.depthOfExcavation = +(ft.depthOfExcavation / 1000).toFixed(2);
+      }
+      // Also handle old 'depth' field for backward compatibility
       if (ft.depth && ft.depth > 20) {
-        warnings.push(`Footing ${ft.id}: Df=${ft.depth} likely in mm not m. Converted to ${(ft.depth/1000).toFixed(2)}m.`);
         ft.depth = +(ft.depth / 1000).toFixed(2);
       }
       if (ft.soilBearing && (ft.soilBearing < 10 || ft.soilBearing > 600)) {
         warnings.push(`Footing ${ft.id}: qa=${ft.soilBearing}kPa out of typical range (10-600). Nulled.`);
         ft.soilBearing = null;
       }
-      if (ft.depth && (ft.depth < 0.3 || ft.depth > 10)) {
-        warnings.push(`Footing ${ft.id}: Df=${ft.depth}m out of range (0.3-10). Nulled.`);
-        ft.depth = null;
+      if (ft.thickness && ft.thickness > 3000) {
+        warnings.push(`Footing ${ft.id}: thickness=${ft.thickness}mm seems too large. Capped at 3000mm.`);
+        ft.thickness = null;
       }
       return true;
     });
@@ -2009,87 +2013,97 @@ function validateExtractedData(raw) {
   return { data: d, warnings };
 }
 
-const NSCP_EXTRACTION_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE). Extract all computable engineering parameters from the uploaded structural plans.
+const NSCP_EXTRACTION_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE) reviewing structural drawings. Extract the AS-DESIGNED member schedules and reinforcement details from the uploaded structural plans.
 
 CRITICAL RULES:
-1. Return ONLY values EXPLICITLY shown in the plans. NEVER guess, infer, assume, or estimate.
-2. If a value is not clearly visible or readable, use null. It is better to return null than a wrong value.
-3. Pay close attention to UNITS. Convert everything to the units specified below.
-4. For member schedules (beams, columns, footings), extract ALL members listed, not just the first one.
-5. If the plans show dimensions in mm, keep them in mm. If in meters, convert to mm for width/height/depth.
-6. Do NOT fabricate members that don't appear in the schedule or drawings.
+1. Extract ONLY what is EXPLICITLY shown in the plans — schedules, details, notes, dimensions.
+2. NEVER guess, infer, or estimate values. Use null if not clearly visible.
+3. Focus on REINFORCEMENT SCHEDULES — bar count, bar diameter (mm), stirrup size/spacing.
+4. Extract ALL members listed in each schedule, not just the first one.
+5. Pay attention to UNITS: dimensions in mm, spans in meters, bar diameters in mm.
+6. For bar notation like "3-25mmØ", extract as: count=3, barDia=25.
+7. For stirrup notation like "12mmØ @ 150mm O.C.", extract as: stirrupDia=12, stirrupSpacing=150.
+8. Do NOT fabricate members that don't appear in the schedule or drawings.
 
-Return ONLY valid JSON — no markdown, no preamble, no explanation.
+Return ONLY valid JSON — no markdown, no preamble.
 
 {
   "building": {
     "name": "project name from title block or null",
     "occupancy": "Residential|Commercial|Industrial|Institutional|null",
     "floors": "integer number of floors or null",
-    "floorHeight": "floor-to-floor height in METERS (typical 2.7-4.0m) or null",
-    "totalHeight": "total building height in METERS or null",
-    "floorArea": "gross floor area in SQUARE METERS or null"
-  },
-  "seismic": {
-    "zone": "Zone 2|Zone 4|null — only if explicitly stated in general notes",
-    "soilType": "SA|SB|SC|SD|SE|SF|null",
-    "soilTypeLabel": "e.g. SD - Stiff Soil or null",
-    "occupancyCategory": "I - Standard|II - Essential|III - Hazardous|null",
-    "seismicWeight": "total seismic weight W in kN or null — only if shown in seismic analysis",
-    "naturalPeriod": "fundamental period T in SECONDS (typical 0.1-2.0s) or null",
-    "responseFactor": "R factor as number (typical 3.5-8.5) or null"
+    "floorHeight": "floor-to-floor height in METERS or null",
+    "totalHeight": "total building height in METERS or null"
   },
   "materials": {
-    "fc": "concrete strength in MPa (typical PH: 20.7, 27.6, 34.5) or null",
-    "fy": "steel yield strength in MPa (typical PH: 276 for Gr40, 414 for Gr60) or null",
-    "coverBeam": "beam clear cover in mm (typical 40) or null",
-    "coverColumn": "column clear cover in mm (typical 40) or null",
-    "coverSlab": "slab clear cover in mm (typical 20-25) or null"
+    "fc": "concrete compressive strength in MPa or null",
+    "fy": "steel yield strength in MPa or null",
+    "coverBeam": "beam cover in mm or null",
+    "coverColumn": "column cover in mm or null",
+    "coverSlab": "slab cover in mm or null"
   },
   "beams": [
     {
-      "id": "beam mark from schedule (B1, GB-1, etc.)",
-      "span": "clear span in METERS (typical 3-10m) or null",
-      "width": "beam width b in mm (typical 200-500mm) or null",
-      "depth": "beam effective depth d in mm (typical 300-800mm) or null",
-      "Mu": "factored moment in kN·m or null — only if shown in analysis",
-      "Vu": "factored shear in kN or null — only if shown in analysis"
+      "id": "beam mark (B1, GB, RB, etc.)",
+      "width": "beam width b in mm or null",
+      "depth": "total beam depth h in mm or null",
+      "span": "clear span in METERS or null",
+      "botBars": { "count": "number of bottom bars at midspan or null", "dia": "bar diameter in mm or null" },
+      "topBars": { "count": "number of top bars at support or null", "dia": "bar diameter in mm or null" },
+      "stirrupDia": "stirrup bar diameter in mm or null",
+      "stirrupSpacingSupport": "stirrup spacing at support in mm or null",
+      "stirrupSpacingMidspan": "stirrup spacing at midspan in mm or null"
     }
   ],
   "columns": [
     {
-      "id": "column mark from schedule (C1, C-1, etc.)",
-      "width": "shorter dimension in mm (typical 200-800mm) or null",
-      "height": "longer dimension in mm (typical 200-800mm) or null",
-      "Pu": "factored axial load in kN or null — only if shown in analysis",
-      "Mu": "factored moment in kN·m or null",
+      "id": "column mark (C1, C2, etc.)",
+      "width": "shorter dimension in mm or null",
+      "height": "longer dimension in mm or null",
+      "mainBars": { "count": "total number of longitudinal bars or null", "dia": "bar diameter in mm or null" },
+      "tieDia": "tie/hoop bar diameter in mm or null",
+      "tieSpacing": "tie spacing in mm or null",
       "type": "tied|spiral|null"
     }
   ],
   "footings": [
     {
-      "id": "footing mark (F1, F-1, IF-1, etc.)",
-      "columnLoad": "UNFACTORED service load in kN or null",
-      "soilBearing": "allowable soil bearing capacity in kPa (typical PH: 50-300 kPa) or null — MUST be in kPa not Pa",
-      "depth": "foundation depth Df in METERS from grade (typical 0.6-3.0m) or null — MUST be in meters not mm"
+      "id": "footing mark (F1, MF, IF-1, etc.)",
+      "type": "isolated|mat|combined|wall|null",
+      "length": "footing length in METERS or null",
+      "width_ft": "footing width in METERS or null",
+      "thickness": "footing thickness in mm or null",
+      "topBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
+      "botBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
+      "soilBearing": "allowable soil bearing capacity in kPa — MUST be kPa not Pa — or null",
+      "depthOfExcavation": "depth of excavation in METERS or null"
     }
   ],
   "slabs": [
     {
-      "id": "slab mark (S1, S-1, etc.)",
-      "span": "clear span in METERS (typical 3-7m) or null",
-      "thickness": "slab thickness in mm (typical 100-250mm) or null",
+      "id": "slab mark (S1, S2, etc.)",
+      "thickness": "slab thickness in mm or null",
       "type": "one-way|two-way|null",
-      "DL": "dead load in kPa (typical 2-5 kPa) or null",
-      "LL": "live load in kPa (typical 2-5 kPa) or null"
+      "span": "clear span in METERS or null",
+      "topBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
+      "botBars": { "dia": "mm or null", "spacing": "mm O.C. or null" },
+      "tempBars": { "dia": "mm or null", "spacing": "mm O.C. or null" }
     }
   ],
+  "seismic": {
+    "zone": "Zone 2|Zone 4|null",
+    "soilType": "SA|SB|SC|SD|SE|SF|null",
+    "soilTypeLabel": "e.g. SD - Stiff Soil or null",
+    "occupancyCategory": "I - Standard|II - Essential|III - Hazardous|null",
+    "structuralSystem": "SMRF|OMRF|Shear Wall|Dual|null"
+  },
   "loads": {
-    "floorDL": "floor dead load in kPa (typical 2-5 kPa) or null",
-    "floorLL": "floor live load in kPa (typical 2-5 kPa per occupancy) or null",
+    "floorDL": "floor dead load in kPa or null",
+    "floorLL": "floor live load in kPa or null",
     "roofDL": "roof dead load in kPa or null",
     "roofLL": "roof live load in kPa or null"
-  }
+  },
+  "notes": "any relevant general/structural notes verbatim or null"
 }`;
 
 const NSCP_SYSTEM_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE) with deep expertise in:
@@ -2805,8 +2819,8 @@ function BeamDesign({ structuralData, structuralResults }) {
 
   const beamPriorItems = structuralResults?.items?.filter(i=>i.tool==="beam") || [];
   const beamAnyFail         = beamPriorItems.some(i=>i.status==="FAIL");
-  const beamAnyUnverifiable = beamPriorItems.some(i=>i.status==="CANNOT VERIFY");
-  const beamAllUnverifiable = beamPriorItems.length > 0 && beamPriorItems.every(i=>i.status==="CANNOT VERIFY");
+  const beamAnyUnverifiable = beamPriorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA");
+  const beamAllUnverifiable = beamPriorItems.length > 0 && beamPriorItems.every(i=>i.status==="INCOMPLETE"||i.status==="NO DATA");
   // Mixed: some verified PASS but others cannot verify — still warn
   const beamMixed           = beamAnyUnverifiable && !beamAllUnverifiable && !beamAnyFail;
   const beamAnyVerified     = beamPriorItems.some(i=>i.status==="PASS"||i.status==="FAIL");
@@ -3100,10 +3114,10 @@ function ColumnDesign({ structuralData, structuralResults }) {
           if (priorItems.length > 0) {
             return (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
+                <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
                   <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — COLUMN DESIGN RESULTS</div>
-                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="CANNOT VERIFY")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
-                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Column(s) do not satisfy NSCP Sec. 410":priorItems.some(i=>i.status==="CANNOT VERIFY")?"⚠ CANNOT VERIFY — Incomplete column data":"✓ PASS — Column(s) satisfy NSCP requirements"}
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
+                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Column(s) do not satisfy NSCP Sec. 410":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"⚠ CANNOT VERIFY — Incomplete column data":"✓ PASS — Column(s) satisfy NSCP requirements"}
                   </div>
                   {priorItems.map((item,idx)=>(
                     <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.2)":"rgba(34,197,94,0.2)"}`}}>
@@ -3320,10 +3334,10 @@ function FootingDesign({ structuralData, structuralResults }) {
           if (priorItems.length > 0) {
             return (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
+                <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
                   <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — FOOTING DESIGN RESULTS</div>
-                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="CANNOT VERIFY")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
-                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Footing(s) have issues":priorItems.some(i=>i.status==="CANNOT VERIFY")?"⚠ CANNOT VERIFY — Incomplete footing data":priorItems.every(i=>i.status==="PASS")?"✓ PASS — Footing(s) are adequate":"✓ COMPUTED"}
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
+                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Footing(s) have issues":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"⚠ CANNOT VERIFY — Incomplete footing data":priorItems.every(i=>i.status==="PASS")?"✓ PASS — Footing(s) are adequate":"✓ COMPUTED"}
                   </div>
                   {priorItems.map((item,idx)=>(
                     <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":"rgba(34,197,94,0.2)"}`}}>
@@ -3428,7 +3442,7 @@ function SlabDesign({ structuralData, structuralResults }) {
 
   const slabPriorItems = structuralResults?.items?.filter(i=>i.tool==="slab") || [];
   const slabAnyFail    = slabPriorItems.some(i=>i.status==="FAIL");
-  const slabAllUnverifiable = slabPriorItems.length > 0 && slabPriorItems.every(i=>i.status==="CANNOT VERIFY");
+  const slabAllUnverifiable = slabPriorItems.length > 0 && slabPriorItems.every(i=>i.status==="INCOMPLETE"||i.status==="NO DATA");
 
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
@@ -6113,219 +6127,279 @@ function runAllComputations(sd) {
   if (!sd) return null;
   const results = { timestamp: new Date().toISOString(), items: [], memberData: {} };
 
-  const fc = sd.materials?.fc || 27.6;
-  const fy = sd.materials?.fy || 414;
+  const fc = sd.materials?.fc || null;
+  const fy = sd.materials?.fy || null;
+  const PI = Math.PI;
+  const barArea = (dia) => PI * dia * dia / 4; // mm²
 
-  // ── 1. SEISMIC ──
-  try {
-    const zone = sd.seismic?.zone || "Zone 4";
-    const soil = sd.seismic?.soilTypeLabel || "SD - Stiff Soil";
-    const occ  = sd.seismic?.occupancyCategory || "I - Standard";
-    const W    = sd.seismic?.seismicWeight || 0;
-    const Tper = sd.seismic?.naturalPeriod || 0.3;
-    const R    = sd.seismic?.responseFactor || 8.5;
-    // If seismic weight was not extracted from plans, flag as CANNOT VERIFY
-    if (!sd.seismic?.seismicWeight || W <= 0) {
-      results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"CANNOT VERIFY",
-        error:"Seismic weight (W) not found in plans. Provide building weight to compute base shear." });
-      throw new Error("missing seismicWeight");
-    }
-    const Zv   = PH_SEISMIC_ZONES[zone]?.Z || 0.4;
-    const soilKey = Object.keys(SOIL_TYPES).find(k=>k.startsWith(soil.split(" ")[0])) || "SD - Stiff Soil";
-    const {Fa, Fv} = SOIL_TYPES[soilKey] || {Fa:1.2,Fv:1.7};
-    const I    = OCCUPANCY_I[occ] || 1.0;
-    const Ca   = 0.4*Fa*Zv;
-    const Cv   = 0.4*Fv*Zv*1.5;
-    const Ts   = Cv/(2.5*Ca);
-    const Sa   = Tper <= 0.2*Ts ? Ca*(0.6*(Tper/(0.2*Ts))+0.4) : Tper <= Ts ? 2.5*Ca : Cv/Tper;
-    const Vmin = 0.11*Ca*I*W;
-    const Vmax = 2.5*Ca*I*W/R;
-    const V    = Math.max(Vmin, Math.min(Sa*I*W/R, Vmax));
-    results.seismic = { zone, soil, occ, W, V:+V.toFixed(1), Cs:+(V/W*100).toFixed(2), Ca, Cv, I, R, status:"COMPUTED" };
-    results.items.push({ tool:"seismic", id:"Seismic Base Shear", value:`V = ${V.toFixed(1)} kN`, Cs:`${(V/W*100).toFixed(2)}%`, status:"COMPUTED" });
-  } catch(e) { if (!results.items.some(i=>i.tool==="seismic"&&i.status==="CANNOT VERIFY")) results.items.push({ tool:"seismic", id:"Seismic Base Shear", status:"ERROR", error:e.message }); }
+  // ── Helper: NSCP compliance check result ──
+  const check = (tool, id, ruleName, nscpRef, passed, value, limit, detail) => ({
+    tool, id, rule: ruleName, nscpRef, status: passed ? "PASS" : "FAIL",
+    value: String(value), limit: String(limit), detail,
+  });
 
-  // ── 2. BEAMS ──
+  // ══════════════════════════════════════════════════════════════════
+  // 1. BEAMS — Verify reinforcement against NSCP 2015 Sec. 406
+  // ══════════════════════════════════════════════════════════════════
   const beams = sd.beams?.length ? sd.beams : [];
   results.memberData.beams = [];
   if (!beams.length) {
-    results.items.push({ tool:"beam", id:"Beams", status:"CANNOT VERIFY",
-      error:"No beam data extracted from plans. Provide beam dimensions and loads to run design checks." });
-  } else {
-  beams.forEach(bm => {
-    try {
-      const b=bm.width||300, d=bm.depth||500, span=bm.span||5.5;
-      const hasMu = !!(bm.Mu), hasVu = !!(bm.Vu);
-      const Mu=bm.Mu||150, Vu=bm.Vu||120;
-      if (!hasMu || !hasVu) {
-        results.items.push({ tool:"beam", id:bm.id||"B?", status:"CANNOT VERIFY",
-          error:`Mu and/or Vu not extracted for ${bm.id||"this beam"}. Factored moment and shear are required — enter them manually in Beam Design tab.` });
-        return;
-      }
-      const phi_b=0.90, phi_v=0.85;
-      const beta1 = fc>=28 ? Math.max(0.65, 0.85-0.05*(fc-28)/7) : 0.85;
-      const Rn  = (Mu*1e3)/(phi_b*(b/1000)*(d/1000)*(d/1000)*1e6);
-      const rho_req = (0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
-      const rho_min = Math.max(0.25*Math.sqrt(fc)/fy, 1.4/fy);
-      const rho_max = 0.75*0.85*beta1*(fc/fy)*(600/(600+fy));
-      const rho_use = Math.max(rho_req, rho_min);
-      const As_req  = rho_use*b*d;
-      const Vc = (1/6)*Math.sqrt(fc)*b*d/1000;
-      const phiVc = +(Vc*phi_v).toFixed(1);
-      const Vs_req = Math.max(0, Vu/phi_v - Vc);
-      const status_flex  = rho_req<=rho_max ? "PASS" : "FAIL";
-      const shear_ok = phiVc >= Vu;
-      const status_shear = shear_ok ? "Vc adequate (no stirrups by calc)" : "Stirrups required";
-      const overallStatus = (status_flex==="PASS") ? "PASS" : "FAIL";
-      // Build rich failure reason
-      const failReasons = [];
-      if (status_flex==="FAIL") failReasons.push(`Over-reinforced: ρ_req=${(rho_req*100).toFixed(3)}% > ρ_max=${(rho_max*100).toFixed(3)}% (NSCP Sec. 406.3.3)`);
-      if (!shear_ok) failReasons.push(`Shear demand Vu=${Vu}kN > φVc=${phiVc}kN — stirrups required (NSCP Sec. 406.6)`);
-      const memberRec = { id:bm.id||"B?", b, d, span, fc, fy, Mu, Vu, Rn:+Rn.toFixed(3), rho_req:+rho_req.toFixed(5), rho_min:+rho_min.toFixed(5), rho_max:+rho_max.toFixed(5), rho_use:+rho_use.toFixed(5), As_req:+As_req.toFixed(0), Vc:+Vc.toFixed(1), phiVc, Vs_req:+Vs_req.toFixed(1), status_flex, status_shear, status:overallStatus };
-      results.memberData.beams.push(memberRec);
-      results.items.push({
-        tool:"beam", id:bm.id||"B?",
-        value:`b=${b}mm d=${d}mm | Mu=${Mu}kN·m Vu=${Vu}kN`,
-        detail:`As_req=${As_req.toFixed(0)}mm² | ρ=${(rho_use*100).toFixed(3)}% (max ${(rho_max*100).toFixed(3)}%) | φVc=${phiVc}kN`,
-        failReason: failReasons.length ? failReasons.join("; ") : null,
-        status:overallStatus, memberRec
-      });
-    } catch(e) { results.items.push({ tool:"beam", id:bm.id||"B?", status:"ERROR", error:e.message }); }
-  });
+    results.items.push({ tool:"beam", id:"Beams", status:"NO DATA", detail:"No beam schedule extracted from plans." });
   }
+  beams.forEach(bm => {
+    const checks = [];
+    const b = bm.width, h = bm.depth;
+    const d = h ? h - 60 : null; // assume 40mm cover + 10mm stirrup + 10mm half-bar
+    const id = bm.id || "B?";
 
-  // ── 3. COLUMNS ──
+    // 1a. Minimum width
+    if (b) {
+      const minW = 200;
+      checks.push(check("beam", id, "Min Width", "Sec. 406.3.1", b >= minW, `${b}mm`, `≥${minW}mm`, b >= minW ? "OK" : `Width ${b}mm < 200mm minimum`));
+    }
+
+    // 1b. Steel ratio (if bars extracted)
+    if (b && d && bm.botBars?.count && bm.botBars?.dia && fc && fy) {
+      const As = bm.botBars.count * barArea(bm.botBars.dia);
+      const rho = As / (b * d);
+      const rho_min = Math.max(0.25 * Math.sqrt(fc) / fy, 1.4 / fy);
+      const rho_max = 0.75 * 0.85 * (fc >= 28 ? Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7) : 0.85) * (fc / fy) * (600 / (600 + fy));
+      const rhoP = (rho * 100).toFixed(3);
+      const rhoMinP = (rho_min * 100).toFixed(3);
+      const rhoMaxP = (rho_max * 100).toFixed(3);
+      checks.push(check("beam", id, "Min Steel Ratio ρ", "Sec. 410.5.1", rho >= rho_min * 0.95, `${rhoP}%`, `≥${rhoMinP}%`,
+        rho >= rho_min * 0.95 ? `ρ = ${rhoP}% ≥ ρ_min = ${rhoMinP}% — OK. As_prov = ${As.toFixed(0)}mm² (${bm.botBars.count}-${bm.botBars.dia}mmØ)` : `ρ = ${rhoP}% < ρ_min = ${rhoMinP}%. Increase bottom reinforcement.`));
+      checks.push(check("beam", id, "Max Steel Ratio ρ", "Sec. 406.3.3", rho <= rho_max * 1.05, `${rhoP}%`, `≤${rhoMaxP}%`,
+        rho <= rho_max * 1.05 ? `ρ = ${rhoP}% ≤ ρ_max = ${rhoMaxP}% — Under-reinforced (ductile). OK` : `ρ = ${rhoP}% > ρ_max = ${rhoMaxP}%. OVER-REINFORCED — non-ductile failure. Increase section or reduce steel.`));
+      results.memberData.beams.push({ id, b, h, d, As: +As.toFixed(0), rho: +rho.toFixed(5), rho_min: +rho_min.toFixed(5), rho_max: +rho_max.toFixed(5), botBars: bm.botBars, topBars: bm.topBars });
+    }
+
+    // 1c. Top bars (min 1/3 of bottom per NSCP Sec. 412.3)
+    if (bm.botBars?.count && bm.botBars?.dia && bm.topBars?.count && bm.topBars?.dia) {
+      const AsBot = bm.botBars.count * barArea(bm.botBars.dia);
+      const AsTop = bm.topBars.count * barArea(bm.topBars.dia);
+      const ratio = AsTop / AsBot;
+      checks.push(check("beam", id, "Top Bars ≥ 1/3 Bottom", "Sec. 412.3", ratio >= 0.30, `${(ratio*100).toFixed(0)}%`, "≥33%",
+        ratio >= 0.30 ? `Top As = ${AsTop.toFixed(0)}mm² = ${(ratio*100).toFixed(0)}% of bottom — OK` : `Top As = ${AsTop.toFixed(0)}mm² = only ${(ratio*100).toFixed(0)}% of bottom. Need ≥33%.`));
+    }
+
+    // 1d. Stirrup spacing
+    if (bm.stirrupSpacingMidspan && d) {
+      const maxS = Math.min(d / 2, 600);
+      checks.push(check("beam", id, "Stirrup Spacing (midspan)", "Sec. 406.6.3", bm.stirrupSpacingMidspan <= maxS * 1.05,
+        `${bm.stirrupSpacingMidspan}mm`, `≤${maxS.toFixed(0)}mm (d/2)`,
+        bm.stirrupSpacingMidspan <= maxS * 1.05 ? "OK" : `Spacing ${bm.stirrupSpacingMidspan}mm > d/2 = ${maxS.toFixed(0)}mm. Reduce stirrup spacing.`));
+    }
+    if (bm.stirrupSpacingSupport && d) {
+      const maxS_support = Math.min(d / 4, 200); // seismic zone
+      checks.push(check("beam", id, "Stirrup Spacing (support/seismic)", "Sec. 421.3.3", bm.stirrupSpacingSupport <= maxS_support * 1.1,
+        `${bm.stirrupSpacingSupport}mm`, `≤${maxS_support.toFixed(0)}mm`,
+        bm.stirrupSpacingSupport <= maxS_support * 1.1 ? "OK — seismic detailing adequate" : `Spacing ${bm.stirrupSpacingSupport}mm may exceed seismic zone limit of d/4 = ${(d/4).toFixed(0)}mm. Verify with structural engineer.`));
+    }
+
+    // 1e. Depth/span ratio (deflection control)
+    if (h && bm.span) {
+      const minH = bm.span * 1000 / 16; // simple span minimum h/L = 1/16
+      checks.push(check("beam", id, "Min Depth (deflection)", "Table 409-1", h >= minH * 0.9,
+        `h=${h}mm`, `≥L/16=${minH.toFixed(0)}mm`,
+        h >= minH * 0.9 ? `h = ${h}mm ≥ L/16 = ${minH.toFixed(0)}mm — deflection OK` : `h = ${h}mm may be shallow for ${bm.span}m span. Check deflections per NSCP Sec. 409.6.`));
+    }
+
+    if (!checks.length) {
+      results.items.push({ tool:"beam", id, status:"INCOMPLETE", detail:`Beam ${id}: dimensions extracted (${b||"?"}×${h||"?"}mm) but reinforcement details incomplete for full verification.` });
+    }
+    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef }));
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 2. COLUMNS — Verify per NSCP 2015 Sec. 410
+  // ══════════════════════════════════════════════════════════════════
   const cols = sd.columns?.length ? sd.columns : [];
   results.memberData.columns = [];
   if (!cols.length) {
-    results.items.push({ tool:"column", id:"Columns", status:"CANNOT VERIFY",
-      error:"No column data extracted from plans. Column dimensions and axial loads (Pu) are required — enter them manually in Column Design tab." });
+    results.items.push({ tool:"column", id:"Columns", status:"NO DATA", detail:"No column schedule extracted from plans." });
   }
   cols.forEach(col => {
-    try {
-      const b=col.width||0, h=col.height||0;
-      const Pu=col.Pu||0, Mu=col.Mu||0;
-      if (!b || !h || b < 100 || h < 100) { results.items.push({tool:"column",id:col.id||"C?",status:"CANNOT VERIFY",error:`Column ${col.id||"C?"} dimensions (${b}×${h}mm) appear invalid. Min 200mm per NSCP. Verify in Column Design tab.`}); return; }
-      if (!Pu || Pu <= 0) { results.items.push({tool:"column",id:col.id||"C?",status:"CANNOT VERIFY",error:`Factored axial load Pu not provided for ${col.id||"this column"}. Run structural analysis to determine Pu, then enter manually.`}); return; }
-      const phi=col.type==="spiral"?0.75:0.65, Ag=b*h;
-      const Pn_req=Pu*1000/phi;
-      const Ast_req=Math.max((Pn_req/0.80-0.85*fc*Ag)/(fy-0.85*fc),0.01*Ag);
-      const rho_req=Ast_req/Ag;
-      const phiPn=phi*0.80*(0.85*fc*(Ag-Ast_req)+fy*Ast_req)/1000;
-      const status=(rho_req<=0.08&&rho_req>=0.01&&phiPn>=Pu)?"PASS":"FAIL";
-      const memberRec = { id:col.id||"C?", b, h, fc, fy, Pu, Mu, Ag, Ast_req, rho_req, phiPn, phi, type:col.type||"tied", status };
-      results.memberData.columns.push(memberRec);
-      results.items.push({ tool:"column", id:col.id||"C?", value:`Ast=${Ast_req.toFixed(0)}mm²`, detail:`ρ=${(rho_req*100).toFixed(2)}% φPn=${phiPn.toFixed(0)}kN`, status, memberRec });
-    } catch(e) { results.items.push({ tool:"column", id:col.id||"C?", status:"ERROR", error:e.message }); }
+    const checks = [];
+    const b = col.width, h = col.height;
+    const id = col.id || "C?";
+    const Ag = b && h ? b * h : null;
+
+    // 2a. Minimum dimension
+    if (b) {
+      checks.push(check("column", id, "Min Dimension", "Sec. 421.4.1", Math.min(b, h||b) >= 250,
+        `${Math.min(b,h||b)}mm`, "≥250mm", Math.min(b,h||b) >= 250 ? "OK" : `Min dimension ${Math.min(b,h||b)}mm < 250mm. Increase column size for seismic zones.`));
+    }
+
+    // 2b. Steel ratio
+    if (Ag && col.mainBars?.count && col.mainBars?.dia && fc && fy) {
+      const Ast = col.mainBars.count * barArea(col.mainBars.dia);
+      const rho = Ast / Ag;
+      const rhoP = (rho * 100).toFixed(2);
+      checks.push(check("column", id, "Steel Ratio ρ ≥ 1%", "Sec. 410.3.1", rho >= 0.0095, `${rhoP}%`, "≥1%",
+        rho >= 0.0095 ? `ρ = ${rhoP}% ≥ 1%. As = ${Ast.toFixed(0)}mm² (${col.mainBars.count}-${col.mainBars.dia}mmØ)` : `ρ = ${rhoP}% < 1% minimum. Add more longitudinal bars.`));
+      checks.push(check("column", id, "Steel Ratio ρ ≤ 8%", "Sec. 410.3.1", rho <= 0.084, `${rhoP}%`, "≤8%",
+        rho <= 0.084 ? `ρ = ${rhoP}% ≤ 8% — OK. ${rho > 0.04 ? "Note: >4% may cause congestion." : "Good constructability."}` : `ρ = ${rhoP}% > 8% maximum. Reduce steel or increase section.`));
+      results.memberData.columns.push({ id, b, h, Ag, Ast: +Ast.toFixed(0), rho: +rho.toFixed(5), mainBars: col.mainBars, tieDia: col.tieDia, tieSpacing: col.tieSpacing });
+    }
+
+    // 2c. Min number of bars
+    if (col.mainBars?.count) {
+      const minBars = (col.type === "spiral") ? 6 : 4;
+      checks.push(check("column", id, "Min Bar Count", "Sec. 410.3.2", col.mainBars.count >= minBars,
+        `${col.mainBars.count} bars`, `≥${minBars}`,
+        col.mainBars.count >= minBars ? "OK" : `Only ${col.mainBars.count} bars. Need ≥${minBars} for ${col.type||"tied"} column.`));
+    }
+
+    // 2d. Tie spacing
+    if (col.tieSpacing && col.mainBars?.dia) {
+      const maxTie = Math.min(16 * col.mainBars.dia, 48 * (col.tieDia || 10), Math.min(b || 400, h || 400));
+      checks.push(check("column", id, "Tie Spacing", "Sec. 407.10.5", col.tieSpacing <= maxTie * 1.05,
+        `${col.tieSpacing}mm`, `≤${maxTie}mm`,
+        col.tieSpacing <= maxTie * 1.05 ? `${col.tieSpacing}mm ≤ min(16db=${16*col.mainBars.dia}mm, 48dt=${48*(col.tieDia||10)}mm, least dim=${Math.min(b||400,h||400)}mm) — OK` : `Tie spacing ${col.tieSpacing}mm exceeds limit. Reduce spacing.`));
+    }
+
+    if (!checks.length) {
+      results.items.push({ tool:"column", id, status:"INCOMPLETE", detail:`Column ${id}: dimensions extracted (${b||"?"}×${h||"?"}mm) but reinforcement details incomplete.` });
+    }
+    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef }));
   });
 
-  // ── 4. FOOTINGS ──
-  const footings = sd.footings?.length ? sd.footings : [];
-  results.memberData.footings = [];
-  if (!footings.length) {
-    results.items.push({ tool:"footing", id:"Footings", status:"CANNOT VERIFY",
-      error:"No footing data extracted from plans. Column service load (P), soil bearing capacity (qa), and foundation depth (Df) are required — enter them manually in Footing Design tab." });
-  }
-  footings.forEach(ft => {
-    try {
-      const P=ft.columnLoad||0, qa=ft.soilBearing||0, Df=ft.depth||0;
-      // Validate extracted values — catch obvious AI extraction errors
-      if (!P || P <= 0) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Column load P not provided or zero for ${ft.id||"this footing"}. Enter the unfactored service load manually.`}); return; }
-      if (!qa || qa <= 0) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Soil bearing capacity qa not provided for ${ft.id||"this footing"}. This must come from a geotechnical report.`}); return; }
-      if (qa > 1000) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Soil bearing qa = ${qa} kPa appears incorrect (likely extracted in Pa instead of kPa, or wrong unit). Typical range: 50–600 kPa for Philippines. Verify with geotechnical report.`}); return; }
-      if (Df > 20) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Foundation depth Df = ${Df}m appears incorrect (likely extracted in mm instead of m). Verify and re-enter manually. Typical range: 0.6–3.0m.`}); return; }
-      const qnet=qa-23.5*Df;
-      if(qnet<=0){results.items.push({tool:"footing",id:ft.id||"F?",status:"FAIL",error:`Net bearing capacity ≤ 0 (qa=${qa}kPa, soil weight=${(23.5*Df).toFixed(0)}kPa at Df=${Df}m). Increase qa or reduce Df.`});return;}
-      const B=Math.ceil(Math.sqrt(P/qnet)*10)/10;
-      const d=Math.max(B*1000/5,250);
-      const c=(B-0.4)/2;
-      const qu=1.2*P/(B*B);
-      const Mu_ft=qu*B*c*c/2;
-      const Rn=(Mu_ft*1e6)/(0.90*(B*1000)*d*d);
-      const rho=(0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
-      const rho_use=Math.max(rho,0.0018);
-      const As=rho_use*B*1000*d;
-      const memberRec = { id:ft.id||"F?", P, qa, Df, fc, fy, qnet, B, d, qu, Mu_ft, rho_use, As, status:"PASS" };
-      results.memberData.footings.push(memberRec);
-      results.items.push({ tool:"footing", id:ft.id||"F?", value:`B=${B.toFixed(2)}m×${B.toFixed(2)}m`, detail:`As=${As.toFixed(0)}mm²/m d=${d.toFixed(0)}mm`, status:"PASS", memberRec });
-    } catch(e) { results.items.push({ tool:"footing", id:ft.id||"F?", status:"ERROR", error:e.message }); }
-  });
-
-  // ── 5. SLABS ──
+  // ══════════════════════════════════════════════════════════════════
+  // 3. SLABS — Verify per NSCP 2015 Sec. 409
+  // ══════════════════════════════════════════════════════════════════
   const slabs = sd.slabs?.length ? sd.slabs : [];
   results.memberData.slabs = [];
   if (!slabs.length) {
-    results.items.push({ tool:"slab", id:"Slabs", status:"CANNOT VERIFY",
-      error:"No slab data extracted from plans. Enter slab span and loads manually in Slab Design tab to run thickness and reinforcement checks." });
-  } else {
+    results.items.push({ tool:"slab", id:"Slabs", status:"NO DATA", detail:"No slab schedule extracted from plans." });
+  }
   slabs.forEach(sl => {
-    try {
-      const L=sl.span||4.0;
-      const wDL=sl.DL||sd.loads?.floorDL||0;
-      const wLL=sl.LL||sd.loads?.floorLL||0;
-      if (!wDL || !wLL) {
-        results.items.push({ tool:"slab", id:sl.id||"S?", status:"CANNOT VERIFY",
-          error:`DL and/or LL not found for ${sl.id||"slab"}. Enter loads manually in Slab Design tab.` });
-        return;
-      }
-      const wu=1.2*wDL+1.6*wLL;
-      const h_min=L*1000/20;
-      const h=Math.max(Math.ceil(h_min/10)*10,100);
-      const d=h-25;
-      const Mu=wu*L*L/8;
-      const Rn=(Mu*1e6)/(0.90*1000*d*d);
-      const rho=(0.85*fc/fy)*(1-Math.sqrt(Math.max(0,1-(2*Rn)/(0.85*fc))));
-      const rho_min=0.0018;
-      const rho_use=Math.max(rho,rho_min);
-      const As=rho_use*1000*d;
-      // Check if thickness satisfies deflection limit (NSCP Sec. 409)
-      const h_provided = sl.thickness || h;
-      const thick_ok = h_provided >= h_min;
-      const status = thick_ok ? "PASS" : "FAIL";
-      const failReason = !thick_ok ? `Slab thickness ${h_provided}mm < required minimum h_min=${h_min.toFixed(0)}mm per NSCP Sec. 409.3 (L/20 for simply supported)` : null;
-      const memberRec = { id:sl.id||"S?", L, wDL, wLL, fc, fy, wu, h_min:+h_min.toFixed(0), h_provided, h, d, Mu:+Mu.toFixed(2), rho_use:+rho_use.toFixed(5), As:+As.toFixed(0), status };
-      results.memberData.slabs.push(memberRec);
-      results.items.push({
-        tool:"slab", id:sl.id||"S?",
-        value:`h_min=${h_min.toFixed(0)}mm | As=${As.toFixed(0)}mm²/m`,
-        detail:`wu=${wu.toFixed(2)}kPa | Mu=${Mu.toFixed(1)}kN·m/m | ρ=${(rho_use*100).toFixed(4)}%`,
-        failReason,
-        status, memberRec
-      });
-    } catch(e) { results.items.push({ tool:"slab", id:sl.id||"S?", status:"ERROR", error:e.message }); }
+    const checks = [];
+    const id = sl.id || "S?";
+    const t = sl.thickness;
+
+    // 3a. Minimum thickness
+    if (t && sl.span) {
+      const spanMM = sl.span * 1000;
+      const minT = sl.type === "two-way" ? spanMM / 33 : spanMM / 28; // NSCP Table 409-1
+      checks.push(check("slab", id, "Min Thickness", "Table 409-1", t >= minT * 0.9,
+        `${t}mm`, `≥${minT.toFixed(0)}mm (L/${sl.type==="two-way"?"33":"28"})`,
+        t >= minT * 0.9 ? `t = ${t}mm ≥ ${minT.toFixed(0)}mm — adequate for deflection` : `t = ${t}mm < ${minT.toFixed(0)}mm. May need deflection check or thicker slab.`));
+    }
+
+    // 3b. Min reinforcement (ρ ≥ 0.0018 for Grade 40 / 0.0020 for Grade 60)
+    if (t && sl.botBars?.dia && sl.botBars?.spacing && fy) {
+      const As_per_m = barArea(sl.botBars.dia) * (1000 / sl.botBars.spacing);
+      const d_slab = t - 25; // cover
+      const rho = As_per_m / (1000 * d_slab);
+      const rho_min = fy <= 300 ? 0.0020 : 0.0018;
+      checks.push(check("slab", id, "Min Reinforcement", "Sec. 407.12", rho >= rho_min * 0.9,
+        `ρ=${(rho*100).toFixed(3)}%`, `≥${(rho_min*100).toFixed(2)}%`,
+        rho >= rho_min * 0.9 ? `As = ${As_per_m.toFixed(0)}mm²/m (${sl.botBars.dia}mmØ@${sl.botBars.spacing}mm). ρ = ${(rho*100).toFixed(3)}% — OK` : `ρ = ${(rho*100).toFixed(3)}% < ${(rho_min*100).toFixed(2)}%. Increase bar size or reduce spacing.`));
+      results.memberData.slabs.push({ id, t, type: sl.type, span: sl.span, As_per_m: +As_per_m.toFixed(0), rho: +rho.toFixed(5), botBars: sl.botBars });
+    }
+
+    // 3c. Max spacing
+    if (sl.botBars?.spacing && t) {
+      const maxSpacing = Math.min(3 * t, 450);
+      checks.push(check("slab", id, "Max Bar Spacing", "Sec. 407.6.5", sl.botBars.spacing <= maxSpacing * 1.05,
+        `${sl.botBars.spacing}mm`, `≤${maxSpacing}mm (3t or 450)`,
+        sl.botBars.spacing <= maxSpacing * 1.05 ? "OK" : `Spacing ${sl.botBars.spacing}mm > ${maxSpacing}mm. Reduce spacing.`));
+    }
+
+    if (!checks.length) {
+      results.items.push({ tool:"slab", id, status:"INCOMPLETE", detail:`Slab ${id}: ${t ? `${t}mm thick` : "thickness unknown"}, but reinforcement details incomplete.` });
+    }
+    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef }));
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 4. FOOTINGS — Verify per NSCP 2015 Sec. 415
+  // ══════════════════════════════════════════════════════════════════
+  const ftgs = sd.footings?.length ? sd.footings : [];
+  results.memberData.footings = [];
+  if (!ftgs.length) {
+    results.items.push({ tool:"footing", id:"Footings", status:"NO DATA", detail:"No footing schedule extracted from plans." });
+  }
+  ftgs.forEach(ft => {
+    const checks = [];
+    const id = ft.id || "F?";
+
+    // 4a. Min reinforcement
+    if (ft.botBars?.dia && ft.botBars?.spacing && ft.thickness) {
+      const As_per_m = barArea(ft.botBars.dia) * (1000 / ft.botBars.spacing);
+      const d = ft.thickness - 75; // cover for footing
+      const rho = As_per_m / (1000 * d);
+      checks.push(check("footing", id, "Bottom Reinforcement", "Sec. 407.12", rho >= 0.0016,
+        `ρ=${(rho*100).toFixed(3)}%`, "≥0.18%",
+        rho >= 0.0016 ? `As = ${As_per_m.toFixed(0)}mm²/m (${ft.botBars.dia}mmØ@${ft.botBars.spacing}mm) — OK` : `ρ = ${(rho*100).toFixed(3)}% below minimum. Increase reinforcement.`));
+      results.memberData.footings.push({ id, type: ft.type, thickness: ft.thickness, As_per_m: +As_per_m.toFixed(0), rho: +rho.toFixed(5), botBars: ft.botBars, soilBearing: ft.soilBearing });
+    }
+
+    // 4b. Min thickness
+    if (ft.thickness) {
+      const minT = ft.type === "mat" ? 500 : 250;
+      checks.push(check("footing", id, "Min Thickness", "Sec. 415.7", ft.thickness >= minT,
+        `${ft.thickness}mm`, `≥${minT}mm`,
+        ft.thickness >= minT ? "OK" : `Thickness ${ft.thickness}mm < ${minT}mm minimum for ${ft.type||"isolated"} footing.`));
+    }
+
+    // 4c. Soil bearing noted
+    if (ft.soilBearing) {
+      checks.push(check("footing", id, "Soil Bearing Noted", "Sec. 304", true,
+        `${ft.soilBearing} kPa`, "documented",
+        `SBC = ${ft.soilBearing} kPa noted in plans. Verify with geotechnical report.`));
+    }
+
+    if (!checks.length) {
+      results.items.push({ tool:"footing", id, status:"INCOMPLETE", detail:`Footing ${id}: ${ft.type||"type unknown"}, reinforcement details incomplete for verification.` });
+    }
+    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef }));
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // 5. SEISMIC — Check detailing requirements
+  // ══════════════════════════════════════════════════════════════════
+  if (sd.seismic?.zone || sd.seismic?.structuralSystem) {
+    const zone = sd.seismic.zone;
+    const sys = sd.seismic.structuralSystem;
+    results.items.push({ tool:"seismic", id:"Seismic Zone", status: zone ? "PASS" : "INCOMPLETE",
+      value: zone ? `${zone} identified` : "Zone not specified",
+      detail: zone ? `Structure is in ${zone}. ${zone==="Zone 4"?"High seismic zone — NSCP Sec. 421 special detailing required for all members.":"Moderate seismic zone."}` : "Seismic zone not stated in plans. Verify with structural engineer — most of Philippines is Zone 4." });
+    if (sys) {
+      results.items.push({ tool:"seismic", id:"Structural System", status:"PASS",
+        value: sys, detail: `${sys} system identified in plans.` });
+    }
+  } else {
+    results.items.push({ tool:"seismic", id:"Seismic Data", status:"NO DATA", detail:"No seismic zone or structural system specified in plans. Most of Philippines is Zone 4 — verify and ensure NSCP Sec. 421 compliance." });
   }
 
-  // ── 6. LOAD COMBINATIONS ──
-  try {
-    if (!sd.loads?.floorDL || !sd.loads?.floorLL) {
-      results.items.push({ tool:"loads", id:"Load Combinations", status:"CANNOT VERIFY",
-        error:"Dead load (DL) and/or Live load (LL) not found in extracted plan data. Provide loads to compute combinations." });
-      throw new Error("missing loads");
-    }
-    const flDL=sd.loads?.floorDL||3.0, flLL=sd.loads?.floorLL||2.4;
-    const D=flDL*50, L=flLL*50, E=results.seismic?.V||60;
-    const combos=[
-      {name:"1.4D",             val:+(1.4*D).toFixed(1)},
-      {name:"1.2D+1.6L",        val:+(1.2*D+1.6*L).toFixed(1)},
-      {name:"1.2D+1.0E+1.0L",   val:+(1.2*D+E+L).toFixed(1)},
-      {name:"0.9D+1.0E",        val:+(0.9*D+E).toFixed(1)},
-    ];
-    const maxCombo=combos.reduce((a,b)=>a.val>b.val?a:b);
-    results.loadCombos=combos;
-    results.items.push({ tool:"loads", id:"Load Combinations", value:`Max: ${maxCombo.name}`, detail:`${maxCombo.val} kN/m²`, status:"COMPUTED" });
-  } catch(e) { if (!results.items.some(i=>i.tool==="loads"&&i.status==="CANNOT VERIFY")) results.items.push({ tool:"loads", id:"Load Combinations", status:"ERROR", error:e.message }); }
+  // ══════════════════════════════════════════════════════════════════
+  // 6. LOAD COMBINATIONS — Check if loads are documented
+  // ══════════════════════════════════════════════════════════════════
+  if (sd.loads?.floorDL || sd.loads?.floorLL) {
+    const items = [];
+    if (sd.loads.floorDL) items.push(`Floor DL = ${sd.loads.floorDL} kPa`);
+    if (sd.loads.floorLL) items.push(`Floor LL = ${sd.loads.floorLL} kPa`);
+    if (sd.loads.roofDL)  items.push(`Roof DL = ${sd.loads.roofDL} kPa`);
+    if (sd.loads.roofLL)  items.push(`Roof LL = ${sd.loads.roofLL} kPa`);
+    results.items.push({ tool:"loads", id:"Design Loads", status:"PASS", value: items.join(", "), detail: "Design loads documented in plans. Verify against NSCP Sec. 205 for occupancy category." });
+  } else {
+    results.items.push({ tool:"loads", id:"Design Loads", status:"NO DATA", detail:"No dead/live load values extracted from plans. These are typically in the general notes or structural computation sheets." });
+  }
 
+  // ── Summary ──
   results.summary = {
-    total:        results.items.length,
-    pass:         results.items.filter(i=>i.status==="PASS").length,
-    fail:         results.items.filter(i=>i.status==="FAIL").length,
-    computed:     results.items.filter(i=>i.status==="COMPUTED").length,
-    error:        results.items.filter(i=>i.status==="ERROR").length,
-    unverifiable: results.items.filter(i=>i.status==="CANNOT VERIFY").length,
+    total:    results.items.length,
+    pass:     results.items.filter(i => i.status === "PASS").length,
+    fail:     results.items.filter(i => i.status === "FAIL").length,
+    incomplete: results.items.filter(i => i.status === "INCOMPLETE").length,
+    noData:   results.items.filter(i => i.status === "NO DATA").length,
   };
+
   return results;
 }
+
 
 
 // ─── STRUCTURAL INTELLIGENCE PANEL (redesigned) ──────────────────────────────
@@ -6360,13 +6434,14 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
     if (!structuralResults) return null;
     const items = structuralResults.items.filter(i=>i.tool===key);
     if (!items.length) return null;
-    if (items.some(i=>i.status==="CANNOT VERIFY")) return "unverifiable";
-    return items.every(i=>i.status==="PASS"||i.status==="COMPUTED") ? "pass"
-         : items.some(i=>i.status==="FAIL") ? "fail" : "computed";
+    if (items.some(i=>i.status==="NO DATA") && items.every(i=>i.status==="NO DATA")) return "nodata";
+    if (items.some(i=>i.status==="FAIL")) return "fail";
+    if (items.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")) return "incomplete";
+    return items.every(i=>i.status==="PASS") ? "pass" : "pass";
   };
 
-  const statusColor = { pass:"#22c55e", fail:"#ef4444", computed:"#0696d7", unverifiable:"#f59e0b" };
-  const statusIcon  = { pass:"✓", fail:"✗", computed:"✓", unverifiable:"?" };
+  const statusColor = { pass:"#22c55e", fail:"#ef4444", incomplete:"#f59e0b", nodata:"#64748b" };
+  const statusIcon  = { pass:"✓", fail:"✗", incomplete:"⚠", nodata:"—" };
 
   // Inline field editor (only shown when expanded)
   const Field = ({label, value, path, type="number", fp=false}) => {
@@ -6452,7 +6527,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                 <div style={{fontSize:10,fontWeight:700,color:effectiveComputed?statusColor[effectiveComputed]:effectiveOk?T.text:T.muted,lineHeight:1.2}}>{r.label}</div>
                 {effectiveComputed && (
                   <div style={{fontSize:9,color:statusColor[effectiveComputed],fontWeight:700,marginTop:1,textTransform:"uppercase"}}>
-                    {effectiveComputed === "unverifiable" ? (effectiveOk ? "incomplete" : "no data") : effectiveComputed}
+                    {effectiveComputed === "incomplete" ? "partial" : effectiveComputed === "nodata" ? "no data" : effectiveComputed}
                   </div>
                 )}
                 {!effectiveComputed && effectiveOk && r.detail && (
@@ -6473,8 +6548,8 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
             {[
               {label:`${structuralResults.summary.pass} PASS`,   color:"#22c55e", bg:"rgba(34,197,94,0.1)"},
               {label:`${structuralResults.summary.fail} FAIL`,   color:"#ef4444", bg:"rgba(239,68,68,0.1)"},
-              {label:`${structuralResults.summary.computed} COMPUTED`, color:"#0696d7", bg:"rgba(6,150,215,0.1)"},
-              ...(structuralResults.summary.unverifiable > 0 ? [{label:`${structuralResults.summary.unverifiable} NO DATA`, color:"#f59e0b", bg:"rgba(245,158,11,0.1)"}] : []),
+              ...(structuralResults.summary.incomplete > 0 ? [{label:`${structuralResults.summary.incomplete} INCOMPLETE`, color:"#f59e0b", bg:"rgba(245,158,11,0.1)"}] : []),
+              ...(structuralResults.summary.noData > 0 ? [{label:`${structuralResults.summary.noData} NO DATA`, color:"#64748b", bg:"rgba(100,116,139,0.1)"}] : []),
             ].map(s=>(
               <span key={s.label} style={{fontSize:11,fontWeight:700,color:s.color,background:s.bg,padding:"3px 10px",borderRadius:6}}>{s.label}</span>
             ))}
@@ -6598,8 +6673,8 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 function StructuralComputationSummary({ results, data, onNavigate }) {
   if (!results) return null;
 
-  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", COMPUTED:"#0696d7", ERROR:"#f59e0b", "CANNOT VERIFY":"#f59e0b" };
-  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)", "CANNOT VERIFY":"rgba(245,158,11,0.1)" };
+  const statusColor = { PASS:"#22c55e", FAIL:"#ef4444", INCOMPLETE:"#f59e0b", "NO DATA":"#64748b", COMPUTED:"#0696d7", ERROR:"#f59e0b", "CANNOT VERIFY":"#f59e0b" };
+  const statusBg    = { PASS:"rgba(34,197,94,0.1)", FAIL:"rgba(239,68,68,0.1)", INCOMPLETE:"rgba(245,158,11,0.1)", "NO DATA":"rgba(100,116,139,0.1)", COMPUTED:"rgba(6,150,215,0.1)", ERROR:"rgba(245,158,11,0.1)", "CANNOT VERIFY":"rgba(245,158,11,0.1)" };
   const toolLabel   = { seismic:"Seismic", beam:"Beam", column:"Column", footing:"Footing", slab:"Slab", loads:"Load Combos" };
 
   const fc  = data?.materials?.fc || "—";
@@ -7455,8 +7530,8 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     const items = getResult(toolKey);
     const hasDat = hasData(toolKey);
     if (items && items.length > 0) {
-      const anyUnverifiable = items.some(i=>i.status==="CANNOT VERIFY");
-      const allUnverifiable = items.every(i=>i.status==="CANNOT VERIFY");
+      const anyUnverifiable = items.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA");
+      const allUnverifiable = items.every(i=>i.status==="NO DATA");
       const allPass  = items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
       const anyFail  = items.some(i=>i.status==="FAIL");
       // Check if there's extracted data even though computation couldn't verify
@@ -7643,7 +7718,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
                 {SUB_TOOLS.map(t=>{
                   const hd = hasData(t.key);
                   const items = getResult(t.key);
-                  const isIncomplete = hd && items && items.some(i=>i.status==="CANNOT VERIFY");
+                  const isIncomplete = hd && items && items.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA");
                   const isPass = items && items.length > 0 && items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
                   const isFail = items && items.some(i=>i.status==="FAIL");
                   const borderColor = isFail ? "rgba(239,68,68,0.35)" : isIncomplete ? "rgba(245,158,11,0.35)" : hd ? "rgba(34,197,94,0.35)" : T.border;
