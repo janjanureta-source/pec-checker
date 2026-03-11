@@ -2532,6 +2532,48 @@ function SeismicCalc({ structuralData }) {
               <span style={{fontSize:14,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
+          {/* ── Engineering Insights ── */}
+          <div style={{padding:"14px 16px",background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:10}}>
+            <div style={{fontSize:11,fontWeight:800,color:"#0696d7",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ Engineering Insight</div>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+              {(() => {
+                const insights = [];
+                const CsPercent = (result.Cs*100).toFixed(2);
+                // Seismic coefficient context
+                if (result.Cs > 0.15) {
+                  insights.push({type:"warn",text:`High seismic coefficient Cs = ${CsPercent}%. This building experiences significant lateral forces. Ensure all connections and detailing comply with NSCP Sec. 421 (seismic provisions).`});
+                } else if (result.Cs > 0.08) {
+                  insights.push({type:"pass",text:`Moderate seismic coefficient Cs = ${CsPercent}%. Typical for mid-rise structures in Zone 4 with stiff soil.`});
+                } else {
+                  insights.push({type:"pass",text:`Low seismic coefficient Cs = ${CsPercent}%. Lateral forces are modest — likely governed by wind load. Check wind per NSCP Sec. 207.`});
+                }
+                // Base shear distribution guidance
+                insights.push({type:"info",text:`Base shear V = ${result.V.toFixed(1)} kN must be distributed vertically per NSCP Sec. 208.5.5 using Ft (top force) + Fx per floor based on height and weight.`});
+                // R factor context
+                if (+R >= 8) {
+                  insights.push({type:"pass",text:`R = ${R} (Special Moment Resisting Frame). High ductility required — all beam-column joints must satisfy NSCP Sec. 421 strong-column/weak-beam provisions.`});
+                } else if (+R >= 4.5) {
+                  insights.push({type:"pass",text:`R = ${R} (Intermediate system). Moderate ductility detailing required per NSCP Sec. 421. Verify stirrup spacing in plastic hinge zones.`});
+                } else {
+                  insights.push({type:"warn",text:`R = ${R} (Ordinary/Shear Wall system). Low ductility demand but higher seismic forces. Verify wall-to-frame load path per NSCP Sec. 208.7.`});
+                }
+                // Min/Max check
+                if (result.V <= result.Vmin*1.05) {
+                  insights.push({type:"info",text:`Base shear governed by Vmin = ${result.Vmin.toFixed(1)} kN (0.11·Ca·I·W). Period may be long — verify T with modal analysis if available.`});
+                } else if (result.V >= result.Vmax*0.95) {
+                  insights.push({type:"info",text:`Base shear governed by Vmax = ${result.Vmax.toFixed(1)} kN cap. This limits the design force. Actual ductility demand may be higher — ensure detailing complies.`});
+                }
+                return insights.map((ins,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:i<insights.length-1?8:0}}>
+                    <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:ins.type==="fail"?"#ef4444":ins.type==="warn"?"#f59e0b":ins.type==="info"?"#0696d7":"#22c55e"}}>
+                      {ins.type==="fail"?"✗":ins.type==="warn"?"⚠":ins.type==="info"?"ℹ":"✓"}
+                    </span>
+                    <span>{ins.text}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>V = Sa·I·W/R, bounded by Vmin=0.11·Ca·I·W and Vmax=2.5·Ca·I·W/R (NSCP 2015 Sec. 208.5.2)</div>
         </div>
       ) : (
@@ -2654,6 +2696,41 @@ function BeamDesign({ structuralData, structuralResults }) {
               <span style={{fontSize:13,fontWeight:700,color:r.color||(r.hi?"#0696d7":T.text),fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
+          {/* ── Engineering Insights ── */}
+          <div style={{padding:"14px 16px",background:result.status_flex.includes("PASS")?"rgba(34,197,94,0.04)":"rgba(239,68,68,0.04)",border:`1px solid ${result.status_flex.includes("PASS")?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"}`,borderRadius:10}}>
+            <div style={{fontSize:11,fontWeight:800,color:result.status_flex.includes("PASS")?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
+              {result.status_flex.includes("PASS") ? "✓ Engineering Insight" : "⚠ Why This Beam Fails"}
+            </div>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+              {(() => {
+                const insights = [];
+                const rhoP = (result.rho_req*100).toFixed(3);
+                // Flexure
+                if (result.rho_req > result.rho_max) {
+                  insights.push({type:"fail",text:`Over-reinforced: ρ_req = ${rhoP}% exceeds ρ_max = ${(result.rho_max*100).toFixed(3)}% (NSCP Sec. 406.3.3). The section is too small for the applied moment. Increase beam depth, width, or use higher f'c.`});
+                } else if (result.rho_req <= result.rho_min) {
+                  insights.push({type:"pass",text:`Minimum steel governs (ρ_min = ${(result.rho_min*100).toFixed(3)}%). Beam is lightly loaded in flexure — efficient section.`});
+                } else {
+                  const utilization = (result.rho_req/result.rho_max*100).toFixed(0);
+                  insights.push({type:"pass",text:`Flexure OK: ρ_req = ${rhoP}% (${utilization}% of ρ_max). ${+utilization>80?"Moderately reinforced — approaching tension-controlled limit.":"Under-reinforced as intended — ductile failure mode."}`});
+                }
+                // Shear
+                if (result.Vs_req > 0) {
+                  insights.push({type:"warn",text:`Stirrups required: Vu exceeds φVc. Need Vs = ${result.Vs_req.toFixed(1)} kN capacity from stirrups. Typical: Ø10mm 2-leg stirrups spaced per NSCP Sec. 406.6.`});
+                } else {
+                  insights.push({type:"pass",text:`Concrete shear capacity (φVc = ${(result.Vc*0.85).toFixed(1)} kN) is sufficient. Minimum stirrups still required per NSCP Sec. 406.6.3.`});
+                }
+                return insights.map((ins,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:i<insights.length-1?8:0}}>
+                    <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:ins.type==="fail"?"#ef4444":ins.type==="warn"?"#f59e0b":"#22c55e"}}>
+                      {ins.type==="fail"?"✗":ins.type==="warn"?"⚠":"✓"}
+                    </span>
+                    <span>{ins.text}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 — Singly reinforced. Verify bar selection and spacing per Sec. 406.4.</div>
         </div>
       ) : beamPriorItems.length > 0 ? (
@@ -2792,6 +2869,55 @@ function ColumnDesign({ structuralData }) {
               <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
+          {/* ── Engineering Insights ── */}
+          <div style={{padding:"14px 16px",background:result.status.includes("PASS")?"rgba(34,197,94,0.04)":"rgba(239,68,68,0.04)",border:`1px solid ${result.status.includes("PASS")?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"}`,borderRadius:10}}>
+            <div style={{fontSize:11,fontWeight:800,color:result.status.includes("PASS")?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
+              {result.status.includes("PASS") ? "✓ Engineering Insight" : "⚠ Why This Column Fails"}
+            </div>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+              {(() => {
+                const insights = [];
+                const rhoP = (result.rho_req*100).toFixed(2);
+                const capRatio = (result.phiPn/(+Pu)*100).toFixed(0);
+                // Check steel ratio
+                if (result.rho_req > result.rho_max) {
+                  insights.push({type:"fail",text:`Steel ratio ρ = ${rhoP}% exceeds the 8% maximum (NSCP Sec. 410.3.1). The column section is too small for the applied load — you need to increase the column size or use higher-strength concrete.`});
+                } else if (result.rho_req < result.rho_min) {
+                  insights.push({type:"fail",text:`Steel ratio ρ = ${rhoP}% is below the 1% minimum (NSCP Sec. 410.3.1). Use ρ = 1% minimum. This column is lightly loaded — consider reducing the section size if architecturally feasible.`});
+                } else if (result.rho_req > 0.04) {
+                  insights.push({type:"warn",text:`Steel ratio ρ = ${rhoP}% is within limits but high (>4%). This will cause rebar congestion and difficulty in concrete placement. Consider increasing the column section or using higher f'c.`});
+                } else {
+                  insights.push({type:"pass",text:`Steel ratio ρ = ${rhoP}% is within the 1–8% range — efficient design with good constructability.`});
+                }
+                // Check capacity
+                if (result.phiPn < (+Pu)) {
+                  insights.push({type:"fail",text:`Design capacity φPn = ${result.phiPn.toFixed(0)} kN is less than the factored load Pu = ${Pu} kN (capacity/demand = ${capRatio}%). The column cannot safely carry this load. Increase the section size, use higher f'c, or add more steel.`});
+                } else {
+                  const utilization = (+Pu)/result.phiPn*100;
+                  insights.push({type:"pass",text:`Capacity φPn = ${result.phiPn.toFixed(0)} kN > Pu = ${Pu} kN. Utilization: ${utilization.toFixed(0)}%. ${utilization>90?"Near full capacity — minimal safety margin.":utilization>70?"Good utilization.":"Conservative design — section has significant reserve capacity."}`});
+                }
+                // Eccentricity check
+                if (result.ecc > Math.min(+b,+h)/6) {
+                  insights.push({type:"warn",text:`Eccentricity e = ${result.ecc.toFixed(0)} mm > ${(Math.min(+b,+h)/6).toFixed(0)} mm (h/6). Kern exceeded — tensile stresses develop on one face. Full P-M interaction check is recommended per NSCP Sec. 410.12.`});
+                } else if (Mu && +Mu > 0) {
+                  insights.push({type:"pass",text:`Eccentricity e = ${result.ecc.toFixed(0)} mm is within the kern (h/6 = ${(Math.min(+b,+h)/6).toFixed(0)} mm). No tensile face — concentric load assumption is reasonable.`});
+                }
+                // Recommendations
+                if (result.status.includes("FAIL")) {
+                  const newB = Math.ceil(Math.sqrt(result.Ast_req / (0.04 * 1))*1.1 / 50)*50; // target 4% ratio
+                  insights.push({type:"fix",text:`Suggested fix: Try increasing the column to at least ${Math.max(newB,Math.max(+b,+h)+50)}mm × ${Math.max(newB,Math.max(+b,+h)+50)}mm, or upgrade concrete to a higher grade. Re-run after changes.`});
+                }
+                return insights.map((ins,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:i<insights.length-1?8:0}}>
+                    <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:ins.type==="fail"?"#ef4444":ins.type==="warn"?"#f59e0b":ins.type==="fix"?"#0696d7":"#22c55e"}}>
+                      {ins.type==="fail"?"✗":ins.type==="warn"?"⚠":ins.type==="fix"?"→":"✓"}
+                    </span>
+                    <span>{ins.text}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 — Short column, concentric load. Apply magnification for slender columns per Sec. 410.12.</div>
         </div>
       ):(
@@ -2886,7 +3012,7 @@ function FootingDesign({ structuralData }) {
             <Card style={{background:"rgba(34,197,94,0.06)",border:"1.5px solid rgba(34,197,94,0.3)"}}>
               <div style={{fontSize:11,color:T.muted,marginBottom:2}}>FOOTING SIZE</div>
               <div style={{fontSize:32,fontWeight:900,color:"#22c55e"}}>{result.B.toFixed(2)} m × {result.B.toFixed(2)} m</div>
-              <div style={{fontSize:13,color:T.muted,marginTop:4}}>d = {result.d.toFixed(0)} mm</div>
+              <div style={{fontSize:13,color:T.muted,marginTop:4}}>d = {result.d.toFixed(0)} mm effective depth</div>
             </Card>
             {[
               {l:"Net Bearing qnet",v:`${result.qnet.toFixed(1)} kPa`},
@@ -2900,7 +3026,53 @@ function FootingDesign({ structuralData }) {
                 <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
               </div>
             ))}
-            <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 415 — Square isolated footing. Verify punching shear and wide-beam shear separately.</div>
+            {/* ── Engineering Insights ── */}
+            <div style={{padding:"14px 16px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10}}>
+              <div style={{fontSize:11,fontWeight:800,color:"#22c55e",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ Engineering Insight</div>
+              <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+                {(() => {
+                  const insights = [];
+                  const bearingUtil = ((+P)/(result.qnet*result.B*result.B)*100).toFixed(0);
+                  const totalDepth = result.d + 75; // d + cover
+                  // Bearing utilization
+                  insights.push({type:"pass",text:`Soil bearing utilization: ${bearingUtil}% of net allowable capacity (qnet = ${result.qnet.toFixed(0)} kPa). ${+bearingUtil>90?"Near full bearing capacity — verify with geotechnical engineer.":+bearingUtil>70?"Good utilization of soil capacity.":"Conservative design — soil has significant reserve."}`});
+                  // Footing proportions
+                  if (result.B > 3.0) {
+                    insights.push({type:"warn",text:`Footing width ${result.B.toFixed(2)}m is large (>3m). Consider a combined or mat foundation to reduce footing size, or verify soil capacity with a load test.`});
+                  } else if (result.B < 1.0) {
+                    insights.push({type:"pass",text:`Compact footing (${result.B.toFixed(2)}m). Efficient use of soil bearing capacity.`});
+                  } else {
+                    insights.push({type:"pass",text:`Footing size ${result.B.toFixed(2)}m × ${result.B.toFixed(2)}m is typical for this load level. Economical construction.`});
+                  }
+                  // Steel ratio
+                  if (result.rho_use <= 0.0018) {
+                    insights.push({type:"pass",text:`Steel ratio governs by minimum (ρ = 0.18%). Footing is lightly stressed — reinforcement is for shrinkage and temperature control per NSCP Sec. 407.12.`});
+                  } else {
+                    insights.push({type:"pass",text:`Steel ratio ρ = ${(result.rho_use*100).toFixed(3)}% exceeds minimum 0.18%. Flexure controls the reinforcement — use the computed As = ${result.As.toFixed(0)} mm²/m both ways.`});
+                  }
+                  // Punching shear warning
+                  const bo = 4*(400 + result.d); // perimeter at d/2 from column face
+                  const Vc_punch = (1/3)*Math.sqrt(+fc||27.6)*bo*result.d/1e6; // in kN
+                  const Vu_punch = 1.2*(+P) - result.qu*(0.4+result.d/1000)*(0.4+result.d/1000);
+                  if (Vu_punch > 0.75*Vc_punch) {
+                    insights.push({type:"warn",text:`Punching shear may be critical (Vu ≈ ${Vu_punch.toFixed(0)} kN vs φVc ≈ ${(0.75*Vc_punch).toFixed(0)} kN). Verify two-way shear per NSCP Sec. 415.5.4 — may need to increase footing depth.`});
+                  } else {
+                    insights.push({type:"pass",text:`Punching shear check: Vu ≈ ${Vu_punch.toFixed(0)} kN < φVc ≈ ${(0.75*Vc_punch).toFixed(0)} kN — adequate. Two-way shear is OK.`});
+                  }
+                  // Total depth estimate
+                  insights.push({type:"info",text:`Estimated total footing thickness: ${totalDepth.toFixed(0)} mm (d + 75mm cover). Excavation depth: ${(+Df).toFixed(2)}m from grade.`});
+                  return insights.map((ins,i)=>(
+                    <div key={i} style={{display:"flex",gap:8,marginBottom:i<insights.length-1?8:0}}>
+                      <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:ins.type==="fail"?"#ef4444":ins.type==="warn"?"#f59e0b":ins.type==="info"?"#0696d7":"#22c55e"}}>
+                        {ins.type==="fail"?"✗":ins.type==="warn"?"⚠":ins.type==="info"?"ℹ":"✓"}
+                      </span>
+                      <span>{ins.text}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+            <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 415 — Square isolated footing. Results above include punching shear estimate. Verify wide-beam shear and development length separately.</div>
           </div>
         )
       ):(
