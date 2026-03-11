@@ -2357,48 +2357,7 @@ Respond ONLY as valid JSON array:
               )}
             </div>
           )}
-          {/* Issue 3: Design Computation Capability Summary */}
-          {extractedData && (
-            <div style={{marginTop:16,background:"rgba(6,150,215,0.04)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:12,padding:16}}>
-              <div style={{fontSize:12,fontWeight:800,color:T.text,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
-                <Icon name="structural" size={14} color="#0696d7"/>
-                Design Computation Readiness
-                <span style={{fontSize:10,color:T.muted,fontWeight:400,marginLeft:4}}>— what was extracted for structural calcs</span>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
-                {[
-                  { key:"seismic", label:"Seismic Load",     ok:!!(extractedData.seismic?.zone||extractedData.seismic?.seismicWeight),     detail: extractedData.seismic?.zone ? `${extractedData.seismic.zone}` : null },
-                  { key:"beam",    label:"Beam Design",       ok:!!(extractedData.beams?.length&&extractedData.materials?.fc),               detail: extractedData.beams?.length ? `${extractedData.beams.length} beam(s)` : null },
-                  { key:"column",  label:"Column Design",     ok:!!(extractedData.columns?.length&&extractedData.materials?.fc),             detail: extractedData.columns?.length ? `${extractedData.columns.length} column(s)` : null },
-                  { key:"footing", label:"Footing Design",    ok:!!(extractedData.footings?.length),                                         detail: extractedData.footings?.length ? `${extractedData.footings.length} footing(s)` : null },
-                  { key:"slab",    label:"Slab Design",       ok:!!(extractedData.slabs?.length&&extractedData.materials?.fc),               detail: extractedData.slabs?.length ? `${extractedData.slabs.length} slab(s)` : null },
-                  { key:"loads",   label:"Load Combinations", ok:!!(extractedData.loads?.floorDL&&extractedData.loads?.floorLL),            detail: extractedData.loads?.floorDL ? `DL=${extractedData.loads.floorDL}kPa` : null },
-                ].map(item=>(
-                  <div key={item.key} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
-                    background:item.ok?"rgba(34,197,94,0.06)":"rgba(255,255,255,0.02)",
-                    border:`1px solid ${item.ok?"rgba(34,197,94,0.2)":T.border}`,borderRadius:9}}>
-                    <div style={{width:22,height:22,borderRadius:"50%",
-                      background:item.ok?"rgba(34,197,94,0.15)":"rgba(100,116,139,0.1)",
-                      display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                      <span style={{fontSize:11,fontWeight:900,color:item.ok?"#22c55e":T.muted}}>{item.ok?"✓":"✗"}</span>
-                    </div>
-                    <div style={{minWidth:0}}>
-                      <div style={{fontSize:11,fontWeight:700,color:item.ok?T.text:T.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.label}</div>
-                      <div style={{fontSize:10,color:item.ok?"#22c55e":T.muted,marginTop:1}}>{item.ok?(item.detail||"Ready"):"Not in plans"}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {(extractedData.materials?.fc||extractedData.materials?.fy) && (
-                <div style={{marginTop:10,padding:"7px 12px",background:"rgba(6,150,215,0.06)",borderRadius:8,fontSize:11,color:T.muted}}>
-                  Materials: {extractedData.materials?.fc ? `f'c = ${extractedData.materials.fc} MPa` : "f'c not found"} · {extractedData.materials?.fy ? `fy = ${extractedData.materials.fy} MPa` : "fy not found"}
-                </div>
-              )}
-              <div style={{marginTop:10,fontSize:11,color:"#0696d7",fontWeight:600}}>
-                ↓ Use the Design Calcs toolbar above to open pre-filled calculators, or click "Run All Computations" in the Structural Intelligence Panel.
-              </div>
-            </div>
-          )}
+
 
           <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>⚠️ AI-generated report for reference only. All plans must be reviewed and stamped by a licensed PSCE before submission to DPWH or LGU.</div>
         </div>
@@ -6055,12 +6014,18 @@ function runAllComputations(sd) {
   }
 
   // ── 3. COLUMNS ──
-  const cols = (sd.columns?.length ? sd.columns : [{ id:"C1", width:400, height:400, Pu:1500, Mu:80, type:"tied" }]);
+  const cols = sd.columns?.length ? sd.columns : [];
   results.memberData.columns = [];
+  if (!cols.length) {
+    results.items.push({ tool:"column", id:"Columns", status:"CANNOT VERIFY",
+      error:"No column data extracted from plans. Column dimensions and axial loads (Pu) are required — enter them manually in Column Design tab." });
+  }
   cols.forEach(col => {
     try {
-      const b=col.width||400, h=col.height||400;
-      const Pu=col.Pu||1500, Mu=col.Mu||80;
+      const b=col.width||0, h=col.height||0;
+      const Pu=col.Pu||0, Mu=col.Mu||0;
+      if (!b || !h || b < 100 || h < 100) { results.items.push({tool:"column",id:col.id||"C?",status:"CANNOT VERIFY",error:`Column ${col.id||"C?"} dimensions (${b}×${h}mm) appear invalid. Min 200mm per NSCP. Verify in Column Design tab.`}); return; }
+      if (!Pu || Pu <= 0) { results.items.push({tool:"column",id:col.id||"C?",status:"CANNOT VERIFY",error:`Factored axial load Pu not provided for ${col.id||"this column"}. Run structural analysis to determine Pu, then enter manually.`}); return; }
       const phi=col.type==="spiral"?0.75:0.65, Ag=b*h;
       const Pn_req=Pu*1000/phi;
       const Ast_req=Math.max((Pn_req/0.80-0.85*fc*Ag)/(fy-0.85*fc),0.01*Ag);
@@ -6074,13 +6039,21 @@ function runAllComputations(sd) {
   });
 
   // ── 4. FOOTINGS ──
-  const footings = (sd.footings?.length ? sd.footings : [{ id:"F1", columnLoad:800, soilBearing:150, depth:1.5 }]);
+  const footings = sd.footings?.length ? sd.footings : [];
   results.memberData.footings = [];
+  if (!footings.length) {
+    results.items.push({ tool:"footing", id:"Footings", status:"CANNOT VERIFY",
+      error:"No footing data extracted from plans. Column service load (P), soil bearing capacity (qa), and foundation depth (Df) are required — enter them manually in Footing Design tab." });
+  }
   footings.forEach(ft => {
     try {
-      const P=ft.columnLoad||800, qa=ft.soilBearing||150, Df=ft.depth||1.5;
+      const P=ft.columnLoad||0, qa=ft.soilBearing||0, Df=ft.depth||0;
+      // Validate extracted values — catch obvious AI extraction errors
+      if (!P || P <= 0) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Column load P not provided or zero for ${ft.id||"this footing"}. Enter the unfactored service load manually.`}); return; }
+      if (!qa || qa <= 0) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Soil bearing capacity qa not provided for ${ft.id||"this footing"}. This must come from a geotechnical report.`}); return; }
+      if (Df > 20) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Foundation depth Df = ${Df}m appears incorrect (likely extracted in mm instead of m). Verify and re-enter manually. Typical range: 0.6–3.0m.`}); return; }
       const qnet=qa-23.5*Df;
-      if(qnet<=0){results.items.push({tool:"footing",id:ft.id||"F?",status:"FAIL",error:"Net bearing ≤ 0"});return;}
+      if(qnet<=0){results.items.push({tool:"footing",id:ft.id||"F?",status:"FAIL",error:`Net bearing capacity ≤ 0 (qa=${qa}kPa, soil weight=${(23.5*Df).toFixed(0)}kPa at Df=${Df}m). Increase qa or reduce Df.`});return;}
       const B=Math.ceil(Math.sqrt(P/qnet)*10)/10;
       const d=Math.max(B*1000/5,250);
       const c=(B-0.4)/2;
@@ -6189,13 +6162,13 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 
   // Computation readiness — which calcs have enough data
   const readiness = [
-    { key:"seismic", label:"Seismic",      ok: !!(sei.zone || sei.seismicWeight),            detail: sei.zone || "" },
-    { key:"beam",    label:"Beam",          ok: !!(beams.length && mat.fc),                   detail: beams.length ? `${beams.length} member(s)` : "" },
-    { key:"column",  label:"Column",        ok: !!(cols.length && mat.fc),                    detail: cols.length ? `${cols.length} member(s)` : "" },
-    { key:"footing", label:"Footing",       ok: !!(ftgs.length),                              detail: ftgs.length ? `${ftgs.length} member(s)` : "" },
-    { key:"slab",    label:"Slab",          ok: !!(slbs.length),                              detail: slbs.length ? `${slbs.length} member(s)` : "" },
-    { key:"loads",   label:"Load Combos",   ok: !!(lds.floorDL && lds.floorLL),               detail: lds.floorDL ? `DL=${lds.floorDL}` : "" },
-    { key:"rebar",   label:"Rebar Sched",   ok: false, isRebar: true,                         detail: "" },
+    { key:"seismic", label:"Seismic",      ok: !!(sei.zone || sei.seismicWeight),            detail: sei.zone || "", noData:"not in plans" },
+    { key:"beam",    label:"Beam",          ok: !!(beams.length && mat.fc),                   detail: beams.length ? `${beams.length} extracted` : "", noData:"not in plans" },
+    { key:"column",  label:"Column",        ok: !!(cols.length && mat.fc),                    detail: cols.length ? `${cols.length} extracted` : "", noData:"not in plans" },
+    { key:"footing", label:"Footing",       ok: !!(ftgs.length),                              detail: ftgs.length ? `${ftgs.length} extracted` : "", noData:"not in plans" },
+    { key:"slab",    label:"Slab",          ok: !!(slbs.length),                              detail: slbs.length ? `${slbs.length} extracted` : "", noData:"not in plans" },
+    { key:"loads",   label:"Load Combos",   ok: !!(lds.floorDL && lds.floorLL),               detail: lds.floorDL ? `DL=${lds.floorDL}` : "", noData:"not in plans" },
+    { key:"rebar",   label:"Rebar Sched",   ok: false, isRebar: true,                         detail: "", noData:"run all first" },
   ];
 
   const readyCount = readiness.filter(r=>r.ok).length;
@@ -6304,7 +6277,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                   <div style={{fontSize:9,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.detail}</div>
                 )}
                 {!effectiveComputed && !effectiveOk && (
-                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>{r.isRebar ? "run all first" : "no data"}</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>{r.noData || "no data"}</div>
                 )}
               </button>
             );
