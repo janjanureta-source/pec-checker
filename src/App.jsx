@@ -2583,7 +2583,14 @@ function BeamDesign({ structuralData, structuralResults }) {
   const canCalc = [fc,fy,b,d,Mu,Vu].every(v=>v!=="");
 
   const beamPriorItems = structuralResults?.items?.filter(i=>i.tool==="beam") || [];
-  const beamAnyFail = beamPriorItems.some(i=>i.status==="FAIL");
+  const beamAnyFail         = beamPriorItems.some(i=>i.status==="FAIL");
+  const beamAnyUnverifiable = beamPriorItems.some(i=>i.status==="CANNOT VERIFY");
+  const beamAllUnverifiable = beamPriorItems.length > 0 && beamPriorItems.every(i=>i.status==="CANNOT VERIFY");
+  // Mixed: some verified PASS but others cannot verify — still warn
+  const beamMixed           = beamAnyUnverifiable && !beamAllUnverifiable && !beamAnyFail;
+  const beamAnyVerified     = beamPriorItems.some(i=>i.status==="PASS"||i.status==="FAIL");
+  // True PASS only if items exist AND none are unverifiable or failing
+  const beamTruePass        = beamPriorItems.length > 0 && !beamAnyFail && !beamAnyUnverifiable;
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
@@ -2639,10 +2646,10 @@ function BeamDesign({ structuralData, structuralResults }) {
         </div>
       ) : beamPriorItems.length > 0 ? (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <Card style={{background:beamAnyFail?"rgba(239,68,68,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${beamAnyFail?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.3)"}`}}>
+          <Card style={{background:beamAnyFail?"rgba(239,68,68,0.06)":(beamAllUnverifiable||beamMixed)?"rgba(245,158,11,0.06)":beamTruePass?"rgba(34,197,94,0.06)":"rgba(255,255,255,0.03)",border:`1.5px solid ${beamAnyFail?"rgba(239,68,68,0.3)":(beamAllUnverifiable||beamMixed)?"rgba(245,158,11,0.3)":beamTruePass?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`}}>
             <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — BEAM DESIGN RESULT</div>
-            <div style={{fontSize:18,fontWeight:900,color:beamAnyFail?"#ef4444":"#22c55e",marginBottom:8}}>
-              {beamAnyFail?"✗ FAIL — Beam(s) do not satisfy NSCP Sec. 406":"✓ PASS — All beams satisfy NSCP requirements"}
+            <div style={{fontSize:18,fontWeight:900,color:beamAnyFail?"#ef4444":(beamAllUnverifiable||beamMixed)?"#f59e0b":beamTruePass?"#22c55e":T.muted,marginBottom:8}}>
+              {beamAnyFail?"✗ FAIL — Beam(s) do not satisfy NSCP Sec. 406":beamAllUnverifiable?"⚠ CANNOT VERIFY — Enter Mu and Vu for each beam":beamMixed?"⚠ PARTIAL — Some beams cannot be verified":beamTruePass?"✓ PASS — All beams satisfy NSCP requirements":"— Run All to compute beam results"}
             </div>
             <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Results from last Run All. Enter Mu and Vu then click Calculate for a full detailed check on any member.</div>
             {beamPriorItems.map((item,idx)=>(
@@ -2926,6 +2933,10 @@ function SlabDesign({ structuralData, structuralResults }) {
   const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc=[fc,fy,L,wDL,wLL].every(v=>v!=="")&&(slabType==="one-way"||S!=="");
 
+  const slabPriorItems = structuralResults?.items?.filter(i=>i.tool==="slab") || [];
+  const slabAnyFail    = slabPriorItems.some(i=>i.status==="FAIL");
+  const slabAllUnverifiable = slabPriorItems.length > 0 && slabPriorItems.every(i=>i.status==="CANNOT VERIFY");
+
   return (
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
       <Card>
@@ -2986,10 +2997,10 @@ function SlabDesign({ structuralData, structuralResults }) {
         </div>
       ) : slabPriorItems.length > 0 ? (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <Card style={{background:slabAnyFail?"rgba(239,68,68,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${slabAnyFail?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.3)"}`}}>
+          <Card style={{background:slabAnyFail?"rgba(239,68,68,0.06)":slabAllUnverifiable?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${slabAnyFail?"rgba(239,68,68,0.3)":slabAllUnverifiable?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
             <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — SLAB DESIGN RESULT</div>
-            <div style={{fontSize:18,fontWeight:900,color:slabAnyFail?"#ef4444":"#22c55e",marginBottom:8}}>
-              {slabAnyFail?"✗ FAIL — Slab(s) do not satisfy NSCP Sec. 409":"✓ PASS — All slabs satisfy NSCP requirements"}
+            <div style={{fontSize:18,fontWeight:900,color:slabAnyFail?"#ef4444":slabAllUnverifiable?"#f59e0b":"#22c55e",marginBottom:8}}>
+              {slabAnyFail?"✗ FAIL — Slab(s) do not satisfy NSCP Sec. 409":slabAllUnverifiable?"⚠ CANNOT VERIFY — Enter loads and span for each slab":"✓ PASS — All slabs satisfy NSCP requirements"}
             </div>
             <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Results from last Run All. Fill in spans and loads then click Calculate for a full check.</div>
             {slabPriorItems.map((item,idx)=>(
