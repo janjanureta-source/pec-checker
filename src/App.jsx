@@ -6452,7 +6452,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                 <div style={{fontSize:10,fontWeight:700,color:effectiveComputed?statusColor[effectiveComputed]:effectiveOk?T.text:T.muted,lineHeight:1.2}}>{r.label}</div>
                 {effectiveComputed && (
                   <div style={{fontSize:9,color:statusColor[effectiveComputed],fontWeight:700,marginTop:1,textTransform:"uppercase"}}>
-                    {effectiveComputed}
+                    {effectiveComputed === "unverifiable" ? (effectiveOk ? "incomplete" : "no data") : effectiveComputed}
                   </div>
                 )}
                 {!effectiveComputed && effectiveOk && r.detail && (
@@ -7456,13 +7456,24 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     const hasDat = hasData(toolKey);
     if (items && items.length > 0) {
       const anyUnverifiable = items.some(i=>i.status==="CANNOT VERIFY");
+      const allUnverifiable = items.every(i=>i.status==="CANNOT VERIFY");
       const allPass  = items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
       const anyFail  = items.some(i=>i.status==="FAIL");
-      // Priority: FAIL > UNVERIFIABLE > PASS
-      const bg    = anyFail ? "rgba(239,68,68,0.12)" : anyUnverifiable ? "rgba(245,158,11,0.12)" : allPass ? "rgba(34,197,94,0.12)" : "rgba(6,150,215,0.12)";
-      const color = anyFail ? "#ef4444" : anyUnverifiable ? "#f59e0b" : allPass ? "#22c55e" : "#0696d7";
-      const border= anyFail ? "rgba(239,68,68,0.25)" : anyUnverifiable ? "rgba(245,158,11,0.25)" : allPass ? "rgba(34,197,94,0.25)" : "rgba(6,150,215,0.25)";
-      const label = anyFail ? "✗ FAIL" : anyUnverifiable ? "? NO DATA" : allPass ? "✓" : "✓";
+      // Check if there's extracted data even though computation couldn't verify
+      const hasPartialData = hasDat && anyUnverifiable;
+      // Priority: FAIL > INCOMPLETE (has data but can't compute) > NO DATA (nothing at all) > PASS
+      let bg, color, border, label;
+      if (anyFail) {
+        bg="rgba(239,68,68,0.12)"; color="#ef4444"; border="rgba(239,68,68,0.25)"; label="✗ FAIL";
+      } else if (anyUnverifiable && hasPartialData) {
+        bg="rgba(245,158,11,0.12)"; color="#f59e0b"; border="rgba(245,158,11,0.25)"; label="⚠ INCOMPLETE";
+      } else if (anyUnverifiable && !hasPartialData) {
+        bg="rgba(245,158,11,0.12)"; color="#f59e0b"; border="rgba(245,158,11,0.25)"; label="? NO DATA";
+      } else if (allPass) {
+        bg="rgba(34,197,94,0.12)"; color="#22c55e"; border="rgba(34,197,94,0.25)"; label="✓";
+      } else {
+        bg="rgba(6,150,215,0.12)"; color="#0696d7"; border="rgba(6,150,215,0.25)"; label="✓";
+      }
       return (
         <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,
           background:bg, color:color, border:`1px solid ${border}`}}>
@@ -7629,17 +7640,28 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
             <div style={{marginTop:16,padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
               <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Design Calculator</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {SUB_TOOLS.map(t=>(
-                  <button key={t.key} onClick={()=>setSubTool(t.key)}
-                    style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:8,
-                      border:`1.5px solid ${hasData(t.key)?"rgba(34,197,94,0.35)":T.border}`,
-                      background:hasData(t.key)?"rgba(34,197,94,0.06)":"transparent",
-                      color:hasData(t.key)?"#22c55e":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-                    <Icon name={t.icon} size={13} color={hasData(t.key)?"#22c55e":T.muted}/>
-                    <span>{t.label}</span>
-                    {hasData(t.key) && <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",padding:"1px 5px",borderRadius:3,fontWeight:800}}>DATA</span>}
-                  </button>
-                ))}
+                {SUB_TOOLS.map(t=>{
+                  const hd = hasData(t.key);
+                  const items = getResult(t.key);
+                  const isIncomplete = hd && items && items.some(i=>i.status==="CANNOT VERIFY");
+                  const isPass = items && items.length > 0 && items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
+                  const isFail = items && items.some(i=>i.status==="FAIL");
+                  const borderColor = isFail ? "rgba(239,68,68,0.35)" : isIncomplete ? "rgba(245,158,11,0.35)" : hd ? "rgba(34,197,94,0.35)" : T.border;
+                  const bgColor = isFail ? "rgba(239,68,68,0.06)" : isIncomplete ? "rgba(245,158,11,0.06)" : hd ? "rgba(34,197,94,0.06)" : "transparent";
+                  const txtColor = isFail ? "#ef4444" : isIncomplete ? "#f59e0b" : hd ? "#22c55e" : T.muted;
+                  return (
+                    <button key={t.key} onClick={()=>setSubTool(t.key)}
+                      style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:8,
+                        border:`1.5px solid ${borderColor}`, background:bgColor,
+                        color:txtColor, cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                      <Icon name={t.icon} size={13} color={txtColor}/>
+                      <span>{t.label}</span>
+                      {isFail && <span style={{fontSize:9,background:"rgba(239,68,68,0.15)",color:"#ef4444",padding:"1px 5px",borderRadius:3,fontWeight:800}}>FAIL</span>}
+                      {isIncomplete && <span style={{fontSize:9,background:"rgba(245,158,11,0.15)",color:"#f59e0b",padding:"1px 5px",borderRadius:3,fontWeight:800}}>PARTIAL</span>}
+                      {hd && !isIncomplete && !isFail && <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",padding:"1px 5px",borderRadius:3,fontWeight:800}}>DATA</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
