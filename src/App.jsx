@@ -439,7 +439,7 @@ const getKey = () => {
   return "";
 };
 
-const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
+const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 2 }) => {
   // Try: explicit prop → localStorage → window global
   const key = (typeof apiKey === "string" && apiKey.startsWith("sk-"))
     ? apiKey
@@ -452,20 +452,38 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, temperature: 0, messages };
   if (system) payload.system = system;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify(payload),
-  });
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt)); // exponential backoff
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(payload),
+      });
 
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || "Anthropic API error");
-  return data;
+      if (res.status === 529 || res.status === 503 || res.status === 429) {
+        lastError = new Error(`API overloaded (${res.status}). Retrying...`);
+        continue; // retry on overload/rate limit
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        if (data.error.type === "overloaded_error" && attempt < retries) { lastError = new Error(data.error.message); continue; }
+        throw new Error(data.error.message || "Anthropic API error");
+      }
+      return data;
+    } catch (e) {
+      lastError = e;
+      if (attempt >= retries) throw e;
+    }
+  }
+  throw lastError || new Error("API call failed after retries");
 };
 
 const repairBomJSON = str => {
@@ -1870,52 +1888,207 @@ Be very specific with corrected values and drafting instructions. Reference typi
 
 // ─── STRUCTURAL CODE DATA ────────────────────────────────────────────────────
 
+
+// ─── POST-EXTRACTION DATA VALIDATOR ──────────────────────────────────────────
+// Validates and sanitizes ALL extracted structural data after AI returns it.
+// Catches unit errors, out-of-range values, and suspicious data.
+// Returns { data: sanitizedData, warnings: string[] }
+function validateExtractedData(raw) {
+  if (!raw || typeof raw !== "object") return { data: raw, warnings: ["No data extracted"] };
+  const d = JSON.parse(JSON.stringify(raw)); // deep clone
+  const warnings = [];
+
+  // ── Materials validation ──
+  if (d.materials) {
+    const { fc, fy } = d.materials;
+    if (fc !== null && fc !== undefined) {
+      if (fc > 100) { warnings.push(`f'c = ${fc} MPa seems too high (max typical: 60 MPa). Set to null.`); d.materials.fc = null; }
+      else if (fc < 10) { warnings.push(`f'c = ${fc} MPa seems too low (min typical: 15 MPa). Set to null.`); d.materials.fc = null; }
+    }
+    if (fy !== null && fy !== undefined) {
+      if (fy > 600) { warnings.push(`fy = ${fy} MPa exceeds max (550). Set to null.`); d.materials.fy = null; }
+      else if (fy < 200) { warnings.push(`fy = ${fy} MPa below min (230). Set to null.`); d.materials.fy = null; }
+    }
+  }
+
+  // ── Beams validation ──
+  if (d.beams && Array.isArray(d.beams)) {
+    d.beams = d.beams.filter(bm => {
+      if (!bm || (!bm.width && !bm.depth && !bm.span)) { warnings.push(`Beam ${bm?.id||"?"}: no dimensions — removed.`); return false; }
+      if (bm.width && (bm.width < 100 || bm.width > 1000)) { warnings.push(`Beam ${bm.id}: width ${bm.width}mm out of range (100-1000). Nulled.`); bm.width = null; }
+      if (bm.depth && (bm.depth < 150 || bm.depth > 2000)) { warnings.push(`Beam ${bm.id}: depth ${bm.depth}mm out of range (150-2000). Nulled.`); bm.depth = null; }
+      if (bm.span && bm.span > 20) { warnings.push(`Beam ${bm.id}: span ${bm.span}m > 20m — possible mm→m error. Nulled.`); bm.span = null; }
+      if (bm.Mu && bm.Mu > 5000) { warnings.push(`Beam ${bm.id}: Mu=${bm.Mu} kN·m very high. Verify.`); }
+      return true;
+    });
+  }
+
+  // ── Columns validation ──
+  if (d.columns && Array.isArray(d.columns)) {
+    d.columns = d.columns.filter(col => {
+      if (!col || (!col.width && !col.height)) { warnings.push(`Column ${col?.id||"?"}: no dimensions — removed.`); return false; }
+      if (col.width && (col.width < 100 || col.width > 2000)) { warnings.push(`Col ${col.id}: width ${col.width}mm out of range. Nulled.`); col.width = null; }
+      if (col.height && (col.height < 100 || col.height > 2000)) { warnings.push(`Col ${col.id}: height ${col.height}mm out of range. Nulled.`); col.height = null; }
+      if (col.Pu && col.Pu > 50000) { warnings.push(`Col ${col.id}: Pu=${col.Pu}kN extremely high. Verify.`); }
+      return col.width || col.height;
+    });
+  }
+
+  // ── Footings validation ──
+  if (d.footings && Array.isArray(d.footings)) {
+    d.footings = d.footings.filter(ft => {
+      if (!ft) return false;
+      // Fix common unit errors
+      if (ft.soilBearing && ft.soilBearing > 1000) {
+        warnings.push(`Footing ${ft.id}: qa=${ft.soilBearing} likely in Pa not kPa. Converted to ${(ft.soilBearing/1000).toFixed(1)} kPa.`);
+        ft.soilBearing = +(ft.soilBearing / 1000).toFixed(1);
+      }
+      if (ft.depth && ft.depth > 20) {
+        warnings.push(`Footing ${ft.id}: Df=${ft.depth} likely in mm not m. Converted to ${(ft.depth/1000).toFixed(2)}m.`);
+        ft.depth = +(ft.depth / 1000).toFixed(2);
+      }
+      if (ft.soilBearing && (ft.soilBearing < 10 || ft.soilBearing > 600)) {
+        warnings.push(`Footing ${ft.id}: qa=${ft.soilBearing}kPa out of typical range (10-600). Nulled.`);
+        ft.soilBearing = null;
+      }
+      if (ft.depth && (ft.depth < 0.3 || ft.depth > 10)) {
+        warnings.push(`Footing ${ft.id}: Df=${ft.depth}m out of range (0.3-10). Nulled.`);
+        ft.depth = null;
+      }
+      return true;
+    });
+  }
+
+  // ── Slabs validation ──
+  if (d.slabs && Array.isArray(d.slabs)) {
+    d.slabs = d.slabs.filter(sl => {
+      if (!sl || (!sl.span && !sl.thickness)) { return false; }
+      if (sl.thickness && (sl.thickness < 50 || sl.thickness > 500)) { warnings.push(`Slab ${sl.id}: thickness ${sl.thickness}mm out of range. Nulled.`); sl.thickness = null; }
+      if (sl.span && sl.span > 15) { warnings.push(`Slab ${sl.id}: span ${sl.span}m > 15m — verify.`); }
+      return true;
+    });
+  }
+
+  // ── Seismic validation ──
+  if (d.seismic) {
+    if (d.seismic.naturalPeriod && (d.seismic.naturalPeriod > 5 || d.seismic.naturalPeriod < 0.05)) {
+      warnings.push(`Seismic T=${d.seismic.naturalPeriod}s out of range. Nulled.`);
+      d.seismic.naturalPeriod = null;
+    }
+    if (d.seismic.responseFactor && (d.seismic.responseFactor > 10 || d.seismic.responseFactor < 1)) {
+      warnings.push(`Seismic R=${d.seismic.responseFactor} out of range (1-10). Nulled.`);
+      d.seismic.responseFactor = null;
+    }
+    if (d.seismic.seismicWeight && d.seismic.seismicWeight > 500000) {
+      warnings.push(`Seismic W=${d.seismic.seismicWeight}kN extremely high. Verify.`);
+    }
+  }
+
+  // ── Loads validation ──
+  if (d.loads) {
+    ["floorDL","floorLL","roofDL","roofLL"].forEach(k => {
+      if (d.loads[k] && (d.loads[k] > 50 || d.loads[k] < 0.5)) {
+        warnings.push(`Load ${k}=${d.loads[k]}kPa out of typical range (0.5-50). Nulled.`);
+        d.loads[k] = null;
+      }
+    });
+  }
+
+  // ── Building validation ──
+  if (d.building) {
+    if (d.building.floorHeight && (d.building.floorHeight > 10 || d.building.floorHeight < 2)) {
+      warnings.push(`Floor height ${d.building.floorHeight}m out of range (2-10). Nulled.`);
+      d.building.floorHeight = null;
+    }
+    if (d.building.floors && (d.building.floors > 80 || d.building.floors < 1)) {
+      warnings.push(`Floor count ${d.building.floors} out of range. Nulled.`);
+      d.building.floors = null;
+    }
+  }
+
+  return { data: d, warnings };
+}
+
 const NSCP_EXTRACTION_PROMPT = `You are a licensed Professional Civil/Structural Engineer (PSCE). Extract all computable engineering parameters from the uploaded structural plans.
 
-Return ONLY valid JSON — no markdown, no preamble. Use null for any value not found in the plans.
+CRITICAL RULES:
+1. Return ONLY values EXPLICITLY shown in the plans. NEVER guess, infer, assume, or estimate.
+2. If a value is not clearly visible or readable, use null. It is better to return null than a wrong value.
+3. Pay close attention to UNITS. Convert everything to the units specified below.
+4. For member schedules (beams, columns, footings), extract ALL members listed, not just the first one.
+5. If the plans show dimensions in mm, keep them in mm. If in meters, convert to mm for width/height/depth.
+6. Do NOT fabricate members that don't appear in the schedule or drawings.
+
+Return ONLY valid JSON — no markdown, no preamble, no explanation.
 
 {
   "building": {
-    "name": "project name or null",
+    "name": "project name from title block or null",
     "occupancy": "Residential|Commercial|Industrial|Institutional|null",
-    "floors": null,
-    "floorHeight": null,
-    "totalHeight": null,
-    "floorArea": null
+    "floors": "integer number of floors or null",
+    "floorHeight": "floor-to-floor height in METERS (typical 2.7-4.0m) or null",
+    "totalHeight": "total building height in METERS or null",
+    "floorArea": "gross floor area in SQUARE METERS or null"
   },
   "seismic": {
-    "zone": "Zone 2|Zone 4|null",
+    "zone": "Zone 2|Zone 4|null — only if explicitly stated in general notes",
     "soilType": "SA|SB|SC|SD|SE|SF|null",
     "soilTypeLabel": "e.g. SD - Stiff Soil or null",
     "occupancyCategory": "I - Standard|II - Essential|III - Hazardous|null",
-    "seismicWeight": null,
-    "naturalPeriod": null,
-    "responseFactor": null
+    "seismicWeight": "total seismic weight W in kN or null — only if shown in seismic analysis",
+    "naturalPeriod": "fundamental period T in SECONDS (typical 0.1-2.0s) or null",
+    "responseFactor": "R factor as number (typical 3.5-8.5) or null"
   },
   "materials": {
-    "fc": null,
-    "fy": null,
-    "coverBeam": null,
-    "coverColumn": null,
-    "coverSlab": null
+    "fc": "concrete strength in MPa (typical PH: 20.7, 27.6, 34.5) or null",
+    "fy": "steel yield strength in MPa (typical PH: 276 for Gr40, 414 for Gr60) or null",
+    "coverBeam": "beam clear cover in mm (typical 40) or null",
+    "coverColumn": "column clear cover in mm (typical 40) or null",
+    "coverSlab": "slab clear cover in mm (typical 20-25) or null"
   },
   "beams": [
-    { "id": "B1", "span": null, "width": null, "depth": null, "Mu": null, "Vu": null }
+    {
+      "id": "beam mark from schedule (B1, GB-1, etc.)",
+      "span": "clear span in METERS (typical 3-10m) or null",
+      "width": "beam width b in mm (typical 200-500mm) or null",
+      "depth": "beam effective depth d in mm (typical 300-800mm) or null",
+      "Mu": "factored moment in kN·m or null — only if shown in analysis",
+      "Vu": "factored shear in kN or null — only if shown in analysis"
+    }
   ],
   "columns": [
-    { "id": "C1", "width": null, "height": null, "Pu": null, "Mu": null, "type": "tied|spiral|null" }
+    {
+      "id": "column mark from schedule (C1, C-1, etc.)",
+      "width": "shorter dimension in mm (typical 200-800mm) or null",
+      "height": "longer dimension in mm (typical 200-800mm) or null",
+      "Pu": "factored axial load in kN or null — only if shown in analysis",
+      "Mu": "factored moment in kN·m or null",
+      "type": "tied|spiral|null"
+    }
   ],
   "footings": [
-    { "id": "F1", "columnLoad": null, "soilBearing": null, "depth": null }
+    {
+      "id": "footing mark (F1, F-1, IF-1, etc.)",
+      "columnLoad": "UNFACTORED service load in kN or null",
+      "soilBearing": "allowable soil bearing capacity in kPa (typical PH: 50-300 kPa) or null — MUST be in kPa not Pa",
+      "depth": "foundation depth Df in METERS from grade (typical 0.6-3.0m) or null — MUST be in meters not mm"
+    }
   ],
   "slabs": [
-    { "id": "S1", "span": null, "thickness": null, "type": "one-way|two-way|null", "DL": null, "LL": null }
+    {
+      "id": "slab mark (S1, S-1, etc.)",
+      "span": "clear span in METERS (typical 3-7m) or null",
+      "thickness": "slab thickness in mm (typical 100-250mm) or null",
+      "type": "one-way|two-way|null",
+      "DL": "dead load in kPa (typical 2-5 kPa) or null",
+      "LL": "live load in kPa (typical 2-5 kPa) or null"
+    }
   ],
   "loads": {
-    "floorDL": null,
-    "floorLL": null,
-    "roofDL": null,
-    "roofLL": null
+    "floorDL": "floor dead load in kPa (typical 2-5 kPa) or null",
+    "floorLL": "floor live load in kPa (typical 2-5 kPa per occupancy) or null",
+    "roofDL": "roof dead load in kPa or null",
+    "roofLL": "roof live load in kPa or null"
   }
 }`;
 
@@ -2172,11 +2345,19 @@ function StructuralChecker({ apiKey, onDataExtracted, externalResult, onResultCh
       const raw = complianceResp.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed; try { parsed=JSON.parse(raw); } catch { throw new Error("Could not parse AI response."); }
 
-      // Parse and store extracted data — hoist to outer scope for save
+      // Parse, VALIDATE, and store extracted data — hoist to outer scope for save
       let extracted = null;
+      let extractionWarnings = [];
       try {
         const rawExtract = extractionResp.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
-        extracted = JSON.parse(rawExtract);
+        const rawParsed = JSON.parse(rawExtract);
+        // Run through validation — catches unit errors, out-of-range values, AI hallucinations
+        const validation = validateExtractedData(rawParsed);
+        extracted = validation.data;
+        extractionWarnings = validation.warnings;
+        if (extractionWarnings.length > 0) {
+          console.warn("[Buildify] Extraction validation warnings:", extractionWarnings);
+        }
         if (onDataExtracted) onDataExtracted(extracted);
         setExtractedData(extracted);
       } catch { /* extraction failed silently - compliance result still shown */ }
