@@ -449,7 +449,7 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000 }) => {
     "API key required. Paste your Anthropic API key (starts with sk-ant-...) into the field in the top navigation bar, then press Enter."
   );
 
-  const payload = { model: "claude-sonnet-4-20250514", max_tokens, messages };
+  const payload = { model: "claude-sonnet-4-20250514", max_tokens, temperature: 0, messages };
   if (system) payload.system = system;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -2921,8 +2921,8 @@ function ColumnDesign({ structuralData, structuralResults }) {
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
                   <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — COLUMN DESIGN RESULTS</div>
-                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="CANNOT VERIFY")?"#f59e0b":"#22c55e",marginBottom:8}}>
-                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Column(s) do not satisfy NSCP Sec. 410":priorItems.every(i=>i.status==="CANNOT VERIFY")?"⚠ CANNOT VERIFY":"✓ PASS — Column(s) satisfy NSCP requirements"}
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="CANNOT VERIFY")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
+                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Column(s) do not satisfy NSCP Sec. 410":priorItems.some(i=>i.status==="CANNOT VERIFY")?"⚠ CANNOT VERIFY — Incomplete column data":"✓ PASS — Column(s) satisfy NSCP requirements"}
                   </div>
                   {priorItems.map((item,idx)=>(
                     <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.2)":"rgba(34,197,94,0.2)"}`}}>
@@ -3141,8 +3141,8 @@ function FootingDesign({ structuralData, structuralResults }) {
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
                   <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — FOOTING DESIGN RESULTS</div>
-                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":"#22c55e",marginBottom:8}}>
-                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Footing(s) have issues":"✓ PASS — Footing(s) are adequate"}
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="CANNOT VERIFY")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
+                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Footing(s) have issues":priorItems.some(i=>i.status==="CANNOT VERIFY")?"⚠ CANNOT VERIFY — Incomplete footing data":priorItems.every(i=>i.status==="PASS")?"✓ PASS — Footing(s) are adequate":"✓ COMPUTED"}
                   </div>
                   {priorItems.map((item,idx)=>(
                     <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":"rgba(34,197,94,0.2)"}`}}>
@@ -6051,6 +6051,7 @@ function runAllComputations(sd) {
       // Validate extracted values — catch obvious AI extraction errors
       if (!P || P <= 0) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Column load P not provided or zero for ${ft.id||"this footing"}. Enter the unfactored service load manually.`}); return; }
       if (!qa || qa <= 0) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Soil bearing capacity qa not provided for ${ft.id||"this footing"}. This must come from a geotechnical report.`}); return; }
+      if (qa > 1000) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Soil bearing qa = ${qa} kPa appears incorrect (likely extracted in Pa instead of kPa, or wrong unit). Typical range: 50–600 kPa for Philippines. Verify with geotechnical report.`}); return; }
       if (Df > 20) { results.items.push({tool:"footing",id:ft.id||"F?",status:"CANNOT VERIFY",error:`Foundation depth Df = ${Df}m appears incorrect (likely extracted in mm instead of m). Verify and re-enter manually. Typical range: 0.6–3.0m.`}); return; }
       const qnet=qa-23.5*Df;
       if(qnet<=0){results.items.push({tool:"footing",id:ft.id||"F?",status:"FAIL",error:`Net bearing capacity ≤ 0 (qa=${qa}kPa, soil weight=${(23.5*Df).toFixed(0)}kPa at Df=${Df}m). Increase qa or reduce Df.`});return;}
