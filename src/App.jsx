@@ -6697,51 +6697,61 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
       `<tr><td>${c.name}</td><td style="font-weight:700;font-family:monospace">${c.val} kN/m²</td></tr>`
     ).join("");
 
-    // ── rebar schedule tables
+    // ── rebar schedule tables (safe Number() wrappers prevent toFixed crashes on undefined)
     const beamRows = (md.beams||[]).map(bm=>{
-      const mainBar = selectBars(bm.As_req, bm.b);
-      const stirrup = selectStirrups(bm.Vs_req, bm.b, bm.d, Number(fy)||414, Number(fc)||27.6);
+      const As_req = Number(bm.As_req)||0;
+      const Vs_req = Number(bm.Vs_req)||0;
+      const mainBar = selectBars(As_req||1, bm.b||200);
+      const stirrup = selectStirrups(Vs_req, bm.b||200, bm.d||300, Number(fy)||414, Number(fc)||27.6);
       return `<tr>
-        <td><b>${bm.id}</b></td><td>${bm.b}×${bm.d}</td><td>${bm.span||"—"}</td>
-        <td>${bm.As_req.toFixed(0)}</td>
+        <td><b>${bm.id||"—"}</b></td><td>${bm.b||"—"}×${bm.d||"—"}</td><td>${bm.span||"—"}</td>
+        <td>${As_req.toFixed(0)}</td>
         <td style="color:#0284c7;font-weight:700">${mainBar.n}-Ø${mainBar.bar.dia}</td>
         <td>${mainBar.As_prov.toFixed(0)}</td>
         <td>Ø${stirrup.dia}@${stirrup.spacing}mm</td>
-        <td style="color:${bm.status==="PASS"?"#16a34a":"#dc2626"};font-weight:700">${bm.status}</td>
+        <td style="color:${bm.status==="PASS"?"#16a34a":"#dc2626"};font-weight:700">${bm.status||"—"}</td>
       </tr>`;
     }).join("");
 
     const colRows = (md.columns||[]).map(col=>{
-      const mainBar = selectBars(col.Ast_req, Math.min(col.b,col.h));
-      const tieSpacing = Math.floor(Math.min(16*mainBar.bar.dia, 480, Math.min(col.b,col.h))/25)*25;
+      const Ast_req = Number(col.Ast_req)||0;
+      const rho_req = Number(col.rho_req)||0;
+      const mainBar = selectBars(Ast_req||1, Math.min(col.b||300,col.h||300));
+      const tieSpacing = Math.floor(Math.min(16*mainBar.bar.dia, 480, Math.min(col.b||300,col.h||300))/25)*25;
       return `<tr>
-        <td><b>${col.id}</b></td><td>${col.b}×${col.h}</td><td>${col.type==="spiral"?"Spiral":"Tied"}</td>
-        <td>${col.Ast_req.toFixed(0)}</td>
+        <td><b>${col.id||"—"}</b></td><td>${col.b||"—"}×${col.h||"—"}</td><td>${col.type==="spiral"?"Spiral":"Tied"}</td>
+        <td>${Ast_req.toFixed(0)}</td>
         <td style="color:#0284c7;font-weight:700">${mainBar.n}-Ø${mainBar.bar.dia}</td>
         <td>${mainBar.As_prov.toFixed(0)}</td>
         <td>Ø10@${tieSpacing}mm</td>
-        <td>${(col.rho_req*100).toFixed(2)}%</td>
-        <td style="color:${col.status==="PASS"?"#16a34a":"#dc2626"};font-weight:700">${col.status}</td>
+        <td>${(rho_req*100).toFixed(2)}%</td>
+        <td style="color:${col.status==="PASS"?"#16a34a":"#dc2626"};font-weight:700">${col.status||"—"}</td>
       </tr>`;
     }).join("");
 
     const ftRows = (md.footings||[]).map(ft=>{
-      const bar = selectSlabBars(ft.As/ft.B);
+      const ftB = Number(ft.B)||0;
+      const ftD = Number(ft.d)||0;
+      const ftAs = Number(ft.As)||0;
+      const bar = selectSlabBars((ftB > 0 ? ftAs/ftB : 0)||1);
       return `<tr>
-        <td><b>${ft.id}</b></td><td>${ft.B.toFixed(2)}×${ft.B.toFixed(2)}m</td>
-        <td>${ft.d.toFixed(0)}</td><td>${ft.qa}</td>
-        <td>${(ft.As/ft.B).toFixed(0)}</td>
+        <td><b>${ft.id||"—"}</b></td><td>${ftB.toFixed(2)}×${ftB.toFixed(2)}m</td>
+        <td>${ftD.toFixed(0)}</td><td>${ft.qa||"—"}</td>
+        <td>${(ftB > 0 ? ftAs/ftB : 0).toFixed(0)}</td>
         <td style="color:#0284c7;font-weight:700">Ø${bar.bar.dia}@${bar.spacing}mm (EW)</td>
       </tr>`;
     }).join("");
 
     const slabRows = (md.slabs||[]).map(sl=>{
-      const bar = selectSlabBars(sl.As);
-      const tmp = selectSlabBars(sl.As*0.0018/(sl.rho_use||0.002));
+      const slAs = Number(sl.As)||0;
+      const slWu = Number(sl.wu)||0;
+      const slMu = Number(sl.Mu)||0;
+      const bar = selectSlabBars(slAs||1);
+      const tmp = selectSlabBars(slAs*0.0018/(sl.rho_use||0.002)||1);
       return `<tr>
-        <td><b>${sl.id}</b></td><td>${sl.L}m</td><td>${sl.h}mm</td>
-        <td>${sl.wu.toFixed(2)}</td><td>${sl.Mu.toFixed(1)}</td>
-        <td>${sl.As.toFixed(0)}</td>
+        <td><b>${sl.id||"—"}</b></td><td>${sl.L||"—"}m</td><td>${sl.h||"—"}mm</td>
+        <td>${slWu.toFixed(2)}</td><td>${slMu.toFixed(1)}</td>
+        <td>${slAs.toFixed(0)}</td>
         <td style="color:#0284c7;font-weight:700">Ø${bar.bar.dia}@${bar.spacing}mm</td>
         <td>Ø${tmp.bar.dia}@${tmp.spacing}mm</td>
       </tr>`;
