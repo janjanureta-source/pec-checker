@@ -6938,10 +6938,24 @@ function RebarSchedule({ structuralData, structuralResults }) {
   const res = structuralResults;
   const [view, setView] = useState("beams"); // beams|columns|footings|slabs
 
-  if (!res || !sd) {
-  
+  // Detect data format
+  const hasOldFormat = res?.memberData?.beams?.[0]?.As_req !== undefined;
+
+  // No data at all — show empty state
+  if (!sd) {
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16,textAlign:"center"}}>
+        <Icon name="report" size={48} color={T.muted}/>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Data Available</div>
+        <div style={{fontSize:13,color:T.muted,maxWidth:340,lineHeight:1.7}}>
+          Upload structural plans in <strong style={{color:"#0696d7"}}>AI Plan Checker</strong> first, then click <strong style={{color:"#0696d7"}}>Run All</strong> to generate the reinforcement schedule.
+        </div>
+      </div>
+    );
+  }
+
   // ── NEW FORMAT: Show extracted reinforcement from plans ──
-  if (!hasOldFormat && sd) {
+  if (!hasOldFormat) {
     const allBeams = sd.beams || [];
     const allCols = sd.columns || [];
     const allFtgs = sd.footings || [];
@@ -7044,13 +7058,15 @@ function RebarSchedule({ structuralData, structuralResults }) {
     );
   }
 
-  return (
+  // ── OLD FORMAT: Full rebar schedule from computation results ──
+  // (Only reached if hasOldFormat is true — i.e. old computation engine was used)
+  if (!res || !res.memberData) {
+    return (
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16,textAlign:"center"}}>
         <Icon name="report" size={48} color={T.muted}/>
-        <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Computations Yet</div>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Computation Results</div>
         <div style={{fontSize:13,color:T.muted,maxWidth:340,lineHeight:1.7}}>
-          Run <strong style={{color:"#0696d7"}}>Run All Computations</strong> inside the AI Plan Checker first.<br/>
-          The rebar schedule is generated from those results.
+          Run <strong style={{color:"#0696d7"}}>Run All</strong> in the AI Plan Checker first to generate rebar schedule data.
         </div>
       </div>
     );
