@@ -6671,7 +6671,15 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
   const md  = results.memberData || {};
 
   const exportFullReport = () => {
+    try {
     if (!results || !results.items || !results.summary) return;
+    // Safe fallbacks for any missing fields (e.g. stale localStorage)
+    const summary = {
+      pass:     results.summary.pass     ?? 0,
+      fail:     results.summary.fail     ?? 0,
+      computed: results.summary.computed ?? 0,
+      total:    results.summary.total    ?? results.items.length,
+    };
     const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
 
     // ── member rows
@@ -6797,10 +6805,10 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
       <!-- SUMMARY SCORECARD -->
       <h2>1. Computation Summary</h2>
       <div class="kpi">
-        <div class="kpi-card kpi-pass"><div class="kpi-val">${results.summary.pass}</div><div class="kpi-lbl">PASS</div></div>
-        <div class="kpi-card kpi-fail"><div class="kpi-val">${results.summary.fail}</div><div class="kpi-lbl">FAIL</div></div>
-        <div class="kpi-card kpi-comp"><div class="kpi-val">${results.summary.computed}</div><div class="kpi-lbl">COMPUTED</div></div>
-        <div class="kpi-card"><div class="kpi-val">${results.summary.total}</div><div class="kpi-lbl">TOTAL CHECKS</div></div>
+        <div class="kpi-card kpi-pass"><div class="kpi-val">${summary.pass}</div><div class="kpi-lbl">PASS</div></div>
+        <div class="kpi-card kpi-fail"><div class="kpi-val">${summary.fail}</div><div class="kpi-lbl">FAIL</div></div>
+        <div class="kpi-card kpi-comp"><div class="kpi-val">${summary.computed}</div><div class="kpi-lbl">COMPUTED</div></div>
+        <div class="kpi-card"><div class="kpi-val">${summary.total}</div><div class="kpi-lbl">TOTAL CHECKS</div></div>
       </div>
       <table><thead><tr><th>Category</th><th>Member ID</th><th>Result</th><th>Detail</th><th style="text-align:center">Status</th></tr></thead><tbody>
         ${memberRows}
@@ -6882,6 +6890,7 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
     a.rel      = "noopener";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch(e) { console.error("Export Full Report error:", e); alert("Export failed: " + e.message); }
   };
 
   return (
