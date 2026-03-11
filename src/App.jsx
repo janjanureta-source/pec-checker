@@ -2416,7 +2416,7 @@ Respond ONLY as valid JSON array:
 
 
 // ─── STRUCTICODE: SEISMIC LOAD CALC ──────────────────────────────────────────
-function SeismicCalc({ structuralData }) {
+function SeismicCalc({ structuralData, structuralResults }) {
   const sd = structuralData;
   const [zone, setZone] = useState(sd?.seismic?.zone || "");
   const [soil, setSoil] = useState(sd?.seismic?.soilTypeLabel || "");
@@ -2577,10 +2577,43 @@ function SeismicCalc({ structuralData }) {
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>V = Sa·I·W/R, bounded by Vmin=0.11·Ca·I·W and Vmax=2.5·Ca·I·W/R (NSCP 2015 Sec. 208.5.2)</div>
         </div>
       ) : (
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <Icon name="seismic" size={40} color={T.muted}/>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
-        </Card>
+        (() => {
+          const priorItems = structuralResults?.items?.filter(i=>i.tool==="seismic") || [];
+          const seisRes = structuralResults?.seismic;
+          if (priorItems.length > 0) {
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <Card style={{background:priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.06)":"rgba(6,150,215,0.06)",border:`1.5px solid ${priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.3)":"rgba(6,150,215,0.3)"}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — SEISMIC LOAD RESULT</div>
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems[0].status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",marginBottom:4}}>
+                    {priorItems[0].status==="CANNOT VERIFY"?"⚠ CANNOT VERIFY":"✓ COMPUTED"}
+                  </div>
+                  {priorItems[0].value && <div style={{fontSize:28,fontWeight:900,color:"#0696d7"}}>{priorItems[0].value}</div>}
+                  {priorItems[0].error && <div style={{fontSize:12,color:"#f59e0b",marginTop:6,padding:"8px 12px",background:"rgba(245,158,11,0.06)",borderRadius:8,borderLeft:"2px solid #f59e0b",lineHeight:1.6}}>{priorItems[0].error}</div>}
+                </Card>
+                {seisRes && (
+                  <div style={{padding:"14px 16px",background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:10}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"#0696d7",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ Engineering Insight</div>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+                      <div style={{display:"flex",gap:8,marginBottom:6}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Base shear V = {seisRes.V} kN (Cs = {seisRes.Cs}%). {seisRes.Cs>15?"High seismic demand.":seisRes.Cs>8?"Moderate seismic demand.":"Low seismic demand."}</span></div>
+                      <div style={{display:"flex",gap:8,marginBottom:6}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#0696d7"}}>ℹ</span><span>Zone: {seisRes.zone}, R = {seisRes.R}. Distribute V vertically per NSCP Sec. 208.5.5.</span></div>
+                    </div>
+                  </div>
+                )}
+                <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
+                  <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL DETAILED CHECK</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Fill in seismic zone, soil type, W, T, and R on the left then click Calculate for a full parameter breakdown.</div>
+                </Card>
+              </div>
+            );
+          }
+          return (
+            <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+              <Icon name="seismic" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+            </Card>
+          );
+        })()
       )}
     </div>
   );
@@ -2770,7 +2803,7 @@ function BeamDesign({ structuralData, structuralResults }) {
 }
 
 // ─── STRUCTICODE: COLUMN DESIGN ──────────────────────────────────────────────
-function ColumnDesign({ structuralData }) {
+function ColumnDesign({ structuralData, structuralResults }) {
   const sd=structuralData, c0=sd?.columns?.[0];
   const [fc,setFc]=useState(sd?.materials?.fc??"");
   const [fy,setFy]=useState(sd?.materials?.fy??"");
@@ -2921,17 +2954,82 @@ function ColumnDesign({ structuralData }) {
           <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 — Short column, concentric load. Apply magnification for slender columns per Sec. 410.12.</div>
         </div>
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <Icon name="column" size={40} color={T.muted}/>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
-        </Card>
+        (() => {
+          const priorItems = structuralResults?.items?.filter(i=>i.tool==="column") || [];
+          const colMemberData = structuralResults?.memberData?.columns || [];
+          if (priorItems.length > 0) {
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — COLUMN DESIGN RESULTS</div>
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="CANNOT VERIFY")?"#f59e0b":"#22c55e",marginBottom:8}}>
+                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Column(s) do not satisfy NSCP Sec. 410":priorItems.every(i=>i.status==="CANNOT VERIFY")?"⚠ CANNOT VERIFY":"✓ PASS — Column(s) satisfy NSCP requirements"}
+                  </div>
+                  {priorItems.map((item,idx)=>(
+                    <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.2)":"rgba(34,197,94,0.2)"}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.id}</span>
+                        <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":item.status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",padding:"2px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
+                      </div>
+                      {item.value && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{item.value}</div>}
+                      {item.detail && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace",marginTop:2}}>{item.detail}</div>}
+                      {item.error && <div style={{fontSize:11,color:item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444",marginTop:6,padding:"6px 10px",background:item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.06)":"rgba(239,68,68,0.06)",borderRadius:6,borderLeft:`2px solid ${item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444"}`,lineHeight:1.6}}>{item.error}</div>}
+                    </div>
+                  ))}
+                </Card>
+                {/* Engineering insights from Run All data */}
+                {colMemberData.length > 0 && colMemberData.map((col,idx)=>(
+                  <div key={idx} style={{padding:"14px 16px",background:col.status==="PASS"?"rgba(34,197,94,0.04)":"rgba(239,68,68,0.04)",border:`1px solid ${col.status==="PASS"?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"}`,borderRadius:10}}>
+                    <div style={{fontSize:11,fontWeight:800,color:col.status==="PASS"?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
+                      {col.status==="PASS" ? `✓ ${col.id} — Engineering Insight` : `⚠ ${col.id} — Why This Column Fails`}
+                    </div>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+                      {(() => {
+                        const ins = [];
+                        const rhoP = (col.rho_req*100).toFixed(2);
+                        if (col.rho_req > 0.08) ins.push({type:"fail",text:`Steel ratio ρ = ${rhoP}% exceeds the 8% maximum (NSCP Sec. 410.3.1). The ${col.b}mm × ${col.h}mm section is too small for Pu = ${col.Pu} kN. Increase section size or use higher-strength concrete.`});
+                        else if (col.rho_req < 0.01) ins.push({type:"warn",text:`Steel ratio ρ = ${rhoP}% is below 1% minimum. Use ρ = 1% min. Column is lightly loaded — section may be oversized.`});
+                        else if (col.rho_req > 0.04) ins.push({type:"warn",text:`Steel ratio ρ = ${rhoP}% is high (>4%). Expect rebar congestion. Consider a larger section.`});
+                        else ins.push({type:"pass",text:`Steel ratio ρ = ${rhoP}% is within 1–8% range. Good constructability.`});
+                        if (col.phiPn < col.Pu) {
+                          ins.push({type:"fail",text:`Capacity φPn = ${col.phiPn.toFixed(0)} kN < Pu = ${col.Pu} kN. Column cannot carry this load. Increase section, raise f'c, or add steel.`});
+                          const newSize = Math.max(Math.ceil(Math.sqrt(col.Ast_req/(0.04))*1.1/50)*50, Math.max(col.b,col.h)+50);
+                          ins.push({type:"fix",text:`Suggested fix: Increase column to ${newSize}mm × ${newSize}mm minimum, or upgrade to f'c = 27.6 MPa.`});
+                        } else {
+                          const util = (col.Pu/col.phiPn*100).toFixed(0);
+                          ins.push({type:"pass",text:`Capacity φPn = ${col.phiPn.toFixed(0)} kN > Pu = ${col.Pu} kN. Utilization: ${util}%.`});
+                        }
+                        return ins.map((x,j)=>(
+                          <div key={j} style={{display:"flex",gap:8,marginBottom:j<ins.length-1?6:0}}>
+                            <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:x.type==="fail"?"#ef4444":x.type==="warn"?"#f59e0b":x.type==="fix"?"#0696d7":"#22c55e"}}>{x.type==="fail"?"✗":x.type==="warn"?"⚠":x.type==="fix"?"→":"✓"}</span>
+                            <span>{x.text}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                ))}
+                <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
+                  <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL DETAILED CHECK</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Enter Pu (kN) and optionally Mu (kN·m) on the left, then click Calculate for a full detailed analysis with interactive parameters.</div>
+                </Card>
+              </div>
+            );
+          }
+          return (
+            <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+              <Icon name="column" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+            </Card>
+          );
+        })()
       )}
     </div>
   );
 }
 
 // ─── STRUCTICODE: FOOTING DESIGN ─────────────────────────────────────────────
-function FootingDesign({ structuralData }) {
+function FootingDesign({ structuralData, structuralResults }) {
   const sd=structuralData, f0=sd?.footings?.[0];
   const [fc,setFc]=useState(sd?.materials?.fc??"");
   const [fy,setFy]=useState(sd?.materials?.fy??"");
@@ -3076,10 +3174,69 @@ function FootingDesign({ structuralData }) {
           </div>
         )
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <Icon name="footing" size={40} color={T.muted}/>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
-        </Card>
+        (() => {
+          const priorItems = structuralResults?.items?.filter(i=>i.tool==="footing") || [];
+          const ftgMemberData = structuralResults?.memberData?.footings || [];
+          if (priorItems.length > 0) {
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="CANNOT VERIFY")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — FOOTING DESIGN RESULTS</div>
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":"#22c55e",marginBottom:8}}>
+                    {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Footing(s) have issues":"✓ PASS — Footing(s) are adequate"}
+                  </div>
+                  {priorItems.map((item,idx)=>(
+                    <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":"rgba(34,197,94,0.2)"}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.id}</span>
+                        <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":"#22c55e",padding:"2px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":"rgba(34,197,94,0.1)"}}>{item.status}</span>
+                      </div>
+                      {item.value && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{item.value}</div>}
+                      {item.detail && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace",marginTop:2}}>{item.detail}</div>}
+                      {item.error && <div style={{fontSize:11,color:"#ef4444",marginTop:6,padding:"6px 10px",background:"rgba(239,68,68,0.06)",borderRadius:6,borderLeft:"2px solid #ef4444",lineHeight:1.6}}>{item.error}</div>}
+                    </div>
+                  ))}
+                </Card>
+                {/* Engineering insights from Run All data */}
+                {ftgMemberData.length > 0 && ftgMemberData.map((ft,idx)=>(
+                  <div key={idx} style={{padding:"14px 16px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"#22c55e",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ {ft.id} — Engineering Insight</div>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+                      {(() => {
+                        const ins = [];
+                        const bearingUtil = (ft.P/(ft.qnet*ft.B*ft.B)*100).toFixed(0);
+                        ins.push({type:"pass",text:`Footing size: ${ft.B.toFixed(2)}m × ${ft.B.toFixed(2)}m, depth d = ${ft.d.toFixed(0)}mm. ${ft.B>3?"Large footing — consider combined/mat foundation.":ft.B<1?"Compact and economical.":"Typical size for this load level."}`});
+                        ins.push({type:+bearingUtil>90?"warn":"pass",text:`Soil bearing utilization: ${bearingUtil}% of net capacity (qnet = ${ft.qnet.toFixed(0)} kPa). ${+bearingUtil>90?"Near capacity — verify with geotech.":"Adequate margin."}`});
+                        ins.push({type:"pass",text:`Reinforcement: As = ${ft.As.toFixed(0)} mm²/m both ways. ${ft.rho_use<=0.0018?"Governed by minimum ρ = 0.18% (shrinkage/temperature).":"Flexure controls — use computed reinforcement."}`});
+                        // Punching shear
+                        const bo = 4*(400 + ft.d);
+                        const Vc_p = (1/3)*Math.sqrt(ft.fc)*bo*ft.d/1e6;
+                        const Vu_p = 1.2*ft.P - ft.qu*(0.4+ft.d/1000)*(0.4+ft.d/1000);
+                        ins.push({type:Vu_p>0.75*Vc_p?"warn":"pass",text:`Punching shear: Vu ≈ ${Vu_p.toFixed(0)} kN ${Vu_p>0.75*Vc_p?">":"<"} φVc ≈ ${(0.75*Vc_p).toFixed(0)} kN. ${Vu_p>0.75*Vc_p?"May need deeper footing.":"Two-way shear OK."}`});
+                        return ins.map((x,j)=>(
+                          <div key={j} style={{display:"flex",gap:8,marginBottom:j<ins.length-1?6:0}}>
+                            <span style={{flexShrink:0,fontSize:11,fontWeight:800,color:x.type==="warn"?"#f59e0b":"#22c55e"}}>{x.type==="warn"?"⚠":"✓"}</span>
+                            <span>{x.text}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                ))}
+                <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
+                  <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL DETAILED CHECK</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Enter column service load P (kN), allowable bearing qa (kPa), and foundation depth Df (m) on the left, then click Calculate for interactive results.</div>
+                </Card>
+              </div>
+            );
+          }
+          return (
+            <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+              <Icon name="footing" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+            </Card>
+          );
+        })()
       )}
     </div>
   );
@@ -3234,7 +3391,7 @@ function SlabDesign({ structuralData, structuralResults }) {
 }
 
 // ─── STRUCTICODE: LOAD COMBINATIONS ──────────────────────────────────────────
-function LoadCombinations({ structuralData }) {
+function LoadCombinations({ structuralData, structuralResults }) {
   const sd = structuralData;
   const [D, setD] = useState(sd?.loads?.floorDL ? sd.loads.floorDL*50 : "");
   const [L, setL] = useState(sd?.loads?.floorLL ? sd.loads.floorLL*50 : "");
@@ -3325,10 +3482,50 @@ function LoadCombinations({ structuralData }) {
           </div>
         </div>
       ) : (
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <Icon name="loads" size={40} color={T.muted}/>
-          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate to see combinations</div>
-        </Card>
+        (() => {
+          const priorItems = structuralResults?.items?.filter(i=>i.tool==="loads") || [];
+          const combos = structuralResults?.loadCombos;
+          if (priorItems.length > 0) {
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <Card style={{background:priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.06)":"rgba(6,150,215,0.06)",border:`1.5px solid ${priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.3)":"rgba(6,150,215,0.3)"}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — LOAD COMBINATIONS</div>
+                  <div style={{fontSize:16,fontWeight:900,color:priorItems[0].status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",marginBottom:4}}>
+                    {priorItems[0].status==="CANNOT VERIFY"?"⚠ CANNOT VERIFY — No load data in plans":"✓ COMPUTED"}
+                  </div>
+                  {priorItems[0].value && <div style={{fontSize:14,fontWeight:700,color:"#0696d7",fontFamily:"monospace"}}>{priorItems[0].value} = {priorItems[0].detail}</div>}
+                  {priorItems[0].error && <div style={{fontSize:12,color:"#f59e0b",marginTop:6,padding:"8px 12px",background:"rgba(245,158,11,0.06)",borderRadius:8,borderLeft:"2px solid #f59e0b",lineHeight:1.6}}>{priorItems[0].error}</div>}
+                </Card>
+                {combos && combos.length > 0 && (
+                  <div style={{padding:"14px 16px",background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:10}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"#0696d7",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>NSCP Load Combinations (Sec. 203)</div>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
+                      {combos.map((c,i)=>{
+                        const isMax = c.val === Math.max(...combos.map(x=>x.val));
+                        return (
+                          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",marginBottom:3,borderRadius:6,background:isMax?"rgba(6,150,215,0.08)":"transparent",border:isMax?"1px solid rgba(6,150,215,0.2)":"none"}}>
+                            <span style={{fontFamily:"monospace",fontSize:12,color:isMax?"#0696d7":T.muted}}>{c.name}</span>
+                            <span style={{fontFamily:"monospace",fontSize:12,fontWeight:isMax?800:400,color:isMax?"#0696d7":T.text}}>{c.val} kN/m²{isMax?" ← GOVERNS":""}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
+                  <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL CHECK</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Enter D, L, and E values on the left then click Calculate for interactive results with custom loads.</div>
+                </Card>
+              </div>
+            );
+          }
+          return (
+            <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
+              <Icon name="loads" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate to see combinations</div>
+            </Card>
+          );
+        })()
       )}
     </div>
   );
@@ -7262,12 +7459,12 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
                 ))}
               </div>
 
-              {subTool==="seismic" && <SeismicCalc   structuralData={structuralData}/>}
+              {subTool==="seismic" && <SeismicCalc   structuralData={structuralData} structuralResults={structuralResults}/>}
               {subTool==="beam"    && <BeamDesign     structuralData={structuralData} structuralResults={structuralResults}/>}
-              {subTool==="column"  && <ColumnDesign   structuralData={structuralData}/>}
-              {subTool==="footing" && <FootingDesign  structuralData={structuralData}/>}
+              {subTool==="column"  && <ColumnDesign   structuralData={structuralData} structuralResults={structuralResults}/>}
+              {subTool==="footing" && <FootingDesign  structuralData={structuralData} structuralResults={structuralResults}/>}
               {subTool==="slab"    && <SlabDesign     structuralData={structuralData} structuralResults={structuralResults}/>}
-              {subTool==="loads"   && <LoadCombinations structuralData={structuralData}/>}
+              {subTool==="loads"   && <LoadCombinations structuralData={structuralData} structuralResults={structuralResults}/>}
               {subTool==="rebar"   && <RebarSchedule  structuralData={structuralData} structuralResults={structuralResults}/>}
             </div>
           )}
