@@ -1712,14 +1712,15 @@ Be very specific with corrected values and drafting instructions. Reference typi
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(170px, 1fr))", gap:8, marginTop:10 }}>
               {Object.entries(CL_LABELS).map(([k,info])=>{
                 const v=result.checklist?.[k];
-                const col=v===null?T.muted:v?T.success:T.danger;
-                const icon=v===null?"—":v?"✓":"✗";
+                const vStr = v===null||v===undefined ? null : (typeof v==="boolean" ? (v?"PASS":"FAIL") : String(v));
+                const col = vStr===null?T.muted : vStr==="PASS"?T.success : vStr==="CANNOT VERIFY"||vStr==="NOT APPLICABLE"?"#f59e0b" : T.danger;
+                const icon = vStr===null?"—" : vStr==="PASS"?"✓" : vStr==="CANNOT VERIFY"?"?" : vStr==="NOT APPLICABLE"?"N/A" : "✗";
                 return (
                   <div key={k} style={{ display:"flex", alignItems:"center", gap:10, background:T.dim, borderRadius:8, padding:"8px 12px" }}>
                     <span style={{ color:col, fontWeight:800, fontSize:16, width:18 }}>{icon}</span>
                     <div>
-                      <div style={{ fontSize:12, color:v===null?T.muted:T.text }}>{info.l}</div>
-                      <div style={{ fontSize:10, color:T.muted }}>{info.a}</div>
+                      <div style={{ fontSize:12, color:vStr===null?T.muted:T.text }}>{info.l}</div>
+                      <div style={{ fontSize:10, color:col, fontWeight:600 }}>{vStr||"—"}</div>
                     </div>
                   </div>
                 );
@@ -1974,6 +1975,12 @@ DETAILING QUALITY
 - Are all sections/details cross-referenced to plan locations?
 - Is the title block complete with PRC license number of PSCE?
 
+STRICT RULES — NEVER HALLUCINATE COMPLIANCE:
+- NEVER mark loadCombinations, seismicDesign, or windLoad as PASS unless the actual design calculations or load combination tables are explicitly shown in the uploaded plans.
+- Structural drawings (foundation plan, framing plan, rebar schedules) do NOT prove load combination or seismic compliance — only explicit design calculation sheets do.
+- If no seismic analysis worksheet, load combination table, or design calculation is visible in the plans, you MUST return "CANNOT VERIFY" for loadCombinations and seismicDesign, and create a WARNING finding for each.
+- Do not assume compliance from the absence of violations. Assume non-compliance until proven otherwise by visible data.
+
 CONFIDENCE GUIDANCE:
 - Use CRITICAL for clear code violations where the plan shows non-compliant values
 - Use WARNING for likely violations where key data is missing (cannot verify compliance)
@@ -2009,16 +2016,16 @@ Respond ONLY as valid JSON (no markdown, no preamble):
     }
   ],
   "checklist": {
-    "loadCombinations": true,
-    "seismicDesign": true,
-    "windLoad": true,
-    "concreteDesign": true,
-    "steelDesign": null,
-    "foundationDesign": true,
-    "beamColumnDetailing": true,
-    "slabDesign": true,
-    "connectionDesign": null,
-    "materialSpecs": true
+    "loadCombinations": "PASS|FAIL|CANNOT VERIFY",
+    "seismicDesign": "PASS|FAIL|CANNOT VERIFY",
+    "windLoad": "PASS|FAIL|CANNOT VERIFY",
+    "concreteDesign": "PASS|FAIL|CANNOT VERIFY",
+    "steelDesign": "PASS|FAIL|CANNOT VERIFY|NOT APPLICABLE",
+    "foundationDesign": "PASS|FAIL|CANNOT VERIFY",
+    "beamColumnDetailing": "PASS|FAIL|CANNOT VERIFY",
+    "slabDesign": "PASS|FAIL|CANNOT VERIFY",
+    "connectionDesign": "PASS|FAIL|CANNOT VERIFY|NOT APPLICABLE",
+    "materialSpecs": "PASS|FAIL|CANNOT VERIFY"
   }
 }`;
 
@@ -3611,13 +3618,15 @@ CRITICAL OUTPUT RULES:
     const riskColor = RISK_COL_MAP[overallStatus] || "#64748b";
     const ITEM_STATUS_COL = { "OK":"#22c55e","OVER":"#f59e0b","UNDER":"#ef4444","MISSING":"#ef4444","EXCESS":"#94a3b8" };
     const SEV_COL = { "CRITICAL":"#ef4444","WARNING":"#f59e0b" };
+    const _bomAdj = bomMfn(aiBase);
     const mRows = [
       ["Materials / Escalation", bomMarkup.materials],
       ["Labor Markup",           bomMarkup.labor],
       ["Overhead & Profit",      bomMarkup.overhead],
       ["Contingency",            bomMarkup.contingency],
-    ].map(([label,pct]) =>
-      `<tr><td>${label}</td><td style="text-align:right;padding-left:16px;width:50px">${pct}%</td><td style="text-align:right;width:130px;font-family:monospace">${fmt(aiBase*(pct/100))}</td></tr>`
+    ].filter(([,pct]) => pct > 0)
+    .map(([label,pct]) =>
+      `<tr><td>${label}</td><td style="text-align:right;font-family:monospace;width:130px">${fmt(aiBase*(pct/100))}</td><td style="text-align:right;width:50px;color:#6b7280">${pct}%</td></tr>`
     ).join("");
     const liRows = lineItems.map(li => {
       const costStatus = (li.unitCostBom && li.unitCostMarket)
@@ -3669,11 +3678,11 @@ CRITICAL OUTPUT RULES:
     ${result.summary.bomDateWarning ? `<p style="color:#d97706;background:#fef3c7;padding:8px 12px;border-radius:4px;margin-bottom:8px">📅 ${result.summary.bomDateWarning}</p>` : ""}
     ${result.priceEscalationWarning ? `<p style="color:#dc2626;background:#fee2e2;padding:8px 12px;border-radius:4px;margin-bottom:8px">📈 ${result.priceEscalationWarning}</p>` : ""}
     <h2>Cost Summary with Margins</h2>
-    <table style="width:420px"><tr><th>Item</th><th style="text-align:right;width:50px">%</th><th style="text-align:right;width:130px">Amount</th></tr>
-    <tr><td>BOM Submitted Total</td><td></td><td style="text-align:right;font-family:monospace">${fmt(bomTotal)}</td></tr>
-    <tr><td>AI Validated Base</td><td></td><td style="text-align:right;font-family:monospace">${fmt(aiBase)}</td></tr>
+    <table style="width:480px;border-collapse:collapse"><tr><th style="text-align:left">Item</th><th style="text-align:right;width:140px">Amount</th><th style="text-align:right;width:50px">%</th></tr>
+    <tr><td>BOM Submitted Total</td><td style="text-align:right;font-family:monospace">${fmt(bomTotal)}</td><td></td></tr>
+    <tr><td>AI Validated Base</td><td style="text-align:right;font-family:monospace">${fmt(aiBase)}</td><td></td></tr>
     ${mRows}
-    <tr class="total-row"><td colspan="2">ADJUSTED TOTAL (with margins)</td><td style="text-align:right;font-family:monospace">${fmt(adjustedTotal)}</td></tr></table>
+    <tr class="total-row"><td>ADJUSTED TOTAL (with margins)</td><td style="text-align:right;font-family:monospace">${fmt(_bomAdj)}</td><td></td></tr></table>
     ${tradeRows ? `<h2>Cost Breakdown by Trade</h2><table style="width:400px"><tr><th>Trade</th><th style="text-align:right">Amount (PHP)</th></tr>${tradeRows}</table>` : ""}
     <h2>Markup Assessment</h2>
     <p>Observed: <strong>${markup?.observedMarkup||"—"}%</strong> &nbsp;·&nbsp; Recommended: <strong>${markup?.recommendedMarkup||"—"}%</strong> &nbsp;·&nbsp; Flag: <strong>${markup?.flag||"—"}</strong></p>
@@ -3957,9 +3966,15 @@ CRITICAL OUTPUT RULES:
                   <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span></div>
                   <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span></div>
                   <div style={{height:1,background:T.border}}/>
-                  {Object.entries(marginsState).map(([k,m])=>m.pct>0?(
-                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",background:T.dim,borderRadius:7}}><span style={{fontSize:12,color:T.muted}}>{m.label} +{m.pct}%</span><span style={{fontSize:12,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(aiBase*(m.pct/100))}</span></div>
-                  ):null)}
+                  {[["Materials / Escalation",bomMarkup.materials,STR],["Labor Markup",bomMarkup.labor,"#06b6d4"],["Overhead & Profit",bomMarkup.overhead,"#ff6b2b"],["Contingency",bomMarkup.contingency,"#a78bfa"]].filter(([,pct])=>pct>0).map(([label,pct,col])=>(
+                    <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 12px",background:T.dim,borderRadius:7}}>
+                      <span style={{fontSize:12,color:T.muted}}>{label}</span>
+                      <span style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:12,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(aiBase*(pct/100))}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:col,minWidth:32,textAlign:"right"}}>{pct}%</span>
+                      </span>
+                    </div>
+                  ))}
                   <div style={{display:"flex",justifyContent:"space-between",padding:"11px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}><span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span><span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{bomMf(adjustedTotal)}</span></div>
                 </div>
               </Card>
