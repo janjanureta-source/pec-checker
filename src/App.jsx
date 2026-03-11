@@ -439,7 +439,7 @@ const getKey = () => {
   return "";
 };
 
-const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 2 }) => {
+const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 4 }) => {
   // Try: explicit prop → localStorage → window global
   const key = (typeof apiKey === "string" && apiKey.startsWith("sk-"))
     ? apiKey
@@ -455,7 +455,7 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 2
   let lastError = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt)); // exponential backoff
+      if (attempt > 0) await new Promise(r => setTimeout(r, 2500 * attempt)); // exponential backoff
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -2423,7 +2423,13 @@ Respond ONLY as valid JSON array:
       const data = await callAI({ apiKey, messages:[{role:"user",content:prompt}], max_tokens:4000 });
       const raw = data.content?.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
       setCorrections(JSON.parse(raw));
-    } catch(e){ alert("Could not generate corrections: "+e.message); }
+    } catch(e){
+      if (e.message && e.message.includes("429")) {
+        alert("The AI API is currently overloaded. Please wait 30–60 seconds and try again.");
+      } else {
+        alert("Could not generate corrections: " + e.message);
+      }
+    }
     finally { setCorrecting(false); }
   };
 
