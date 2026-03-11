@@ -6670,7 +6670,6 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
   const md  = results.memberData || {};
 
   const exportFullReport = () => {
-    const w    = window.open("","_blank");
     const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
 
     // ── member rows
@@ -6740,7 +6739,7 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
 
     const seismic = results.seismic || {};
 
-    w.document.write(`<!DOCTYPE html><html><head>
+    const html = `<!DOCTYPE html><html><head>
       <title>Structural Summary Report — ${projName}</title>
       <style>
         *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0;font-size:12px;color:#1e293b}
@@ -6872,9 +6871,15 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
       <strong>⚠ PRELIMINARY — NOT FOR CONSTRUCTION.</strong> Buildify Structural Module · NSCP 2015 · Generated: ${date}<br/>
       Bar sizes per ASTM A615 / PNS 49. Methods: Equivalent Static Force (Sec. 208), USD flexure &amp; shear (Sec. 406, 410, 415, 409). All values require PSCE verification.
     </div>
-    </body></html>`);
-    w.document.close();
-    setTimeout(()=>w.print(),600);
+    </body></html>`;
+    const blob = new Blob([html], { type: "text/html" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.target   = "_blank";
+    a.rel      = "noopener";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
   return (
