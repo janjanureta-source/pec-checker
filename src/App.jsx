@@ -6217,6 +6217,7 @@ const exportDocument = () => {
 
   <!-- DISCLAIMER -->
   <div class="disclaimer">
+    <strong>RATE REFERENCES:</strong> Structural &amp; civil rates — DPWH Blue Book 2024. Material prices — PSA CMWPI, Jan 2026. Labor, finishing &amp; MEP — NCR Contractor Market Survey, Q1 2026. Rebar &amp; cement spot prices cross-checked vs. Pag-asa Steel &amp; Holcim dealer quotes, Feb 2026. Professional fees — AAIF/PRC Schedule of Minimum Fees (current edition). Rates reviewed quarterly by Buildify.<br><br>
     <strong>IMPORTANT DISCLAIMER:</strong> This is a parametric pre-design cost estimate (±20–35% accuracy) for budgeting and client guidance purposes only.
     It is NOT a contract, Bill of Quantities, or formal tender document. Actual costs will vary based on final material choices, site conditions,
     contractor rates, and market prices at time of construction. ${p.validityNote||""} ${p.accuracyNote||""}
@@ -6270,8 +6271,15 @@ const exportDocument = () => {
   const [flagRate,   setFlagRate]   = useState("");
   const [flagNote,   setFlagNote]   = useState("");
 
-  const RATES_VERSION = "Q1 2025";
-  const RATES_SOURCES = "DPWH Blue Book 2024 · PSA CMWPI · NCR market survey";
+  const RATES_VERSION = "Q1 2026";
+  const RATES_SOURCES = "DPWH Blue Book 2024 · PSA CMWPI Jan 2026 · NCR contractor survey Q1 2026";
+  const RATES_DETAIL = [
+    { source: "DPWH Blue Book 2024", scope: "Structural & civil works unit rates", date: "2024 edition" },
+    { source: "PSA Construction Materials Wholesale Price Index (CMWPI)", scope: "Cement, steel, aggregates", date: "January 2026" },
+    { source: "NCR Contractor Market Survey", scope: "Labor, finishing trades, MEP", date: "Q1 2026" },
+    { source: "Pag-asa Steel / Holcim dealer quotes", scope: "Rebar & cement spot prices cross-check", date: "February 2026" },
+    { source: "AAIF / PRC Schedule of Minimum Fees", scope: "Professional fees basis", date: "Current edition" },
+  ];
 
   const submitFlag = (tradeIdx, trade) => {
     const entry = { tradeIdx, trade: trade.trade, unit: trade.unit,
@@ -6576,10 +6584,15 @@ const exportDocument = () => {
             {/* Rates version badge */}
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,flex:1,minWidth:220}}>
               <span style={{fontSize:16}}>📅</span>
-              <div>
-                <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Rate Reference</div>
-                <div style={{fontSize:11,color:STR,fontWeight:700}}>{RATES_VERSION} — {RATES_SOURCES}</div>
-                <div style={{fontSize:9,color:T.muted,marginTop:1}}>Rates updated quarterly. Verify steel & cement with current suppliers.</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Rate References — {RATES_VERSION}</div>
+                <div style={{fontSize:11,color:STR,fontWeight:700,marginBottom:4}}>{RATES_SOURCES}</div>
+                {RATES_DETAIL.map((r,i) => (
+                  <div key={i} style={{fontSize:9,color:T.muted,lineHeight:1.6,display:"flex",gap:6}}>
+                    <span style={{color:STR,fontWeight:600,whiteSpace:"nowrap"}}>· {r.source}</span>
+                    <span>— {r.scope} <span style={{color:"rgba(148,163,184,0.5)"}}>({r.date})</span></span>
+                  </div>
+                ))}
               </div>
             </div>
             {/* Confidence meter */}
