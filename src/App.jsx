@@ -5371,6 +5371,46 @@ Estimate interior works only: partition walls, ceiling, flooring, electrical out
 Typical fit-out cost: ₱8,000–₱35,000/sqm depending on finish level (economy to luxury)
 
 ═══════════════════════════════════════════
+MATERIAL COMPOSITION REFERENCE (per sqm of built area)
+These are typical material quantities embedded in the parametric rates above.
+Use these to cross-check if individual material quantities are known.
+═══════════════════════════════════════════
+
+RC FRAME (per sqm of floor area, standard residential):
+- Concrete (27.5 MPa): 0.25–0.35 cu.m/sqm (columns + beams + slab combined)
+- Reinforcing steel: 25–40 kg/sqm (residential), 40–65 kg/sqm (commercial), 60–90 kg/sqm (government/high-rise)
+- Formwork: 1.5–2.2 sqm formwork per sqm of floor
+- Cement: ~9.5 bags per cu.m of concrete (1:2:4 mix), ~8 bags for 1:1.5:3
+
+CHB WALLS (per sqm of wall face):
+- CHB 150mm: 12.5 pcs/sqm + mortar (cement: ~0.4 bag/sqm)
+- CHB 100mm: 12.5 pcs/sqm + mortar (cement: ~0.3 bag/sqm)
+- Current market prices (NCR, 2024–2025):
+  - 40kg Portland cement bag: ₱265–₱310/bag
+  - Deformed steel bar (12mm): ₱55–₱68/kg
+  - Deformed steel bar (16mm): ₱55–₱68/kg
+  - River sand (per cu.m): ₱850–₱1,400/cu.m
+  - Crushed gravel (per cu.m): ₱950–₱1,600/cu.m
+  - CHB 150mm: ₱14–₱18/pc
+  - CHB 100mm: ₱12–₱15/pc
+
+SOIL CONDITION IMPACT ON FOUNDATION COST:
+- Rock / very stiff: use LOW end of foundation rates (minimal excavation, shallow footing OK)
+- Good (dense sand/gravel, SBC ≥120 kPa): use LOW-MID rates, standard isolated footings
+- Average (medium stiff clay, SBC 75–120 kPa): use MID rates, possibly need larger footings
+- Soft (loose fill, SBC <75 kPa): use HIGH rates, likely needs piles or mat footing, add 20–40% to foundation cost
+- Unknown: use MID-HIGH rates and flag in marketWarnings
+
+ESCALATION / PRICE INFLATION:
+- Philippine construction inflation: ~6–10% per year (2023–2025 trend)
+- Steel and cement most volatile: can move ±15–25% in 12 months
+- If construction start is 6+ months away, add escalation to estimate:
+  - 6 months: +3–5% to material-heavy trades (structural, MEP)
+  - 12 months: +6–10%
+  - 18 months: +9–15%
+  - 24 months: +12–20%
+
+═══════════════════════════════════════════
 PRECISION RULES — READ CAREFULLY
 ═══════════════════════════════════════════
 
@@ -5545,6 +5585,14 @@ function CostEstimator({ apiKey, onResultChange=null }) {
   const [renovScope,    setRenovScope]    = useState("moderate");   // light | moderate | heavy
   const [adhocItems,    setAdhocItems]    = useState("");           // free text
 
+  // ── Accuracy enhancers ──
+  const [storeyHeight,   setStoreyHeight]   = useState("");          // floor-to-floor height in meters
+  const [soilCondition,  setSoilCondition]  = useState("average");   // good | average | soft | rock
+  const [constructionStart, setConstructionStart] = useState("");    // expected start: months from now
+  const [knownQty,       setKnownQty]       = useState("");          // known quantities free text
+  const [supplierPrices, setSupplierPrices] = useState("");          // supplier price overrides
+  const [showAdvanced,   setShowAdvanced]   = useState(false);
+
   const fileRef = useRef(null);
   const STR = "#0696d7";
   const GOLD = "#f59e0b";
@@ -5708,15 +5756,31 @@ ${inclProfFees
 - Government projects: apply agency-specific fee schedule`
   : `- EXCLUDE professional fees — construction cost only`}
 
+SITE & STRUCTURAL CONDITIONS:
+- Storey height: ${storeyHeight ? storeyHeight + " m — use for wall area, column height, MEP run calcs" : "Not specified — assume 3.0m residential / 3.6m commercial / 4.0m government"}
+- Soil: ${soilCondition==="rock"?"Rock/Very Stiff: LOW foundation rates, shallow footings":soilCondition==="good"?"Good (SBC ≥120 kPa): LOW-MID foundation rates, standard isolated footings":soilCondition==="soft"?"SOFT SOIL (SBC <75 kPa): HIGH rates, likely pile/mat footing, +20–40% on foundation, flag HIGH risk in marketWarnings":soilCondition==="unknown"?"Unknown: MID-HIGH foundation rates, recommend geotech investigation, flag in warnings":"Average (SBC 75–120 kPa): MID foundation rates"}
+
+${constructionStart?`PRICE ESCALATION: ~${constructionStart} months to construction start. Apply to structural and MEP trades: ${+constructionStart<=3?"+1-2%":+constructionStart<=6?"+3-5%":+constructionStart<=12?"+6-10%":+constructionStart<=18?"+9-15%":"+12-20%"}. Show as separate escalation trade line. Flag as market warning if >=12 months.`:"No escalation specified."}
+
+${knownQty?`LOCKED QUANTITIES (engineer-confirmed — use these exactly, do not estimate differently):
+${knownQty}
+For each quantity: set trade qty to stated value. Note in assumptions: "Quantity confirmed by engineer."`:""} 
+
+${supplierPrices?`CANVASSED SUPPLIER PRICES (override reference table with these confirmed rates):
+${supplierPrices}
+For affected trades: use these prices for rateLow/rateHigh. Note in trade notes: "Rate from canvassed supplier price."`:""}
+
 CRITICAL INSTRUCTIONS:
-1. Read ALL uploaded plan pages before estimating. Note every visible structural member, fixture, and special feature.
-2. Apply the ×${locData.mod} location modifier to every trade rate from the reference table.
-3. Use the project-type guidance above to select which trades to include.
-4. Use the finish-level guidance for architectural rate selection.
-5. Every trade must have: qty, unit, rateLow, rateHigh, totalLow, totalHigh, totalMid, percentOfTotal.
-6. Verify: sum of all trade totalMid + contingency + profFees = summary.totalMid.
-7. Set contingency based on plan completeness — see CONTINGENCY rules in system prompt.
-8. Return ONLY valid JSON. No text before or after the JSON object.`;
+1. Read ALL uploaded plan pages. Extract every structural member, fixture, special feature.
+2. Apply ×${locData.mod} location modifier to every trade rate.
+3. Apply soil condition impact to foundation costs per above.
+4. Apply price escalation to structural/MEP trades if construction start is specified.
+5. Use any locked quantities and supplier prices above — they override the reference table.
+6. Match trade list to project type as specified in project-type guidance.
+7. Every trade: qty, unit, rateLow, rateHigh, totalLow, totalHigh, totalMid, percentOfTotal required.
+8. Math check: sum(all trade.totalMid) + contingency + profFees must equal summary.totalMid.
+9. Set contingency per plan completeness rules in system prompt.
+10. Return ONLY valid JSON. No text before or after the JSON object.`;
   };
 
   const run = async () => {
@@ -6140,6 +6204,30 @@ const exportDocument = () => {
   const project  = result?.project || {};
   const veItems  = result?.valueEngineering || [];
   const warnings = result?.marketWarnings   || [];
+  const nextSteps = result?.nextSteps || [];
+
+  // ── Rate flag / feedback system ──
+  const [flagged,    setFlagged]    = useState({});
+  const [flagOpen,   setFlagOpen]   = useState(null);
+  const [flagRate,   setFlagRate]   = useState("");
+  const [flagNote,   setFlagNote]   = useState("");
+
+  const RATES_VERSION = "Q1 2025";
+  const RATES_SOURCES = "DPWH Blue Book 2024 · PSA CMWPI · NCR market survey";
+
+  const submitFlag = (tradeIdx, trade) => {
+    const entry = { tradeIdx, trade: trade.trade, unit: trade.unit,
+      aiRateLow: trade.rateLow, aiRateHigh: trade.rateHigh,
+      userRate: flagRate, note: flagNote,
+      location, projectType, ts: new Date().toISOString() };
+    try {
+      const existing = JSON.parse(localStorage.getItem("buildify_rate_flags") || "[]");
+      existing.push(entry);
+      localStorage.setItem("buildify_rate_flags", JSON.stringify(existing.slice(-200)));
+    } catch {}
+    setFlagged(p => ({ ...p, [tradeIdx]: entry }));
+    setFlagOpen(null); setFlagRate(""); setFlagNote("");
+  };
 
   const TRADE_COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#84cc16","#ec4899","#6366f1","#14b8a6","#a78bfa"];
 
@@ -6266,6 +6354,89 @@ const exportDocument = () => {
           </div>
         </div>
 
+        {/* ── Advanced Accuracy Inputs ── */}
+        <div style={{marginBottom:14}}>
+          <button onClick={()=>setShowAdvanced(p=>!p)}
+            style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",borderRadius:9,border:`1.5px solid ${showAdvanced?"rgba(99,102,241,0.5)":T.border}`,background:showAdvanced?"rgba(99,102,241,0.08)":"transparent",color:showAdvanced?"#818cf8":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,width:"100%",justifyContent:"space-between"}}>
+            <span>🎯 Advanced Accuracy Inputs <span style={{fontSize:10,fontWeight:400,opacity:0.7}}>(optional — improves estimate precision)</span></span>
+            <span style={{fontSize:14,transition:"transform 0.2s",transform:showAdvanced?"rotate(180deg)":"none"}}>▾</span>
+          </button>
+
+          {showAdvanced && (
+            <div style={{marginTop:10,background:"rgba(99,102,241,0.04)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:12,padding:16,display:"flex",flexDirection:"column",gap:14}}>
+
+              {/* Row 1: Storey height + Soil condition + Construction start */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Floor-to-Floor Height (m)</div>
+                  <input value={storeyHeight} onChange={e=>setStoreyHeight(e.target.value)} placeholder="e.g. 3.0 (leave blank = AI assumes)"
+                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none"}}
+                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                  <div style={{fontSize:9,color:T.muted,marginTop:3}}>Affects wall area, MEP runs, column height costs</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Soil Condition</div>
+                  <select value={soilCondition} onChange={e=>setSoilCondition(e.target.value)}
+                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}
+                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}>
+                    <option value="rock">Rock / Very Stiff — cheapest foundation</option>
+                    <option value="good">Good (dense sand/gravel, SBC ≥120 kPa)</option>
+                    <option value="average">Average (medium clay, SBC 75–120 kPa)</option>
+                    <option value="soft">Soft (loose fill, SBC &lt;75 kPa) — most expensive</option>
+                    <option value="unknown">Unknown — AI will use conservative rates</option>
+                  </select>
+                  <div style={{fontSize:9,color:T.muted,marginTop:3}}>Directly affects foundation type and cost</div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Expected Construction Start</div>
+                  <select value={constructionStart} onChange={e=>setConstructionStart(e.target.value)}
+                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}
+                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}>
+                    <option value="">Immediate / Not specified</option>
+                    <option value="3">~3 months from now</option>
+                    <option value="6">~6 months from now (+3–5% escalation)</option>
+                    <option value="12">~12 months from now (+6–10% escalation)</option>
+                    <option value="18">~18 months from now (+9–15% escalation)</option>
+                    <option value="24">~24 months from now (+12–20% escalation)</option>
+                  </select>
+                  <div style={{fontSize:9,color:T.muted,marginTop:3}}>PH construction inflation ~6–10%/yr — affects material costs</div>
+                </div>
+              </div>
+
+              {/* Row 2: Known quantities */}
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Known Material Quantities <span style={{color:T.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(from BOQ, structural schedules, or takeoff)</span></div>
+                <textarea value={knownQty} onChange={e=>setKnownQty(e.target.value)}
+                  placeholder={"Enter any confirmed quantities — AI will use these instead of estimating:
+• Reinforcing steel: 12,500 kg
+• Concrete volume: 185 cu.m
+• CHB 150mm walls: 420 sqm
+• Ceramic floor tiles: 310 sqm
+• Plumbing fixtures: 18 pcs"}
+                  style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
+                  onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                <div style={{fontSize:9,color:T.muted,marginTop:3}}>Any quantity you enter is locked — the AI will not estimate it differently. More quantities = more accurate total.</div>
+              </div>
+
+              {/* Row 3: Supplier price overrides */}
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Supplier / Canvassed Prices <span style={{color:T.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(override AI rates with actual quotes)</span></div>
+                <textarea value={supplierPrices} onChange={e=>setSupplierPrices(e.target.value)}
+                  placeholder={"Enter confirmed prices from supplier quotes or recent projects:
+• Portland cement 40kg: ₱295/bag (canvassed Holcim dealer, March 2025)
+• Deformed bars 12mm: ₱61/kg (Pag-asa Steel quote)
+• CHB 150mm: ₱16/pc (local supplier)
+• Ceramic tiles 60×60: ₱1,150/sqm (supplier quote)
+• Split-type AC 1.5HP: ₱44,000/unit installed"}
+                  style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
+                  onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                <div style={{fontSize:9,color:T.muted,marginTop:3}}>These prices will override the reference table rates for affected trades. Canvassed prices produce the most accurate estimates.</div>
+              </div>
+
+            </div>
+          )}
+        </div>
+
         {/* File upload */}
         <div style={{marginBottom:14}}>
           <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:6,textTransform:"uppercase"}}>📐 Upload Plans * <span style={{color:T.muted,fontWeight:400,textTransform:"none"}}>(PDF, JPG, PNG — floor plans, elevations, site plans)</span></div>
@@ -6352,6 +6523,56 @@ const exportDocument = () => {
             )}
           </Card>
 
+          {/* ── Rates freshness badge + Confidence meter ── */}
+          <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap",alignItems:"stretch"}}>
+            {/* Rates version badge */}
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,flex:1,minWidth:220}}>
+              <span style={{fontSize:16}}>📅</span>
+              <div>
+                <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Rate Reference</div>
+                <div style={{fontSize:11,color:STR,fontWeight:700}}>{RATES_VERSION} — {RATES_SOURCES}</div>
+                <div style={{fontSize:9,color:T.muted,marginTop:1}}>Rates updated quarterly. Verify steel & cement with current suppliers.</div>
+              </div>
+            </div>
+            {/* Confidence meter */}
+            {(() => {
+              const conf = summary.overallConfidence || project.planQuality;
+              const confMap = {
+                High:   { color:"#10b981", bg:"rgba(16,185,129,0.08)", border:"rgba(16,185,129,0.25)", label:"High Confidence", pct:90, note: project.planQualityNote || "Complete drawings with dimensions and schedules." },
+                Medium: { color:GOLD,       bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.25)", label:"Medium Confidence ±20%", pct:60, note: project.planQualityNote || "Some details assumed. Commission full QS for bid." },
+                Low:    { color:"#ef4444",  bg:"rgba(239,68,68,0.08)",  border:"rgba(239,68,68,0.25)",  label:"Low Confidence ±30%", pct:30, note: project.planQualityNote || "Schematic plans only. Budget figure, not for contract." },
+              };
+              const c = confMap[conf] || confMap["Medium"];
+              return (
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:c.bg,border:`1px solid ${c.border}`,borderRadius:10,flex:1,minWidth:240}}>
+                  <span style={{fontSize:16}}>🎯</span>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Estimate Confidence</div>
+                      <div style={{fontSize:10,fontWeight:800,color:c.color}}>{c.label}</div>
+                    </div>
+                    <div style={{background:T.border,borderRadius:99,height:6,overflow:"hidden",marginBottom:4}}>
+                      <div style={{width:`${c.pct}%`,height:"100%",background:c.color,borderRadius:99,transition:"width 0.6s ease"}}/>
+                    </div>
+                    <div style={{fontSize:9,color:T.muted,lineHeight:1.4}}>{c.note}</div>
+                  </div>
+                </div>
+              );
+            })()}
+            {/* Cost/sqm benchmark */}
+            {summary.costPerSqmMid && summary.marketBenchmarkLow && (
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,flex:1,minWidth:200}}>
+                <span style={{fontSize:16}}>📈</span>
+                <div>
+                  <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>vs Market Benchmark</div>
+                  <div style={{fontSize:11,fontWeight:700,color:T.text}}>Your estimate: <span style={{color:GOLD}}>₱{fmtR(summary.costPerSqmMid)}/sqm</span></div>
+                  <div style={{fontSize:10,color:T.muted}}>Market range: ₱{fmtR(summary.marketBenchmarkLow)}–₱{fmtR(summary.marketBenchmarkHigh)}/sqm</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>{summary.benchmarkSource}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Tabs */}
           <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
@@ -6360,6 +6581,8 @@ const exportDocument = () => {
                 {k:"trades",   l:`🏗️ By Trade (${trades.length})`},
                 {k:"scope",    l:"📋 Scope & Assumptions"},
                 {k:"ve",       l:`💡 Value Engineering (${veItems.length})`},
+                {k:"risks",    l:`⚠️ Risks (${warnings.length})`},
+                {k:"nextsteps",l:`✅ Next Steps (${nextSteps.length})`},
               ].map(t=>(
                 <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?GOLD:T.border}`,background:activeTab===t.k?"rgba(245,158,11,0.12)":"transparent",color:activeTab===t.k?GOLD:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
               ))}
@@ -6409,38 +6632,76 @@ const exportDocument = () => {
 
           {/* TRADES TAB */}
           {activeTab==="trades" && (
-            <Card style={{padding:0,overflow:"hidden"}}>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",minWidth:800}}>
-                  <thead><tr style={{background:"rgba(245,158,11,0.1)"}}>
-                    {["Trade","Scope Description","Qty","Unit","Rate Low","Rate High","Total Low","Total High","Basis"].map(h=>(
-                      <th key={h} style={{padding:"9px 10px",textAlign:["Rate Low","Rate High","Total Low","Total High"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {trades.map((t,i)=>(
-                      <tr key={t.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                        <td style={{padding:"9px 10px",fontSize:12,fontWeight:700,color:TRADE_COLORS[i%TRADE_COLORS.length]}}>{t.trade}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted,maxWidth:200,lineHeight:1.4}}>{t.description}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(t.qty)}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,color:T.muted}}>{t.unit}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateLow)}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateHigh)}</td>
-                        <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.muted}}>₱{fmtR(t.totalLow)}</td>
-                        <td style={{padding:"9px 10px",fontSize:12,textAlign:"right",fontFamily:"monospace",color:GOLD,fontWeight:700}}>₱{fmtR(t.totalHigh)}</td>
-                        <td style={{padding:"9px 10px",fontSize:10,color:T.muted,maxWidth:160,lineHeight:1.4}}>{t.basis}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot><tr style={{background:"rgba(245,158,11,0.1)",borderTop:`2px solid rgba(245,158,11,0.3)`}}>
-                    <td colSpan={6} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.text}}>CONSTRUCTION COST TOTAL</td>
-                    <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.muted,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)}</td>
-                    <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:GOLD,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostHigh)}</td>
-                    <td/>
-                  </tr></tfoot>
-                </table>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{fontSize:11,color:T.muted,padding:"6px 10px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8}}>
+                💡 <strong style={{color:STR}}>Know a better rate?</strong> Click <strong>🚩 Flag</strong> on any trade row to submit the actual rate you paid. Your input helps keep Buildify accurate for all Philippine engineers.
               </div>
-            </Card>
+              <Card style={{padding:0,overflow:"hidden"}}>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}>
+                    <thead><tr style={{background:"rgba(245,158,11,0.1)"}}>
+                      {["Trade","Scope","Qty","Unit","Rate Low","Rate High","Total Low","Total High","Flag Rate"].map(h=>(
+                        <th key={h} style={{padding:"9px 10px",textAlign:["Rate Low","Rate High","Total Low","Total High"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {trades.map((t,i)=>(
+                        <tr key={t.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)",position:"relative"}}>
+                          <td style={{padding:"9px 10px",fontSize:12,fontWeight:700,color:TRADE_COLORS[i%TRADE_COLORS.length]}}>{t.icon} {t.trade}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,color:T.muted,maxWidth:180,lineHeight:1.4}}>{t.description}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(t.qty)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,color:T.muted}}>{t.unit}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateLow)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateHigh)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.muted}}>₱{fmtR(t.totalLow)}</td>
+                          <td style={{padding:"9px 10px",fontSize:12,textAlign:"right",fontFamily:"monospace",color:GOLD,fontWeight:700}}>₱{fmtR(t.totalHigh)}</td>
+                          <td style={{padding:"9px 6px",textAlign:"center",position:"relative"}}>
+                            {flagged[i] ? (
+                              <span style={{fontSize:10,color:"#10b981",fontWeight:700}}>✓ Flagged</span>
+                            ) : (
+                              <button onClick={()=>{setFlagOpen(flagOpen===i?null:i);setFlagRate("");setFlagNote("");}}
+                                style={{fontSize:10,padding:"4px 8px",borderRadius:6,border:"1px solid rgba(239,68,68,0.3)",background:"rgba(239,68,68,0.07)",color:"#ef4444",cursor:"pointer",fontWeight:700}}>
+                                🚩 Flag
+                              </button>
+                            )}
+                            {flagOpen===i && (
+                              <div style={{position:"absolute",right:0,top:"110%",zIndex:99,background:T.card,border:`1.5px solid rgba(239,68,68,0.4)`,borderRadius:12,padding:14,minWidth:220,boxShadow:"0 8px 32px rgba(0,0,0,0.4)",textAlign:"left"}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"#ef4444",marginBottom:8}}>🚩 Flag Rate for: {t.trade}</div>
+                                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>AI rate: ₱{fmtR(t.rateLow)}–₱{fmtR(t.rateHigh)}/{t.unit}</div>
+                                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Your actual rate (₱/{t.unit}):</div>
+                                <input value={flagRate} onChange={e=>setFlagRate(e.target.value)} placeholder="e.g. 14500"
+                                  style={{width:"100%",background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text,fontSize:12,marginBottom:6,outline:"none"}}
+                                  onFocus={e=>e.target.style.borderColor="#ef4444"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Location / notes (optional):</div>
+                                <input value={flagNote} onChange={e=>setFlagNote(e.target.value)} placeholder="e.g. Cebu, Aug 2025, confirmed with supplier"
+                                  style={{width:"100%",background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text,fontSize:12,marginBottom:8,outline:"none"}}
+                                  onFocus={e=>e.target.style.borderColor="#ef4444"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                                <div style={{display:"flex",gap:6}}>
+                                  <button onClick={()=>submitFlag(i,t)} disabled={!flagRate}
+                                    style={{flex:1,padding:"6px 0",borderRadius:7,border:"none",background:flagRate?"#ef4444":T.border,color:flagRate?"#fff":T.muted,fontWeight:700,fontSize:11,cursor:flagRate?"pointer":"default"}}>
+                                    Submit
+                                  </button>
+                                  <button onClick={()=>setFlagOpen(null)}
+                                    style={{padding:"6px 10px",borderRadius:7,border:`1px solid ${T.border}`,background:"transparent",color:T.muted,fontSize:11,cursor:"pointer"}}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr style={{background:"rgba(245,158,11,0.1)",borderTop:`2px solid rgba(245,158,11,0.3)`}}>
+                      <td colSpan={6} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.text}}>CONSTRUCTION COST TOTAL</td>
+                      <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.muted,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)}</td>
+                      <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:GOLD,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostHigh)}</td>
+                      <td/>
+                    </tr></tfoot>
+                  </table>
+                </div>
+              </Card>
+            </div>
           )}
 
           {/* SCOPE & ASSUMPTIONS TAB */}
@@ -6504,6 +6765,64 @@ const exportDocument = () => {
                     </div>
                   </div>
                 ))
+              }
+            </div>
+          )}
+
+          {/* RISKS TAB */}
+          {activeTab==="risks" && (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {warnings.length===0
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No market risk items flagged</div></Card>
+                : warnings.map((w,i)=>{
+                    const lvlMap = { High:{c:"#ef4444",bg:"rgba(239,68,68,0.07)",border:"rgba(239,68,68,0.25)",icon:"🔴"}, Medium:{c:GOLD,bg:"rgba(245,158,11,0.07)",border:"rgba(245,158,11,0.25)",icon:"🟡"}, Low:{c:"#10b981",bg:"rgba(16,185,129,0.07)",border:"rgba(16,185,129,0.2)",icon:"🟢"} }[w.level]||{c:T.muted,bg:T.dim,border:T.border,icon:"⚪"};
+                    return (
+                      <div key={i} style={{background:lvlMap.bg,border:`1.5px solid ${lvlMap.border}`,borderRadius:12,padding:"14px 18px"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:6}}>
+                          <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                            <span style={{fontSize:18,flexShrink:0}}>{lvlMap.icon}</span>
+                            <div>
+                              <div style={{fontSize:12,fontWeight:700,color:lvlMap.c,marginBottom:2}}>{w.item}</div>
+                              <div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{w.warning}</div>
+                            </div>
+                          </div>
+                          <span style={{fontSize:10,padding:"3px 8px",borderRadius:99,background:lvlMap.bg,border:`1px solid ${lvlMap.border}`,color:lvlMap.c,fontWeight:800,flexShrink:0}}>{w.level} RISK</span>
+                        </div>
+                        {w.mitigation && (
+                          <div style={{marginTop:8,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
+                            <strong style={{color:T.text}}>💡 Mitigation:</strong> {w.mitigation}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+              }
+              <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.6}}>
+                📊 <strong style={{color:STR}}>Check current prices:</strong> PSA Construction Materials Wholesale Price Index (psa.gov.ph) · DPWH price lists (dpwh.gov.ph) · PhilGEPS awarded bids for real project benchmarks
+              </div>
+            </div>
+          )}
+
+          {/* NEXT STEPS TAB */}
+          {activeTab==="nextsteps" && (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {nextSteps.length===0
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>📋</div><div style={{color:T.muted}}>No next steps generated</div></Card>
+                : nextSteps.map((ns,i)=>{
+                    const prioMap = { Urgent:{c:"#ef4444",bg:"rgba(239,68,68,0.08)",border:"rgba(239,68,68,0.25)"}, High:{c:GOLD,bg:"rgba(245,158,11,0.08)",border:"rgba(245,158,11,0.2)"}, Medium:{c:STR,bg:"rgba(6,150,215,0.07)",border:"rgba(6,150,215,0.2)"}, Low:{c:T.muted,bg:T.dim,border:T.border} }[ns.priority]||{c:T.muted,bg:T.dim,border:T.border};
+                    return (
+                      <div key={i} style={{background:prioMap.bg,border:`1.5px solid ${prioMap.border}`,borderRadius:12,padding:"14px 18px",display:"flex",gap:14,alignItems:"flex-start"}}>
+                        <div style={{width:32,height:32,borderRadius:"50%",background:prioMap.c,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",flexShrink:0}}>{ns.step}</div>
+                        <div style={{flex:1}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                            <div style={{fontSize:13,fontWeight:700,color:T.text}}>{ns.action}</div>
+                            {ns.priority && <span style={{fontSize:9,padding:"2px 7px",borderRadius:99,background:prioMap.bg,border:`1px solid ${prioMap.border}`,color:prioMap.c,fontWeight:800}}>{ns.priority}</span>}
+                          </div>
+                          <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>{ns.detail}</div>
+                        </div>
+                      </div>
+                    );
+                  })
               }
             </div>
           )}
