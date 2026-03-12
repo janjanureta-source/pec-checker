@@ -2146,6 +2146,12 @@ SEISMIC DESIGN
 - NSCP Sec. 208.6: Seismic dead load W includes partitions, permanent equipment
 - NSCP Sec. 208.7: Diaphragm design, irregularity checks for torsion
 - NSCP Sec. 208.8: Drift limits (0.02h for Zone 4)
+- NSCP Sec. 421: Special Moment Resisting Frame (SMRF) detailing — determine occupancy category from plans (hospital, jail, school, fire station = Essential I=1.25; hazardous = I=1.50; standard residential/commercial = I=1.0). For Zone 4 buildings with I ≥ 1.25 OR any building 4 storeys and above in Zone 4:
+  * Beam stirrups must be at d/4 spacing in critical zones (within 2× beam depth from face of support), not just d/2
+  * Column confinement ties at s0 = min(8db_longitudinal, 24db_tie, 0.5×least_column_dimension, 300mm) in end regions
+  * If plans show only standard stirrup spacing without any SMRF or seismic detailing note, flag as CRITICAL
+  * Shear wall boundary element requirements per Sec. 421.7 if shear walls are present
+  * For standard residential (I=1.0, 1-3 storeys), IMRF (Intermediate) detailing per Sec. 421.3 applies instead
 
 WIND LOAD
 - NSCP Sec. 207.5: Wind speed map compliance — Metro Manila 200 kph, minimum
@@ -2153,28 +2159,50 @@ WIND LOAD
 - NSCP Sec. 207.9: Roof uplift calculations explicitly shown
 
 CONCRETE DESIGN
-- NSCP Sec. 403: f'c ≥ 21 MPa for structural elements; fy for main bars and ties
-- NSCP Sec. 405: Minimum concrete cover per exposure class (exterior 50mm, interior 40mm)
+- NSCP Sec. 403: f'c ≥ 21 MPa for structural elements; fy for main bars and ties — must be explicitly stated on plans
+- NSCP Sec. 405: Minimum concrete cover per exposure class (exterior 50mm, interior 40mm, foundations 75mm)
 - NSCP Sec. 406/407/408: Beam/column/slab minimum steel ratios (ρmin = 1.4/fy for beams)
-- NSCP Sec. 408: Slab minimum thickness per span/20 (simply supported), span/24 (continuous)
-- NSCP Sec. 409: Shear reinforcement — stirrups at d/2 max spacing in non-critical zones, d/4 in critical
+- NSCP Sec. 408: Slab minimum thickness per span/20 (simply supported), span/24 (continuous) — verify all slab spans
+- NSCP Sec. 409: Shear reinforcement — stirrups at d/2 max spacing in non-critical zones, d/4 in critical zones
 - NSCP Sec. 410: Column ties spacing ≤ 16db, 48 tie diameters, or least column dimension
 - NSCP Sec. 411: Lap splice lengths per NSCP Table 412.3
 
+COLUMN SCHEDULE CHECK — CRITICAL
+- Verify a complete column schedule exists showing: mark, size (b×h), longitudinal bar count and diameter, tie bar size and spacing
+- If column marks appear on plans (e.g. C1, C2) but NO column schedule is shown with reinforcement details, this is a CRITICAL finding
+- Check that column sizes match between framing plans and column schedule
+- Verify column bar ratios: ρ = 1% to 8% (NSCP Sec. 410.4)
+
+BEAM SCHEDULE CHECK
+- Verify beam schedule shows: mark, b×d, top bars at support, bottom bars at midspan, stirrup size and spacing
+- Confirm stirrup spacing matches NSCP Sec. 409 (d/2 max midspan, d/4 at critical zones for SMRF)
+- For any beam with a different stirrup pattern (e.g. tighter spacing), verify it is consistent with the shear demand and occupancy category
+
+SHEAR WALL CHECK
+- If shear walls are present: verify design calculations showing shear demand vs. capacity are provided
+- Check boundary element requirements per NSCP Sec. 421.7 — required if wall stress > 0.2f'c
+- Verify horizontal and vertical reinforcement ratios meet NSCP Sec. 421.7.3 minimums (ρ ≥ 0.0025 each way)
+- If shear wall details are shown but no design calculation is provided, flag as CRITICAL
+
 FOUNDATION
-- NSCP Sec. 303: Allowable bearing capacity vs. soil investigation report
+- NSCP Sec. 303: Allowable bearing capacity vs. soil investigation report — SBC must reference a soil report by name/date
 - NSCP Sec. 304: Minimum footing depth 600mm below natural grade
 - NSCP Sec. 305: Pile design if soil report requires
+- For mat footings: verify both top and bottom reinforcement are specified with bar sizes and spacing; flag if top and bottom bar spacings differ significantly (e.g. more than 2×) without a supporting calculation visible in the plans
+- For isolated or combined footings: verify bar size, spacing, and cover are all explicitly noted in the footing schedule
 
-STEEL (if applicable)
-- NSCP Sec. 502: ASTM A36 or A572 Gr50 material specification
-- NSCP Sec. 506: Connection design — bolt grades, weld types explicitly shown
-- NSCP Sec. 508: Slenderness ratio limits (KL/r ≤ 200 for compression)
+STEEL DESIGN (if applicable)
+- NSCP Sec. 502: ASTM A36 or A572 Gr50 material specification must be explicitly noted for ALL steel sections shown
+- NSCP Sec. 506: Connection design — bolt grades (A325 or A490), weld type and size must be explicitly shown for all connections; if steel sections appear on plans (W-shapes, angles) without connection details, flag as CRITICAL
+- NSCP Sec. 508: Slenderness ratio limits (KL/r ≤ 200 for compression members)
+- For any steel member connected to an RC frame (roof beams, cage structures, canopies, mezzanines): the connection detail to the RC element must be explicitly shown with anchor bolt sizes, weld type, or embedded plate specs
 
 DETAILING QUALITY
-- Are rebar schedules present and complete?
-- Are all sections/details cross-referenced to plan locations?
-- Is the title block complete with PRC license number of PSCE?
+- Are ALL member rebar schedules present and complete? (beams, columns, slabs, footings, shear walls — each must have its own schedule)
+- If a member type appears on framing plans but has no schedule, flag it specifically by name
+- Are all sections/details cross-referenced to plan locations with sheet and detail numbers?
+- Is the title block complete with PRC license number of PSCE on ALL sheets?
+- Are revision blocks present and filled in?
 
 STRICT RULES — NEVER HALLUCINATE COMPLIANCE:
 - NEVER mark loadCombinations, seismicDesign, or windLoad as PASS unless the actual design calculations or load combination tables are explicitly shown in the uploaded plans.
