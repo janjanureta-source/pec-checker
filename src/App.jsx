@@ -360,14 +360,66 @@ Respond ONLY as valid JSON (no markdown, no preamble):
   },
   "extracted": {
     "system": { "voltage": null, "phases": null, "occupancy": null, "projectName": null },
-    "voltDrop": { "voltage": null, "current": null, "length": null, "conductor": null, "conduitType": null },
-    "shortCircuit": { "voltage": null, "impedance": null, "kva": null },
-    "loadCalc": { "floorArea": null, "occupancy": null, "voltage": null, "phases": null, "powerFactor": null },
-    "panel": { "voltage": null, "phases": null, "mainBreaker": null, "circuits": [] },
-    "conduit": { "conduitType": null, "conduitSize": null, "conductors": [] },
-    "ampacity": { "conductor": null, "ambientTemp": null, "conduitFill": null }
+    "voltageDrop": {
+      "phase": "single",
+      "voltage": null,
+      "current": null,
+      "length": null,
+      "wireSize": null,
+      "material": "copper",
+      "pf": 0.9
+    },
+    "shortCircuit": {
+      "voltage": null,
+      "phases": null,
+      "xfmrKVA": null,
+      "xfmrZ": null,
+      "cableLen": null,
+      "cableSize": null,
+      "material": "copper"
+    },
+    "loadCalc": {
+      "occupancy": null,
+      "voltage": null,
+      "loads": []
+    },
+    "panel": {
+      "panelName": null,
+      "voltage": null,
+      "phases": null,
+      "mainBreaker": null,
+      "busRating": null,
+      "circuits": []
+    },
+    "conduit": {
+      "conduitType": null,
+      "conduitSize": null,
+      "conductors": []
+    },
+    "ampacity": {
+      "wireSize": null,
+      "insulation": null,
+      "ambient": null,
+      "numWires": null,
+      "loadCurrent": null,
+      "material": "copper"
+    }
   }
-}`;
+}
+
+EXTRACTION RULES — read every load schedule table carefully and populate these fields:
+
+voltageDrop: Use the SMALLEST branch circuit conductor shown. wireSize = AWG number (e.g. 12 for #12 AWG or 3.5mm²). current = largest branch circuit breaker rating. length = longest estimated run in meters (estimate 30m if not stated). voltage = service voltage (e.g. 230). phase = "single" for 1-phase, "three" for 3-phase.
+
+shortCircuit: xfmrKVA and xfmrZ — leave null if transformer data is not in the plans (do NOT invent values). voltage = service voltage. phases = number of phases as integer.
+
+loadCalc.loads: Extract EVERY circuit from ALL load schedule tables found in the plans. For each circuit row, create one entry: { "name": "circuit description", "watts": total_watts_for_circuit, "pct": 100 }. Include all panels (PP/LP-A1, PP/LP-B1, etc.). Group by panel if multiple panels exist.
+
+panel: Use the LARGEST panel (main distribution panel / meter center). panelName = panel ID. mainBreaker = main breaker ampere trip rating. circuits = array of { "desc": description, "va": watts, "breaker": breaker_AT_rating, "poles": number_of_poles, "type": "Lighting|Receptacle|HVAC/AC|Appliance|Motor|Spare" }.
+
+conduit: Use the MOST COMMON conduit run shown. conduitType = "PVC (Schedule 40)" or "RSC/IMC" or "EMT". conduitSize = trade size as fraction string e.g. "3/4\"". conductors = array of { "size": AWG_number_as_string, "qty": count, "type": "THWN" }.
+
+ampacity: wireSize = AWG of the most critical conductor. insulation = "THWN_75" for THWN, "TW_60" for TW, "XHHW_90" for XHHW. ambient = 30 for Philippines (default). numWires = number of conductors in conduit. loadCurrent = circuit load current in amperes.`;
 
 // ─── DATA TABLES ─────────────────────────────────────────────────────────────
 const WIRE_DATA = {
@@ -1112,15 +1164,19 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
     voltage: !!ed.voltage, phases: !!ed.phases, xfmrKVA: !!ed.xfmrKVA,
     xfmrZ: !!ed.xfmrZ, cableLen: !!ed.cableLen, cableSize: !!ed.cableSize,
   });
+  // Track whether transformer data was found in plans
+  const [xfmrFromPlans, setXfmrFromPlans] = useState(false);
   useEffect(() => {
     if (!ed || Object.keys(ed).length === 0) return;
-    if (ed.voltage   != null) { setVoltage(+ed.voltage);   setFp(p=>({...p,voltage:true})); }
-    if (ed.phases    != null) { setPhases(+ed.phases);     setFp(p=>({...p,phases:true})); }
-    if (ed.xfmrKVA   != null) { setXfmrKVA(+ed.xfmrKVA);  setFp(p=>({...p,xfmrKVA:true})); }
-    if (ed.xfmrZ     != null) { setXfmrZ(+ed.xfmrZ);      setFp(p=>({...p,xfmrZ:true})); }
-    if (ed.cableLen  != null) { setCableLen(+ed.cableLen); setFp(p=>({...p,cableLen:true})); }
-    if (ed.cableSize != null) { setCableSize(ed.cableSize);setFp(p=>({...p,cableSize:true})); }
-    if (ed.material  != null) { setMaterial(ed.material); }
+    const safeNum = (v, fallback) => { const n = +v; return isFinite(n) && n > 0 ? n : fallback; };
+    if (ed.voltage  != null && +ed.voltage  > 0) { setVoltage(safeNum(ed.voltage, 230));  setFp(p=>({...p,voltage:true})); }
+    if (ed.phases   != null && +ed.phases   > 0) { setPhases(safeNum(ed.phases, 1));      setFp(p=>({...p,phases:true})); }
+    // Only update xfmr values if plans actually have transformer data
+    if (ed.xfmrKVA  != null && +ed.xfmrKVA > 0) { setXfmrKVA(safeNum(ed.xfmrKVA, 25));  setFp(p=>({...p,xfmrKVA:true})); setXfmrFromPlans(true); }
+    if (ed.xfmrZ    != null && +ed.xfmrZ   > 0) { setXfmrZ(safeNum(ed.xfmrZ, 4));        setFp(p=>({...p,xfmrZ:true})); }
+    if (ed.cableLen != null && +ed.cableLen > 0) { setCableLen(safeNum(ed.cableLen, 15)); setFp(p=>({...p,cableLen:true})); }
+    if (ed.cableSize!= null)                     { setCableSize(ed.cableSize);            setFp(p=>({...p,cableSize:true})); }
+    if (ed.material != null)                     { setMaterial(ed.material); }
   }, [electricalData]);
   useEffect(() => {
     if (onStateChange) onStateChange({ voltage, phases, xfmrKVA, xfmrZ, cableLen, cableSize, material, existingFLA });
@@ -1130,8 +1186,10 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
     ? (WIRE_DATA[cableSize]?.resistance||0.002061)*1.64
     : WIRE_DATA[cableSize]?.resistance || 0.002061;
 
-  // Transformer impedance referred to LV
-  const Zxfmr  = (xfmrZ / 100) * ((voltage * voltage) / (xfmrKVA * 1000));
+  // Transformer impedance referred to LV — guard against zero/NaN
+  const safeXfmrKVA = xfmrKVA > 0 ? xfmrKVA : 25;
+  const safeXfmrZ   = xfmrZ   > 0 ? xfmrZ   : 4;
+  const Zxfmr  = (safeXfmrZ / 100) * ((voltage * voltage) / (safeXfmrKVA * 1000));
   const Rcable  = R_cable * cableLen * 2;
   const Xcable  = 0.0492e-3 * cableLen * 2; // approx reactance
   const Xtxfmr  = Zxfmr * 0.95; // typical X/R ~20 → X≈95%Z
@@ -1141,7 +1199,7 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
   const Ztotal  = Math.sqrt(Rtotal*Rtotal + Xtotal*Xtotal);
 
   const sqrtFactor = phases===3 ? Math.sqrt(3) : 1;
-  const Isc_sym  = voltage / (sqrtFactor * Ztotal);
+  const Isc_sym  = isFinite(Ztotal) && Ztotal > 0 ? voltage / (sqrtFactor * Ztotal) : 0;
   const Isc_asym = Isc_sym * 1.414 * Math.exp(-Math.PI * Rtotal / Xtotal);
   const Isc_peak = Isc_sym * Math.sqrt(2) * (1 + Math.exp(-Math.PI * Rtotal / Xtotal));
 
@@ -1166,6 +1224,12 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
       <p style={{ color:T.muted, fontSize:13, margin:"0 0 20px" }}>
         Estimate available fault current for breaker interrupting capacity per <strong style={{color:T.text}}>PEC 2017 Art. 2.40</strong>.
       </p>
+
+      {!xfmrFromPlans && (
+        <div style={{ background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.25)", borderRadius:10, padding:"10px 16px", marginBottom:16, fontSize:12, color:"#93c5fd" }}>
+          ℹ️ <strong>Transformer data not found in plans</strong> — residential as-built plans typically don't include utility transformer specs. Enter the values from your MERALCO transformer nameplate below. Defaults (25 kVA, 4%Z) are used for estimation only.
+        </div>
+      )}
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:14, marginBottom:24 }}>
         <div><Label>System Voltage</Label>
@@ -1288,9 +1352,9 @@ function LoadCalc({ electricalData, calcState, onStateChange }) {
   const [showPicker,   setShowPicker]   = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [fp, setFp] = useState({ occupancy: !!ed.occupancy, voltage: !!ed.voltage, loads: !!(ed.loads?.length) });
-  const buildLoads = (raw) => raw.map((l,i) => ({
-    id: i+1, name: l.name||"Custom Load",
-    watts: +(l.watts||0), pct: +(l.qty||l.pct||100),
+  const buildLoads = (raw) => raw.filter(l => l && (l.watts > 0 || l.name)).map((l,i) => ({
+    id: i+1, name: l.name || "Custom Load",
+    watts: +(l.watts || 0), pct: +(l.pct || l.qty || 100), qty: +(l.qty || 1),
   }));
   const [loads, setLoads] = useState(() =>
     init.loads ? init.loads : (ed.loads?.length ? buildLoads(ed.loads) : defaultLoads)
@@ -3847,81 +3911,13 @@ STEP 12 — GENERAL REQUIREMENTS:
 - Mobilization/demobilization: always include
 - Temporary facilities: always include
 
-STEP 13 — FIRE PROTECTION (mandatory for ALL buildings 3 storeys and above per RA 9514):
-Compute from total floor area and number of floors. Include ALL of the following:
-a) Wet pipe sprinkler system: total_floor_area x ₱1,200–₱2,000/sqm
-   - Includes: BI seamless pipe ASTM A53, sprinkler heads (1 head per 9 sqm), alarm valve, OS&Y valve
-   - qtyBasis: e.g. "4,500 sqm total floor area"
-b) Fire pump set: 1 lot per building — includes fire pump (size per floor count: ≤5F=40HP, >5F=60HP) + jockey pump + controller
-   - Unit rate: ₱850,000–₱1,500,000/set for complete pump room
-c) Fire hose cabinet with hose reel: 1 per floor per stairwell — count = number_of_floors x number_of_stairwells
-   - Unit rate: ₱35,000–₱65,000/unit
-d) Fire extinguisher dry chemical 10lbs: 1 per 200 sqm of floor area
-   - Unit rate: ₱3,500–₱6,000/unit
-e) Fire detection and alarm system: total_floor_area x ₱450–₱850/sqm
-   - Includes: heat/smoke detectors, pull stations, alarm bells, FDAS panel, conduit wiring
-OMIT this step only if plans explicitly show no fire protection and building is 2 storeys or below.
-
-STEP 14 — GENERATOR SET + ATS (mandatory for all buildings with essential occupancy or 4+ storeys):
-a) Generator set: 1 unit — size based on total connected load
-   - For commercial/office/hotel buildings: KVA = (total floor area x 50VA/sqm) / 0.8 PF, minimum 100KVA
-   - Rate: 100KVA ₱850,000–₱1,200,000 | 200KVA ₱1,400,000–₱1,900,000 | 400KVA ₱2,200,000–₱3,200,000 | 500KVA ₱2,800,000–₱3,800,000
-   - Include: acoustic enclosure, exhaust system, fuel tank (day tank), concrete pad
-   - qtyBasis: "computed load: [area] sqm x 50VA = [VA] / 0.8PF = [KVA]"
-b) Automatic Transfer Switch (ATS): 1 unit matched to generator KVA
-   - Rate: 100KVA ATS ₱120,000–₱180,000 | 400KVA ₱280,000–₱420,000
-   - Include as separate line item from generator
-OMIT this step only if building is single-storey residential or plans show no generator room.
-
-STEP 15 — EXHAUST FANS / VENTILATION FANS:
-Count from plans or estimate by use:
-a) Toilet exhaust fans: 1 per toilet group (ceiling cassette centrifugal type)
-   - Estimate: total WC count / 3 fans per group (round up)
-   - Rate: ₱4,500–₱8,500/unit installed
-b) Genset room ventilation fans: 2 units per generator room (supply + exhaust)
-   - Rate: ₱18,000–₱35,000/unit (heavy-duty propeller type)
-c) Kitchen exhaust fan: 1 per kitchen area if shown
-   - Rate: ₱8,000–₱15,000/unit
-Include this step for all buildings with toilet facilities.
-
-STEP 16 — PUMPS (include for multi-storey buildings with cistern/water storage):
-a) Sump pump: 1 unit for any building with basement or lower ground floor
-   - Rate: ₱18,000–₱35,000/unit (3HP submersible, complete with controls)
-b) Transfer pump: 1 unit if building has underground cistern feeding rooftop tank
-   - Rate: ₱25,000–₱45,000/unit (2HP centrifugal, complete)
-c) Booster pump set: 1 set if building is 4+ storeys (to maintain pressure upper floors)
-   - Rate: ₱85,000–₱150,000/set (duplex booster pump system)
-d) Rooftop water tanks: 1,000-gal GRP tank per ~50 occupants or 1 per water zone
-   - Rate: ₱45,000–₱75,000/unit (1,000-gal GRP tank installed)
-Include only items applicable to the building type and storey count.
-
-STEP 17 — ELEVATOR POWER SUPPLY PANEL (PP1):
-For buildings with elevator(s):
-a) Elevator power panel (PP1): 1 unit per elevator — 100AT 3P panelboard with dedicated feeder
-   - Rate: ₱45,000–₱85,000/unit (panel + feeder wire + conduit to MDP)
-b) Feeder wire: from MDP to elevator machine room — estimate 1.5x floor-to-floor height x number_of_floors
-   - Wire size: 30mm² THHN 3-phase + ground
-Include only if elevator is shown or implied by building height (5+ storeys).
-
-STEP 18 — INDIRECT COSTS (always the final line items):
-Apply to ALL projects. Use Philippine commercial construction standard rates:
-a) Transportation / hauling: 2% of direct cost subtotal — lot item
-b) Overhead and supervision: 12% of direct cost subtotal — lot item
-c) Contractor's profit: 7% of direct cost subtotal — lot item
-TOTAL indirect = 21% of direct cost subtotal (not compounded — each applied to the same base)
-Include these as 3 separate line items under trade="Indirect Costs" at the end of lineItems.
-qtyBasis for each: "X% of direct cost subtotal ₱[amount]"
-
 OWNER-SUPPLIED ITEMS: list with qty=0, totalLow=0, totalHigh=0, isOwnerSupply=true (still include — do not omit)
 
 OUTPUT RULES:
 - Return ONLY valid JSON. No markdown, no backticks, no text before or after.
 - String values max 90 chars. Be concise everywhere.
 - qtyBasis required for ALL concrete, rebar, CHB, tile, and paint items.
-- NEVER stop early. ALL 18 steps are mandatory. Steps 13–18 (Fire Protection, Generator+ATS, Exhaust Fans, Pumps, Elevator Panel, Indirect Costs) MUST appear in every output for buildings 3 storeys and above.
-- To stay within token limits, keep descriptions SHORT (≤60 chars) and omit qtyBasis for non-structural items. Do NOT omit entire categories.
-- SELF-CHECK before closing JSON: confirm lineItems includes at least one entry each for Fire Protection, Generator Set, and Indirect Costs. If any are missing, add them before closing.
-- The summary.notes field must state which of Steps 13–18 were included and why any were omitted.
+- If output would exceed limits, STOP after Electrical and add note in limitations.
 
 JSON format:
 {
@@ -5348,11 +5344,7 @@ ELECTRICAL WORKS:
 - Commercial electrical, complete (per sqm of GFA):       ₱2,500–₱4,500/sqm
 - Industrial/3-phase electrical (per sqm of GFA):         ₱3,500–₱6,500/sqm
 - Emergency generator set, 50kVA (per unit):              ₱350,000–₱550,000/unit
-- Emergency generator set, 100kVA (per unit):             ₱850,000–₱1,200,000/unit
-- Emergency generator set, 200kVA (per unit):             ₱1,400,000–₱1,900,000/unit
-- Emergency generator set, 400kVA (per unit):             ₱2,200,000–₱3,200,000/unit
-- Automatic transfer switch, 100kVA (per unit):           ₱120,000–₱180,000/unit
-- Automatic transfer switch, 400kVA (per unit):           ₱280,000–₱420,000/unit
+- Automatic transfer switch (per unit):                   ₱45,000–₱85,000/unit
 - Solar PV system, 5kWp (per unit):                       ₱280,000–₱420,000/unit
 
 FIRE PROTECTION:
@@ -8611,7 +8603,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
             </button>
           ))}
         </div>
-        {(checkerResult || bomResult || estimateResult) && (
+        {(checkerResult || bomResult) && tab !== "estimate" && (
           <button onClick={handleNewReview}
             title="Clear session and start a new review"
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:10,
@@ -9473,18 +9465,24 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange }) {
   });
   useEffect(() => {
     if (!ed || Object.keys(ed).length === 0) return;
-    if (ed.panelName   != null) { setPanelName(ed.panelName);                   setFp(p=>({...p,panelName:true})); }
-    if (ed.voltage     != null) { setPanelVolt(+ed.voltage);                    setFp(p=>({...p,voltage:true})); }
-    if (ed.phases      != null) { setPanelPhase(ed.phases===3?"3":"1");         setFp(p=>({...p,phases:true})); }
-    if (ed.mainBreaker != null) { setMainBreaker(+ed.mainBreaker);              setFp(p=>({...p,mainBreaker:true})); }
-    if (ed.busRating   != null) { setBusRating(+ed.busRating);                  setFp(p=>({...p,busRating:true})); }
-    if (ed.circuits?.length)    {
-      setCircuits(ed.circuits.map((c,i)=>({
-        id:i+1, num:i*2+1, phase:c.phase||PHASES[i%3]||"A",
-        desc:c.desc||"", type:c.type||"Lighting",
-        poles:c.poles||1, va:c.va||0, amps:(c.va||0)/(ed.voltage||230),
-        breaker:20, wire:"12", notes:"",
-      })));
+    const safePos = (v, fb) => { const n = +v; return isFinite(n) && n > 0 ? n : fb; };
+    if (ed.panelName   != null) { setPanelName(ed.panelName);                          setFp(p=>({...p,panelName:true})); }
+    if (ed.voltage     != null && safePos(ed.voltage,0) > 0) { setPanelVolt(safePos(ed.voltage,230));   setFp(p=>({...p,voltage:true})); }
+    if (ed.phases      != null) { setPanelPhase(+ed.phases===3?"3":"1");               setFp(p=>({...p,phases:true})); }
+    if (ed.mainBreaker != null && safePos(ed.mainBreaker,0) > 0) { setMainBreaker(safePos(ed.mainBreaker,100)); setFp(p=>({...p,mainBreaker:true})); }
+    if (ed.busRating   != null && safePos(ed.busRating,0) > 0)   { setBusRating(safePos(ed.busRating,100));     setFp(p=>({...p,busRating:true})); }
+    if (ed.circuits?.length) {
+      const volt = safePos(ed.voltage, 230);
+      setCircuits(ed.circuits.map((c,i) => {
+        const va = safePos(c.va || c.watts, 0);
+        const typeMap = { Lighting:"Lighting", Receptacle:"Receptacle", "HVAC/AC":"HVAC/AC", Appliance:"Appliance", Motor:"Motor" };
+        return {
+          id: i+1, num: i*2+1, phase: c.phase || PHASES[i % 2] || "A",
+          desc: c.desc || c.name || "", type: typeMap[c.type] || "Lighting",
+          poles: safePos(c.poles,1), va, amps: va / volt,
+          breaker: safePos(c.breaker, 20), wire:"12", notes: c.notes || "",
+        };
+      }));
       setFp(p=>({...p,circuits:true}));
     }
   }, [electricalData]);
@@ -9802,8 +9800,12 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
     250: 225.81, 300: 264.52, 350: 298.45, 400: 345.35, 500: 411.55,
   };
 
-  const [conduitType, setConduitType] = useState(init.conduitType ?? ed.conduitType ?? "RSC/IMC");
-  const [conduitSize, setConduitSize] = useState(init.conduitSize ?? ed.conduitSize ?? "3/4\"");
+  // Map Philippine metric conduit sizes to trade size keys
+  const metricToTrade = { "16mm":"1/2\"","20mm":"3/4\"","25mm":"1\"","32mm":"1-1/4\"","38mm":"1-1/2\"","50mm":"2\"","63mm":"2-1/2\"","75mm":"3\"","100mm":"4\"" };
+  const normConduitSize = (s) => metricToTrade[s] || metricToTrade[String(s).replace(/[Øø]/g,"").trim()+"mm"] || s;
+
+  const [conduitType, setConduitType] = useState(init.conduitType ?? ed.conduitType ?? "PVC (Schedule 40)");
+  const [conduitSize, setConduitSize] = useState(() => normConduitSize(init.conduitSize ?? ed.conduitSize ?? "3/4\""));
   const [conductors,  setConductors]  = useState(() => {
     if (init.conductors) return init.conductors;
     if (ed.conductors?.length) return ed.conductors.map((c,i)=>({id:i+1, size:String(c.size||"12"), qty:+(c.qty||1), type:c.type||"THWN"}));
@@ -9814,10 +9816,18 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
   });
   useEffect(() => {
     if (!ed || Object.keys(ed).length === 0) return;
-    if (ed.conduitType != null) { setConduitType(ed.conduitType); setFp(p=>({...p,conduitType:true})); }
-    if (ed.conduitSize != null) { setConduitSize(ed.conduitSize); setFp(p=>({...p,conduitSize:true})); }
-    if (ed.conductors?.length)  {
-      setConductors(ed.conductors.map((c,i)=>({id:i+1,size:String(c.size||"12"),qty:+(c.qty||1),type:c.type||"THWN"})));
+    if (ed.conduitType != null) {
+      // Normalize conduit type names from plan text
+      const typeMap = { "PVC":"PVC (Schedule 40)", "RSC":"RSC/IMC", "EMT":"EMT" };
+      const t = typeMap[ed.conduitType] || (Object.keys(CONDUIT_DATA).includes(ed.conduitType) ? ed.conduitType : "PVC (Schedule 40)");
+      setConduitType(t); setFp(p=>({...p,conduitType:true}));
+    }
+    if (ed.conduitSize != null) {
+      const mapped = normConduitSize(ed.conduitSize);
+      setConduitSize(mapped); setFp(p=>({...p,conduitSize:true}));
+    }
+    if (ed.conductors?.length) {
+      setConductors(ed.conductors.filter(c=>c).map((c,i)=>({id:i+1,size:String(c.size||"12"),qty:+(c.qty||1),type:c.type||"THWN"})));
       setFp(p=>({...p,conductors:true}));
     }
   }, [electricalData]);
@@ -10078,12 +10088,13 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
   });
   useEffect(() => {
     if (!ed || Object.keys(ed).length === 0) return;
-    if (ed.wireSize    != null) { setWireSize(ed.wireSize);          setFp(p=>({...p,wireSize:true})); }
-    if (ed.insulation  != null) { setInsulation(ed.insulation);      setFp(p=>({...p,insulation:true})); }
-    if (ed.ambient     != null) { setAmbient(+ed.ambient);           setFp(p=>({...p,ambient:true})); }
-    if (ed.numWires    != null) { setNumWires(+ed.numWires);         setFp(p=>({...p,numWires:true})); }
-    if (ed.material    != null) { setMaterial(ed.material); }
-    if (ed.loadCurrent != null) { setLoadCurrent(+ed.loadCurrent);   setFp(p=>({...p,loadCurrent:true})); }
+    const safePos = (v, fb) => { const n = +v; return isFinite(n) && n > 0 ? n : fb; };
+    if (ed.wireSize    != null) { setWireSize(ed.wireSize);                        setFp(p=>({...p,wireSize:true})); }
+    if (ed.insulation  != null && ["TW_60","THWN_75","XHHW_90"].includes(ed.insulation)) { setInsulation(ed.insulation); setFp(p=>({...p,insulation:true})); }
+    if (ed.ambient     != null && safePos(ed.ambient,0) > 0) { setAmbient(safePos(ed.ambient,30));       setFp(p=>({...p,ambient:true})); }
+    if (ed.numWires    != null && safePos(ed.numWires,0) > 0) { setNumWires(safePos(ed.numWires,3));     setFp(p=>({...p,numWires:true})); }
+    if (ed.material    != null && ["copper","aluminum"].includes(ed.material)) { setMaterial(ed.material); }
+    if (ed.loadCurrent != null && safePos(ed.loadCurrent,0) > 0) { setLoadCurrent(safePos(ed.loadCurrent,20)); setFp(p=>({...p,loadCurrent:true})); }
   }, [electricalData]);
   useEffect(() => {
     if (onStateChange) onStateChange({ wireSize, insulation, ambient, numWires, material, loadCurrent });
