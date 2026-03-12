@@ -5216,50 +5216,63 @@ const COST_ESTIMATOR_PROMPT = `You are a licensed Philippine Quantity Surveyor (
 
 ═══════════════════════════════════════════
 PHILIPPINE CONSTRUCTION RATE REFERENCE TABLE
-(NCR baseline, 2024–2025 market rates — adjust by location modifier provided in context)
+(NCR baseline, Q1 2026 market rates — contractor all-in rates including labor, materials, equipment)
+NOTE: These are TOTAL CONTRACTOR RATES per sqm of FLOOR AREA for complete works.
+Adjust by location modifier provided in context.
 ═══════════════════════════════════════════
 
-STRUCTURAL WORKS (per sqm of floor area unless noted):
-- RC Frame (columns, beams, slabs) — Residential 1–3F:   ₱8,500–₱12,000/sqm
-- RC Frame — Commercial/Office 4–10F:                     ₱11,000–₱16,000/sqm
-- RC Frame — Government/Institutional multistorey:        ₱13,000–₱18,000/sqm
-- Structural Steel Frame (industrial/warehouse):           ₱6,500–₱9,500/sqm
-- Masonry load-bearing (single storey only):              ₱4,500–₱6,500/sqm
-- Mat Foundation (per sqm of mat area):                   ₱8,000–₱14,000/sqm
-- Isolated Footing (per footing, 1.2m×1.2m typical):     ₱12,000–₱22,000/pc
-- Pile Foundation (precast RC 300mm, per lm):             ₱4,500–₱7,500/lm
-- Shear Walls (200–300mm RC, per sqm):                    ₱5,500–₱8,500/sqm
+TOTAL PROJECT COST BENCHMARKS (all-in, contractor rate per sqm GFA):
+- Economy Residential (bare, basic fixtures):             ₱20,000–₱25,000/sqm GFA
+- Standard Residential (move-in ready, mid-range):        ₱28,000–₱38,000/sqm GFA
+- High-End Residential (premium finishes):                ₱40,000–₱65,000/sqm GFA
+- Standard Commercial/Office:                             ₱32,000–₱48,000/sqm GFA
+- School/Institutional (DPWH standard):                   ₱28,000–₱42,000/sqm GFA
+- Warehouse/Industrial:                                   ₱16,000–₱26,000/sqm GFA
+- Hospital/Medical:                                       ₱55,000–₱90,000/sqm GFA
+
+USE THESE BENCHMARKS as your sanity check. If your trade-by-trade total falls outside
+the benchmark range for the project type, recheck your quantities and rates.
+
+STRUCTURAL WORKS (trade rate, per sqm of floor area):
+- RC Frame (columns, beams, slabs) — Residential 1–3F:   ₱9,000–₱13,500/sqm
+- RC Frame — Multi-storey Residential 4–10F:              ₱12,000–₱18,000/sqm
+- RC Frame — Commercial/Office 4–10F:                    ₱13,500–₱20,000/sqm
+- RC Frame — Government/Institutional:                    ₱15,000–₱22,000/sqm
+- Structural Steel Frame (industrial/warehouse):           ₱8,000–₱12,000/sqm
+- Masonry load-bearing (single storey only):              ₱5,500–₱8,000/sqm
+- Mat Foundation (per sqm of mat area):                   ₱10,000–₱17,000/sqm
+- Isolated Footing (per footing, 1.2m×1.2m typical):     ₱15,000–₱28,000/pc
+- Pile Foundation (precast RC 300mm, per lm):             ₱5,500–₱9,000/lm
+- Shear Walls (200–300mm RC, per sqm of wall):            ₱7,000–₱11,000/sqm
+NOTE: RC Frame should be 30–38% of total project cost for standard residential.
 
 ARCHITECTURAL WORKS:
-- CHB Masonry Walls (150mm, per sqm):                     ₱1,200–₱1,800/sqm
-- CHB Masonry Walls (100mm, per sqm):                     ₱900–₱1,400/sqm
-- Plastering both sides (per sqm):                        ₱350–₱550/sqm
-- Ceramic tile flooring, basic (per sqm):                 ₱800–₱1,400/sqm
-- Ceramic tile flooring, premium (per sqm):               ₱1,800–₱3,500/sqm
-- Granite/marble tile flooring (per sqm):                 ₱4,500–₱9,000/sqm
-- Painted concrete floor (per sqm):                       ₱250–₱450/sqm
-- Ceiling — plain cement board, painted (per sqm):        ₱650–₱950/sqm
-- Ceiling — gypsum board, painted (per sqm):              ₱850–₱1,400/sqm
-- Ceiling — T-bar suspended, acoustic tile (per sqm):     ₱1,100–₱1,800/sqm
-- Doors — hollow-core flush (per set incl frame):         ₱8,000–₱14,000/set
-- Doors — solid wood panel (per set incl frame):          ₱18,000–₱35,000/set
-- Doors — steel security door (per set):                  ₱22,000–₱45,000/set
-- Windows — aluminum jalousie (per sqm):                  ₱2,500–₱4,000/sqm
-- Windows — aluminum sliding (per sqm):                   ₱3,500–₱5,500/sqm
-- Windows — aluminum casement (per sqm):                  ₱5,000–₱9,000/sqm
-- Roof — long-span corrugated G.I. (per sqm):             ₱550–₱850/sqm
-- Roof — pre-painted rib-type (per sqm):                  ₱850–₱1,300/sqm
-- Roof — concrete slab + waterproofing (per sqm):         ₱3,500–₱5,500/sqm
-- Roof — clay/concrete tiles (per sqm):                   ₱2,500–₱4,500/sqm
-- Exterior paint — acrylic latex, 2 coats (per sqm):      ₱280–₱420/sqm
-- Interior paint — 2 coats (per sqm):                     ₱200–₱320/sqm
+- CHB Masonry Walls 150mm, plastered both sides (sqm):    ₱1,800–₱2,800/sqm
+- CHB Masonry Walls 100mm, plastered both sides (sqm):    ₱1,400–₱2,200/sqm
+- Ceramic tile flooring, basic 30×30–40×40 (sqm):        ₱1,200–₱1,900/sqm
+- Ceramic tile flooring, mid-range 60×60 (sqm):          ₱2,000–₱3,500/sqm
+- Granite/marble tile flooring (sqm):                     ₱5,500–₱12,000/sqm
+- Painted concrete floor (sqm):                           ₱350–₱600/sqm
+- Ceiling — cement board, painted (sqm):                  ₱900–₱1,400/sqm
+- Ceiling — gypsum board, painted (sqm):                  ₱1,100–₱1,800/sqm
+- Ceiling — T-bar suspended, acoustic tile (sqm):         ₱1,400–₱2,200/sqm
+- Doors — hollow-core flush (per set incl frame):         ₱10,000–₱18,000/set
+- Doors — laminated solid wood panel (per set):           ₱22,000–₱42,000/set
+- Doors — aluminum glass door (per set):                  ₱28,000–₱55,000/set
+- Windows — aluminum awning/sliding (sqm of window):      ₱5,000–₱8,500/sqm
+- Windows — frameless glass (sqm):                        ₱9,000–₱18,000/sqm
+- Roof — pre-painted long-span G.I. (sqm of roof):       ₱1,100–₱1,800/sqm
+- Roof — concrete slab + waterproofing (sqm):             ₱4,500–₱7,500/sqm
+- Roof — clay/concrete tiles on framing (sqm):            ₱3,500–₱6,000/sqm
+- Exterior paint — elastomeric, 2 coats (sqm):            ₱380–₱580/sqm
+- Interior paint — 2 coats (sqm):                         ₱280–₱420/sqm
 
 PLUMBING WORKS:
-- Residential plumbing, complete system (per fixture):    ₱18,000–₱28,000/fixture
-- Commercial plumbing (per fixture):                      ₱25,000–₱45,000/fixture
-- Sanitary/drain lines, PVC (per lm):                     ₱650–₱1,100/lm
-- Water supply lines, PPR (per lm):                       ₱450–₱750/lm
-- Septic tank, 2-chamber (per unit):                      ₱35,000–₱65,000/unit
+- Residential plumbing, complete (per fixture):           ₱22,000–₱38,000/fixture
+- Commercial plumbing (per fixture):                      ₱32,000–₱55,000/fixture
+- Sanitary/drain lines, PVC (per lm):                     ₱800–₱1,400/lm
+- Water supply lines, PPR (per lm):                       ₱600–₱950/lm
+- Septic tank, 2-chamber RC (per unit):                   ₱45,000–₱80,000/unit
 - Sewage treatment plant (per unit, varies by capacity):  ₱180,000–₱850,000/unit
 
 ELECTRICAL WORKS:
@@ -5383,13 +5396,15 @@ CHB WALLS (per sqm of wall face):
 - CHB 150mm: 12.5 pcs/sqm + mortar (cement: ~0.4 bag/sqm)
 - CHB 100mm: 12.5 pcs/sqm + mortar (cement: ~0.3 bag/sqm)
 - Current market prices (NCR, 2024–2025):
-  - 40kg Portland cement bag: ₱265–₱310/bag
-  - Deformed steel bar (12mm): ₱55–₱68/kg
-  - Deformed steel bar (16mm): ₱55–₱68/kg
-  - River sand (per cu.m): ₱850–₱1,400/cu.m
-  - Crushed gravel (per cu.m): ₱950–₱1,600/cu.m
-  - CHB 150mm: ₱14–₱18/pc
-  - CHB 100mm: ₱12–₱15/pc
+  - 40kg Portland cement bag (40kg): ₱295–₱345/bag
+  - Deformed steel bar (12mm): ₱62–₱78/kg
+  - Deformed steel bar (16mm): ₱62–₱78/kg
+  - River sand (per cu.m): ₱1,400–₱2,200/cu.m
+  - Crushed gravel (per cu.m): ₱1,600–₱2,400/cu.m
+  - CHB 150mm: ₱17–₱22/pc
+  - CHB 100mm: ₱13–₱17/pc
+  - Ceramic tiles 60×60 (sqm supply only): ₱850–₱1,800/sqm
+  - Plywood 1/2" ordinary: ₱750–₱1,100/sheet
 
 SOIL CONDITION IMPACT ON FOUNDATION COST:
 - Rock / very stiff: use LOW end of foundation rates (minimal excavation, shallow footing OK)
@@ -5490,16 +5505,24 @@ Return this exact JSON structure:
     "totalLow": 0,
     "totalHigh": 0,
     "totalMid": 0,
+    "midpoint": 0,
     "costPerSqmLow": 0,
     "costPerSqmHigh": 0,
     "costPerSqmMid": 0,
+    "contingencyLow": 0,
+    "contingencyHigh": 0,
+    "contingencyPct": 0,
+    "professionalFeesLow": 0,
+    "professionalFeesHigh": 0,
+    "professionalFeesPct": 0,
+    "grandTotalLow": 0,
+    "grandTotalHigh": 0,
     "marketBenchmarkLow": 0,
     "marketBenchmarkHigh": 0,
     "benchmarkSource": "string — cite the specific rate source, e.g. DPWH Blue Book 2024 School Building, NCR residential parametric",
-    "contingencyPercent": 0,
-    "contingencyAmount": 0,
     "vatAmount": 0,
     "vatIncluded": false,
+    "vatNote": "string or null",
     "profFeeIncluded": false,
     "profFeeAmount": 0,
     "profFeeBasis": "string or null",
@@ -5777,7 +5800,10 @@ CRITICAL INSTRUCTIONS:
 7. Every trade: qty, unit, rateLow, rateHigh, totalLow, totalHigh, totalMid, percentOfTotal required.
 8. Math check: sum(all trade.totalMid) + contingency + profFees must equal summary.totalMid.
 9. Set contingency per plan completeness rules in system prompt.
-10. Return ONLY valid JSON. No text before or after the JSON object.`;
+10. Compute ALL summary fields: totalLow, totalHigh, totalMid, midpoint (= totalMid), costPerSqmLow, costPerSqmHigh, grandTotalLow, grandTotalHigh, contingencyLow, contingencyHigh, professionalFeesLow, professionalFeesHigh. midpoint MUST equal (totalLow + totalHigh) / 2. grandTotalLow = totalLow + professionalFeesLow. grandTotalHigh = totalHigh + professionalFeesHigh.
+11. percentOfTotal for each trade = (trade.totalMid / summary.totalMid) × 100. The sum of all percentOfTotal must equal 100%.
+12. RC Frame / Structural Works should NOT exceed 40% of total for standard residential. If it does, recheck your rates — you likely applied a per-sqm rate to the entire GFA instead of just structural elements.
+13. Return ONLY valid JSON. No text before or after the JSON object.`;
   };
 
   const run = async () => {
@@ -5838,7 +5864,20 @@ CRITICAL INSTRUCTIONS:
 const exportDocument = () => {
     if (!result) return;
     const p   = result.project  || {};
-    const s   = result.summary  || {};
+    const _rs  = result.summary || {};
+    const _tL  = +(_rs.totalLow  || _rs.constructionCostLow  || 0);
+    const _tH  = +(_rs.totalHigh || _rs.constructionCostHigh || 0);
+    const _tM  = +(_rs.totalMid  || _rs.midpoint || ((_tL + _tH) / 2) || 0);
+    const _cp  = +(_rs.contingencyPct || _rs.contingencyPercent || 10);
+    const _fp  = +(_rs.professionalFeesPct || 8);
+    const _gtL = +(_rs.grandTotalLow  || (_tL * (1 + _fp/100)) || 0);
+    const _gtH = +(_rs.grandTotalHigh || (_tH * (1 + _fp/100)) || 0);
+    const s    = { ..._rs,
+      totalLow: _tL, totalHigh: _tH, totalMid: _tM, midpoint: _tM,
+      grandTotalLow: _gtL, grandTotalHigh: _gtH,
+      costPerSqmLow:  +(_rs.costPerSqmLow  || (_tL / (+result?.project?.estimatedGFA||1)) || 0),
+      costPerSqmHigh: +(_rs.costPerSqmHigh || (_tH / (+result?.project?.estimatedGFA||1)) || 0),
+    };
     const trades = result.trades || [];
     const ve  = result.valueEngineering || [];
     const mw  = result.marketWarnings   || [];
@@ -6197,7 +6236,29 @@ const exportDocument = () => {
   };
 
   const trades   = result?.trades?.filter(t=>t.included!==false) || [];
-  const summary  = result?.summary || {};
+  const _s       = result?.summary || {};
+  // Compute missing fields so display never shows ₱0
+  const _tLow    = +(_s.totalLow  || _s.constructionCostLow  || 0);
+  const _tHigh   = +(_s.totalHigh || _s.constructionCostHigh || 0);
+  const _tMid    = +(_s.totalMid  || _s.midpoint || ((_tLow + _tHigh) / 2) || 0);
+  const _contPct = +(_s.contingencyPct || _s.contingencyPercent || 10);
+  const _contL   = +(_s.contingencyLow  || _tLow  * _contPct / 100 || 0);
+  const _contH   = +(_s.contingencyHigh || _tHigh * _contPct / 100 || 0);
+  const _fpct    = +(_s.professionalFeesPct || _s.profFeePct || 8);
+  const _fL      = +(_s.professionalFeesLow  || _s.profFeeAmount || (_tLow  * _fpct / 100) || 0);
+  const _fH      = +(_s.professionalFeesHigh || (_tHigh * _fpct / 100) || 0);
+  const _gtL     = +(_s.grandTotalLow  || (_tLow  + _fL)  || 0);
+  const _gtH     = +(_s.grandTotalHigh || (_tHigh + _fH) || 0);
+  const summary  = {
+    ..._s,
+    totalLow:  _tLow,  totalHigh:  _tHigh,  totalMid: _tMid,
+    midpoint:  _tMid,
+    contingencyLow: _contL, contingencyHigh: _contH, contingencyPct: _contPct,
+    professionalFeesLow: _fL, professionalFeesHigh: _fH, professionalFeesPct: _fpct,
+    grandTotalLow: _gtL, grandTotalHigh: _gtH,
+    costPerSqmLow:  +(_s.costPerSqmLow  || (_tLow  / (+result?.project?.estimatedGFA || 1)) || 0),
+    costPerSqmHigh: +(_s.costPerSqmHigh || (_tHigh / (+result?.project?.estimatedGFA || 1)) || 0),
+  };
   const project  = result?.project || {};
   const veItems  = result?.valueEngineering || [];
   const warnings = result?.marketWarnings   || [];
