@@ -6574,23 +6574,22 @@ const exportDocument = () => {
             </div>
             {warnings.length>0 && (
               <div style={{marginTop:12,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:8,padding:"8px 12px",fontSize:12,color:GOLD}}>
-                ⚠️ {warnings.join(" · ")}
+                ⚠️ {warnings.map(w => typeof w === "string" ? w : (w.title || w.message || w.warning || JSON.stringify(w))).join(" · ")}
               </div>
             )}
           </Card>
 
           {/* ── Rates freshness badge + Confidence meter ── */}
-          <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap",alignItems:"stretch"}}>
+          <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap",alignItems:"flex-start"}}>
             {/* Rates version badge */}
-            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,flex:1,minWidth:220}}>
-              <span style={{fontSize:16}}>📅</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Rate References — {RATES_VERSION}</div>
-                <div style={{fontSize:11,color:STR,fontWeight:700,marginBottom:4}}>{RATES_SOURCES}</div>
+            <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 14px",background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,flex:"0 0 auto",width:"100%",boxSizing:"border-box"}}>
+              <span style={{fontSize:16,marginTop:2}}>📅</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:2}}>Rate References — {RATES_VERSION}</div>
                 {RATES_DETAIL.map((r,i) => (
-                  <div key={i} style={{fontSize:9,color:T.muted,lineHeight:1.6,display:"flex",gap:6}}>
-                    <span style={{color:STR,fontWeight:600,whiteSpace:"nowrap"}}>· {r.source}</span>
-                    <span>— {r.scope} <span style={{color:"rgba(148,163,184,0.5)"}}>({r.date})</span></span>
+                  <div key={i} style={{fontSize:9,color:T.muted,lineHeight:1.7,display:"flex",gap:4,flexWrap:"wrap"}}>
+                    <span style={{color:STR,fontWeight:600,flexShrink:0}}>· {r.source}</span>
+                    <span style={{color:"rgba(148,163,184,0.6)"}}>— {r.scope} ({r.date})</span>
                   </div>
                 ))}
               </div>
