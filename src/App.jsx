@@ -440,14 +440,9 @@ const getKey = () => {
 };
 
 const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 4 }) => {
-  // Try: explicit prop → localStorage → window global
-  const key = (typeof apiKey === "string" && apiKey.startsWith("sk-"))
-    ? apiKey
-    : getKey();
-
-  if (!key) throw new Error(
-    "API key required. Paste your Anthropic API key (starts with sk-ant-...) into the field in the top navigation bar, then press Enter."
-  );
+  // ── Secure proxy: API key lives on the server (Vercel env var), never in the browser ──
+  // The apiKey param is kept for local dev fallback only — in production it is ignored.
+  const IS_LOCAL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, temperature: 0, messages };
   if (system) payload.system = system;
@@ -455,21 +450,35 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 4
   let lastError = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 2500 * attempt)); // exponential backoff
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": key,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify(payload),
-      });
+      if (attempt > 0) await new Promise(r => setTimeout(r, 2500 * attempt));
+
+      let res;
+      if (IS_LOCAL) {
+        // Local development: still call direct (you control your own machine)
+        const key = (typeof apiKey === "string" && apiKey.startsWith("sk-")) ? apiKey : getKey();
+        if (!key) throw new Error("API key required for local dev. Paste your Anthropic key in the nav bar.");
+        res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Production: call YOUR server proxy — API key is never sent to the browser
+        res = await fetch("/api/claude", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
 
       if (res.status === 529 || res.status === 503 || res.status === 429) {
         lastError = new Error(`API overloaded (${res.status}). Retrying...`);
-        continue; // retry on overload/rate limit
+        continue;
       }
 
       const data = await res.json();
@@ -5205,6 +5214,107 @@ CRITICAL OUTPUT RULES:
     </div>
   );
 }
+
+const COST_ESTIMATOR_PROMPT = `You are a licensed Philippine Quantity Surveyor and Cost Estimator with deep expertise in:
+- DPWH Blue Book unit costs (latest edition)
+- Philippine construction market rates (NCR, Luzon, Visayas, Mindanao)
+- PRC/PICE professional fee schedules
+- Parametric cost estimating for residential, commercial, industrial, and government projects
+- Value engineering for Philippine construction
+
+REVIEW PROCESS:
+1. Read ALL uploaded plan files carefully. Identify project type, GFA, number of floors, structural system, finishes, and scope.
+2. If GFA is provided by user, use that value exactly — do not override it.
+3. Apply the location cost modifier provided in the project context.
+4. Break down costs by trade/discipline with realistic Philippine market rates.
+5. Provide low and high range per trade (low = economy/budget, high = standard/quality).
+6. Suggest 3–5 value engineering options with estimated savings.
+7. Flag any market risk items (price-volatile materials, long lead items, etc.).
+
+STRICT OUTPUT RULES:
+- Return ONLY valid JSON — no markdown, no explanation, no preamble.
+- All monetary values must be plain numbers (no currency symbols, no commas).
+- All fields listed in the schema below are required. Use null if not applicable.
+- Do not truncate the response. Complete the full JSON.
+
+Return this exact JSON structure:
+{
+  "project": {
+    "name": "string",
+    "type": "Residential|Commercial|Industrial|Government|Mixed-Use",
+    "location": "string",
+    "finishLevel": "Economy|Standard|Premium|Luxury",
+    "scopeMode": "new-construction|renovation|fitout|adhoc",
+    "numberOfFloors": 0,
+    "estimatedGFA": 0,
+    "structuralSystem": "string — e.g. Reinforced Concrete Frame, Steel Frame, Masonry",
+    "foundationType": "string — e.g. Mat Footing, Isolated Footing, Pile Foundation",
+    "scopeIncluded": ["list of major scope items included in estimate"],
+    "scopeExcluded": ["list of items explicitly excluded"],
+    "estimationBasis": "string — brief description of how GFA and scope were determined from plans",
+    "planQuality": "Complete|Partial|Schematic — how complete were the uploaded plans"
+  },
+  "summary": {
+    "totalLow": 0,
+    "totalHigh": 0,
+    "totalMid": 0,
+    "costPerSqmLow": 0,
+    "costPerSqmHigh": 0,
+    "marketBenchmarkLow": 0,
+    "marketBenchmarkHigh": 0,
+    "benchmarkSource": "string — e.g. DPWH Blue Book 2024, NCR residential rate",
+    "contingencyPercent": 10,
+    "contingencyAmount": 0,
+    "profFeeIncluded": true,
+    "profFeeAmount": 0,
+    "profFeeBasis": "string — PRC/PICE fee schedule basis or null",
+    "overallConfidence": "High|Medium|Low",
+    "confidenceNote": "string — reason for confidence level"
+  },
+  "trades": [
+    {
+      "trade": "string — trade/discipline name",
+      "icon": "emoji",
+      "description": "string — technical scope description",
+      "plainDescription": "string — simple plain-language description for client",
+      "qty": 0,
+      "unit": "sqm|lm|lot|unit|ls",
+      "ratelow": 0,
+      "rateHigh": 0,
+      "totalLow": 0,
+      "totalHigh": 0,
+      "percentOfTotal": 0,
+      "isMajor": true,
+      "included": true,
+      "notes": "string — any important notes, assumptions, or exclusions for this trade",
+      "dpwhReference": "string — DPWH Blue Book item reference if applicable or null"
+    }
+  ],
+  "valueEngineering": [
+    {
+      "suggestion": "string — specific VE recommendation",
+      "plainExplanation": "string — plain language explanation for client",
+      "savingLow": 0,
+      "savingHigh": 0,
+      "qualityImpact": "None|Minor|Moderate|Significant",
+      "feasibility": "Easy|Moderate|Difficult"
+    }
+  ],
+  "marketWarnings": [
+    {
+      "item": "string — material or trade at risk",
+      "warning": "string — specific risk description",
+      "level": "High|Medium|Low"
+    }
+  ],
+  "nextSteps": [
+    {
+      "step": 1,
+      "action": "string — recommended next action",
+      "detail": "string — brief explanation"
+    }
+  ]
+}`;
 
 function CostEstimator({ apiKey, onResultChange=null }) {
   const [files,       setFiles]       = useState([]);
