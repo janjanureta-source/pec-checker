@@ -5215,44 +5215,239 @@ CRITICAL OUTPUT RULES:
   );
 }
 
-const COST_ESTIMATOR_PROMPT = `You are a licensed Philippine Quantity Surveyor and Cost Estimator with deep expertise in:
-- DPWH Blue Book unit costs (latest edition)
-- Philippine construction market rates (NCR, Luzon, Visayas, Mindanao)
-- PRC/PICE professional fee schedules
-- Parametric cost estimating for residential, commercial, industrial, and government projects
-- Value engineering for Philippine construction
+const COST_ESTIMATOR_PROMPT = `You are a licensed Philippine Quantity Surveyor (PQS) and Cost Estimator with 20+ years of experience on Philippine government and private construction projects. You produce parametric cost estimates that practicing engineers and project owners trust for budget planning and bid preparation.
 
-REVIEW PROCESS:
-1. Read ALL uploaded plan files carefully. Identify project type, GFA, number of floors, structural system, finishes, and scope.
-2. If GFA is provided by user, use that value exactly — do not override it.
-3. Apply the location cost modifier provided in the project context.
-4. Break down costs by trade/discipline with realistic Philippine market rates.
-5. Provide low and high range per trade (low = economy/budget, high = standard/quality).
-6. Suggest 3–5 value engineering options with estimated savings.
-7. Flag any market risk items (price-volatile materials, long lead items, etc.).
+═══════════════════════════════════════════
+PHILIPPINE CONSTRUCTION RATE REFERENCE TABLE
+(NCR baseline, 2024–2025 market rates — adjust by location modifier provided in context)
+═══════════════════════════════════════════
+
+STRUCTURAL WORKS (per sqm of floor area unless noted):
+- RC Frame (columns, beams, slabs) — Residential 1–3F:   ₱8,500–₱12,000/sqm
+- RC Frame — Commercial/Office 4–10F:                     ₱11,000–₱16,000/sqm
+- RC Frame — Government/Institutional multistorey:        ₱13,000–₱18,000/sqm
+- Structural Steel Frame (industrial/warehouse):           ₱6,500–₱9,500/sqm
+- Masonry load-bearing (single storey only):              ₱4,500–₱6,500/sqm
+- Mat Foundation (per sqm of mat area):                   ₱8,000–₱14,000/sqm
+- Isolated Footing (per footing, 1.2m×1.2m typical):     ₱12,000–₱22,000/pc
+- Pile Foundation (precast RC 300mm, per lm):             ₱4,500–₱7,500/lm
+- Shear Walls (200–300mm RC, per sqm):                    ₱5,500–₱8,500/sqm
+
+ARCHITECTURAL WORKS:
+- CHB Masonry Walls (150mm, per sqm):                     ₱1,200–₱1,800/sqm
+- CHB Masonry Walls (100mm, per sqm):                     ₱900–₱1,400/sqm
+- Plastering both sides (per sqm):                        ₱350–₱550/sqm
+- Ceramic tile flooring, basic (per sqm):                 ₱800–₱1,400/sqm
+- Ceramic tile flooring, premium (per sqm):               ₱1,800–₱3,500/sqm
+- Granite/marble tile flooring (per sqm):                 ₱4,500–₱9,000/sqm
+- Painted concrete floor (per sqm):                       ₱250–₱450/sqm
+- Ceiling — plain cement board, painted (per sqm):        ₱650–₱950/sqm
+- Ceiling — gypsum board, painted (per sqm):              ₱850–₱1,400/sqm
+- Ceiling — T-bar suspended, acoustic tile (per sqm):     ₱1,100–₱1,800/sqm
+- Doors — hollow-core flush (per set incl frame):         ₱8,000–₱14,000/set
+- Doors — solid wood panel (per set incl frame):          ₱18,000–₱35,000/set
+- Doors — steel security door (per set):                  ₱22,000–₱45,000/set
+- Windows — aluminum jalousie (per sqm):                  ₱2,500–₱4,000/sqm
+- Windows — aluminum sliding (per sqm):                   ₱3,500–₱5,500/sqm
+- Windows — aluminum casement (per sqm):                  ₱5,000–₱9,000/sqm
+- Roof — long-span corrugated G.I. (per sqm):             ₱550–₱850/sqm
+- Roof — pre-painted rib-type (per sqm):                  ₱850–₱1,300/sqm
+- Roof — concrete slab + waterproofing (per sqm):         ₱3,500–₱5,500/sqm
+- Roof — clay/concrete tiles (per sqm):                   ₱2,500–₱4,500/sqm
+- Exterior paint — acrylic latex, 2 coats (per sqm):      ₱280–₱420/sqm
+- Interior paint — 2 coats (per sqm):                     ₱200–₱320/sqm
+
+PLUMBING WORKS:
+- Residential plumbing, complete system (per fixture):    ₱18,000–₱28,000/fixture
+- Commercial plumbing (per fixture):                      ₱25,000–₱45,000/fixture
+- Sanitary/drain lines, PVC (per lm):                     ₱650–₱1,100/lm
+- Water supply lines, PPR (per lm):                       ₱450–₱750/lm
+- Septic tank, 2-chamber (per unit):                      ₱35,000–₱65,000/unit
+- Sewage treatment plant (per unit, varies by capacity):  ₱180,000–₱850,000/unit
+
+ELECTRICAL WORKS:
+- Residential electrical, complete (per sqm of GFA):      ₱1,200–₱1,900/sqm
+- Commercial electrical, complete (per sqm of GFA):       ₱2,500–₱4,500/sqm
+- Industrial/3-phase electrical (per sqm of GFA):         ₱3,500–₱6,500/sqm
+- Emergency generator set, 50kVA (per unit):              ₱350,000–₱550,000/unit
+- Automatic transfer switch (per unit):                   ₱45,000–₱85,000/unit
+- Solar PV system, 5kWp (per unit):                       ₱280,000–₱420,000/unit
+
+FIRE PROTECTION:
+- Wet pipe sprinkler system (per sqm of floor):           ₱1,200–₱2,000/sqm
+- Fire detection and alarm system (per sqm):              ₱450–₱850/sqm
+- Fire standpipe and hose cabinet (per floor):            ₱35,000–₱65,000/floor
+- Fire extinguishers (per unit):                          ₱3,500–₱6,000/unit
+
+HVAC / AIRCONDITIONING:
+- Window-type AC unit, 1HP (supply + install):            ₱22,000–₱35,000/unit
+- Split-type AC, 1.5HP (supply + install):                ₱38,000–₱58,000/unit
+- Cassette-type AC, 2HP (supply + install):               ₱65,000–₱95,000/unit
+- VRF/VRV system (per TR of cooling):                     ₱95,000–₱145,000/TR
+- Ventilation exhaust fan (per unit):                     ₱4,500–₱8,500/unit
+
+SPECIAL SYSTEMS (as applicable):
+- CCTV system (per camera, complete):                     ₱15,000–₱28,000/camera
+- Access control (per door):                              ₱25,000–₱55,000/door
+- Data/communications cabling (per port):                 ₱4,500–₱8,500/port
+- Elevator, 6-stop (supply + install):                    ₱5,500,000–₱9,000,000/unit
+- Elevator, 10-stop (supply + install):                   ₱8,500,000–₱14,000,000/unit
+
+SITE WORKS:
+- Site clearing and grubbing (per sqm):                   ₱85–₱180/sqm
+- Earthfill and compaction (per cu.m):                    ₱550–₱950/cu.m
+- Perimeter fence, CHB 1.8m (per lm):                     ₱4,500–₱7,500/lm
+- Perimeter fence, precast concrete (per lm):             ₱8,500–₱14,000/lm
+- Concrete paving, 150mm (per sqm):                       ₱1,100–₱1,800/sqm
+- Asphalt paving, 50mm (per sqm):                         ₱850–₱1,400/sqm
+- Landscaping, basic (per sqm):                           ₱350–₱750/sqm
+- Drainage canal (per lm):                                ₱2,500–₱4,500/lm
+
+GOVERNMENT / DPWH-SPECIFIC ITEMS:
+- Anti-corrosion paint on rebar (per sqm of structure):   ₱120–₱220/sqm
+- Epoxy floor coating (per sqm):                          ₱850–₱1,600/sqm
+- Security grille (steel bar, per sqm):                   ₱2,800–₱4,500/sqm
+- Detention cell doors (heavy steel, per set):            ₱85,000–₱145,000/set
+- Bullet-resistant glazing (per sqm):                     ₱28,000–₱55,000/sqm
+- CCTV with recording (per camera, high-security):        ₱25,000–₱45,000/camera
+
+PROFESSIONAL FEES (PRC/AAIF schedule, based on project cost):
+- Architectural services: 6–8% of construction cost
+- Civil/Structural engineering: 3–5% of construction cost
+- Mechanical/Electrical/Plumbing: 2–4% of construction cost
+- Full design team (Arch + CE + MEP): 10–15% combined
+- Construction management: 3–5% of construction cost
+- Government projects (DPWH): fees per RA 9184 and agency-specific rates
+
+OVERHEAD, PROFIT & CONTINGENCY:
+- Contractor's O&P (typically included in unit rates above): 15–25%
+- Contingency for schematic plans: add 20–25%
+- Contingency for design development plans: add 10–15%
+- Contingency for construction documents (complete): add 5–10%
+- Government projects: include 12% VAT on contract price + 1% withholding tax
+
+═══════════════════════════════════════════
+PROJECT-TYPE TRADE BREAKDOWN GUIDE
+═══════════════════════════════════════════
+Always customize the trade list to match the actual project type:
+
+RESIDENTIAL (house, duplex, townhouse):
+Required trades: Site Works, Foundation, RC Structure, Masonry/Walls, Roofing, Waterproofing, Doors/Windows, Tile Works, Painting, Plumbing, Electrical, Kitchen Cabinetry, Landscaping
+Optional: CCTV, Solar, Airconditioning, Carport/Garage
+
+CONDOMINIUM / MID–HIGH-RISE:
+Required trades: Site Works, Deep Foundation (piles), RC Frame (multistorey), Curtain Wall/Glazing, Waterproofing, Interior Fit-out per floor, Elevators, Fire Protection, Building Automation, HVAC, Electrical (HV/LV), Plumbing, Generator, Podium/Parking
+Add: Common areas, lobby, amenities floor separately
+
+COMMERCIAL / RETAIL / OFFICE:
+Required trades: Site Works, Foundation, RC/Steel Frame, Architectural Shell, MEP rough-in, Partitions, Raised Floor/Ceiling, HVAC, Fire Protection, Electrical (commercial), Data/Comms, Signage, Parking, Landscape
+Add: Tenant fit-out allowance if applicable
+
+SCHOOL / INSTITUTIONAL:
+Required trades: Site Works, Foundation, RC Frame (typically 3–5 storeys), Classrooms fit-out, Covered walk/canopy, Comfort rooms (per DepEd standards), Electrical, Plumbing, Fire exits/safety, Site paving, Perimeter fence, Flag ceremony area
+Rates: Apply DPWH Blue Book school building costs (₱18,000–₱25,000/sqm typical)
+
+GOVERNMENT / JAIL / DETENTION:
+Required trades: Site Works (extensive perimeter), Deep Foundation, Heavy RC Frame with shear walls, Security fencing (reinforced), Security grilles on all openings, Heavy-duty detention doors, CCTV (high-density), Access control, Separate plumbing per cell block, Fire protection, Generator (mandatory), Staff quarters
+Security premium: add 25–40% to standard construction cost
+Apply DPWH Blue Book government building rates
+
+WAREHOUSE / INDUSTRIAL:
+Required trades: Site Works, Raft/Strip Foundation, Steel Frame or Tilt-up, Metal roofing (long-span), Concrete floor slab (heavy duty), Loading docks, Industrial electrical (3-phase), Fire protection (ESFR sprinklers for storage), Perimeter fence
+Rates: ₱8,500–₱14,000/sqm typical for industrial
+
+HOSPITAL / MEDICAL:
+Required trades: RC Frame (seismically isolated preferred), Medical gas system, HVAC (HEPA filtration), Specialized plumbing, Electrical (UPS, emergency), Clean rooms, Radiation shielding (radiology), Pneumatic tube, Nurse call system, Elevators (bed-sized)
+Medical premium: add 40–60% to standard institutional cost
+
+RENOVATION / REMODEL:
+Light: Estimate affected area only — paint, flooring, fixtures — NO structural
+Moderate: Include new partitions, plumbing rough-in, electrical panel upgrade
+Heavy/Gut: Include full demolition costs (₱850–₱1,800/sqm), structural modifications, complete MEP replacement
+Always include demolition/hauling as a separate trade
+
+FIT-OUT / INTERIOR ONLY:
+Estimate interior works only: partition walls, ceiling, flooring, electrical outlets, data points, lighting, HVAC, painting, built-in furniture
+Typical fit-out cost: ₱8,000–₱35,000/sqm depending on finish level (economy to luxury)
+
+═══════════════════════════════════════════
+PRECISION RULES — READ CAREFULLY
+═══════════════════════════════════════════
+
+1. PLAN READING FIRST: Before estimating, extract from the plans:
+   - Actual GFA per floor (count visible grid dimensions if possible)
+   - Number and type of structural members visible (columns, beams, shear walls)
+   - Foundation type shown on foundation plan
+   - Number of toilets/fixtures visible
+   - Roof type and area
+   - Any special features visible (elevator pit, generator room, security features, etc.)
+
+2. LOCATION-ADJUSTED RATES: Apply the exact location modifier given in the project context to EVERY trade rate. Do not use NCR rates for provincial projects.
+
+3. FINISH-LEVEL RATES: 
+   - Basic/Economy: use the LOW end of architectural rates above
+   - Standard: use the MID point of rates above
+   - High-end/Premium: use the HIGH end of architectural rates above, or higher for imported materials
+   - Luxury: multiply high-end rates by 1.3–1.8×
+
+4. PROJECT-TYPE RATES: Use the project-type trade breakdown guide above. Do not use a residential trade list for a government project, or a warehouse list for a school.
+
+5. QUANTITY TAKEOFF: For each trade, provide realistic quantities taken from the plans:
+   - Structural works: use actual floor area per floor × number of floors
+   - Walls: estimate perimeter × floor height × 0.85 (deduct openings)
+   - Roofing: use roof plan area if visible, or GFA × 1.1 for sloped roofs
+   - MEP: use GFA-based parametric rates with project-type multiplier
+
+6. CONTINGENCY: Set contingency based on plan completeness shown:
+   - Complete CDs (all details visible): 8–10%
+   - Design development (floor plans + elevations only): 12–18%
+   - Schematic/conceptual only: 20–25%
+
+7. GOVERNMENT PROJECTS: Always add:
+   - 12% VAT on all contract items
+   - DPWH standard 10% mobilization and demobilization
+   - Bond premium estimate (2–3% of contract price)
+   - Project billboard and safety signage (₱45,000–₱85,000 lump sum)
+
+8. MATH CHECK: Verify that sum of all trade totalMid values equals summary.totalMid before outputting. percentOfTotal for each trade must sum to approximately 100%.
+
+9. CONFIDENCE RATING:
+   - HIGH: Complete plans with dimensions, schedules, and specifications visible
+   - MEDIUM: Floor plans and elevations available but details/specs missing
+   - LOW: Schematic or conceptual plans only, significant assumptions made
 
 STRICT OUTPUT RULES:
-- Return ONLY valid JSON — no markdown, no explanation, no preamble.
-- All monetary values must be plain numbers (no currency symbols, no commas).
-- All fields listed in the schema below are required. Use null if not applicable.
-- Do not truncate the response. Complete the full JSON.
+- Return ONLY valid JSON — no markdown, no explanation, no preamble, no trailing text.
+- All monetary values must be plain numbers (no ₱ symbol, no commas, no text).
+- Every trade must have qty, unit, rateLow, rateHigh, totalLow, totalHigh, percentOfTotal.
+- Do not truncate. Complete the full JSON including all trades, VE items, warnings, and next steps.
+- max_tokens is set to 12000 — use as much as needed to be complete and precise.
 
 Return this exact JSON structure:
 {
   "project": {
     "name": "string",
-    "type": "Residential|Commercial|Industrial|Government|Mixed-Use",
-    "location": "string",
-    "finishLevel": "Economy|Standard|Premium|Luxury",
-    "scopeMode": "new-construction|renovation|fitout|adhoc",
+    "type": "Residential|Duplex|Condominium|Commercial|Office|Retail|School|Warehouse|Government|Hospital|Mixed-Use|Infrastructure",
+    "location": "string — specific city/province if visible in plans, otherwise region",
+    "finishLevel": "Basic|Standard|High-end|Luxury",
+    "scopeMode": "new-construction|renovation|fitout|addition|adhoc",
     "numberOfFloors": 0,
     "estimatedGFA": 0,
-    "structuralSystem": "string — e.g. Reinforced Concrete Frame, Steel Frame, Masonry",
-    "foundationType": "string — e.g. Mat Footing, Isolated Footing, Pile Foundation",
-    "scopeIncluded": ["list of major scope items included in estimate"],
-    "scopeExcluded": ["list of items explicitly excluded"],
-    "estimationBasis": "string — brief description of how GFA and scope were determined from plans",
-    "planQuality": "Complete|Partial|Schematic — how complete were the uploaded plans"
+    "gfaSource": "user-provided|measured-from-plans|estimated",
+    "gfaPerFloor": [{"floor": "Ground", "area": 0}],
+    "structuralSystem": "string",
+    "foundationType": "string",
+    "roofType": "string",
+    "numberOfFixtures": 0,
+    "hasElevator": false,
+    "hasGenerator": false,
+    "hasFireProtection": false,
+    "specialFeatures": ["list any visible special features from plans"],
+    "scopeIncluded": ["detailed list of all scope items included"],
+    "scopeExcluded": ["list of items explicitly excluded — be specific"],
+    "estimationBasis": "string — describe exactly how quantities were derived from plans",
+    "planQuality": "Complete|Design-Development|Schematic",
+    "planQualityNote": "string — what was and wasn't visible in the plans"
   },
   "summary": {
     "totalLow": 0,
@@ -5260,58 +5455,67 @@ Return this exact JSON structure:
     "totalMid": 0,
     "costPerSqmLow": 0,
     "costPerSqmHigh": 0,
+    "costPerSqmMid": 0,
     "marketBenchmarkLow": 0,
     "marketBenchmarkHigh": 0,
-    "benchmarkSource": "string — e.g. DPWH Blue Book 2024, NCR residential rate",
-    "contingencyPercent": 10,
+    "benchmarkSource": "string — cite the specific rate source, e.g. DPWH Blue Book 2024 School Building, NCR residential parametric",
+    "contingencyPercent": 0,
     "contingencyAmount": 0,
-    "profFeeIncluded": true,
+    "vatAmount": 0,
+    "vatIncluded": false,
+    "profFeeIncluded": false,
     "profFeeAmount": 0,
-    "profFeeBasis": "string — PRC/PICE fee schedule basis or null",
+    "profFeeBasis": "string or null",
     "overallConfidence": "High|Medium|Low",
-    "confidenceNote": "string — reason for confidence level"
+    "confidenceNote": "string — specific reason for this confidence level based on plan quality"
   },
   "trades": [
     {
-      "trade": "string — trade/discipline name",
+      "trade": "string",
       "icon": "emoji",
-      "description": "string — technical scope description",
-      "plainDescription": "string — simple plain-language description for client",
+      "description": "string — technical scope",
+      "plainDescription": "string — plain language for client",
       "qty": 0,
-      "unit": "sqm|lm|lot|unit|ls",
-      "ratelow": 0,
+      "unit": "sqm|cu.m|lm|pc|set|unit|lot|floor",
+      "rateLow": 0,
       "rateHigh": 0,
       "totalLow": 0,
       "totalHigh": 0,
+      "totalMid": 0,
       "percentOfTotal": 0,
       "isMajor": true,
       "included": true,
-      "notes": "string — any important notes, assumptions, or exclusions for this trade",
-      "dpwhReference": "string — DPWH Blue Book item reference if applicable or null"
+      "assumptions": "string — key assumptions made for this trade",
+      "notes": "string — any risks, notes, or alternatives",
+      "dpwhReference": "string or null"
     }
   ],
   "valueEngineering": [
     {
-      "suggestion": "string — specific VE recommendation",
-      "plainExplanation": "string — plain language explanation for client",
+      "suggestion": "string — specific, actionable recommendation",
+      "plainExplanation": "string — explain to a non-engineer client",
+      "affectedTrade": "string — which trade this applies to",
       "savingLow": 0,
       "savingHigh": 0,
       "qualityImpact": "None|Minor|Moderate|Significant",
-      "feasibility": "Easy|Moderate|Difficult"
+      "feasibility": "Easy|Moderate|Difficult",
+      "recommendation": "Recommended|Consider|Last Resort"
     }
   ],
   "marketWarnings": [
     {
-      "item": "string — material or trade at risk",
-      "warning": "string — specific risk description",
-      "level": "High|Medium|Low"
+      "item": "string",
+      "warning": "string — specific risk with Philippine market context",
+      "level": "High|Medium|Low",
+      "mitigation": "string — how to mitigate this risk"
     }
   ],
   "nextSteps": [
     {
       "step": 1,
-      "action": "string — recommended next action",
-      "detail": "string — brief explanation"
+      "action": "string",
+      "detail": "string",
+      "priority": "Urgent|High|Medium|Low"
     }
   ]
 }`;
@@ -5387,10 +5591,23 @@ function CostEstimator({ apiKey, onResultChange=null }) {
     { v:"highend",  l:"High-end",  desc:"Imported materials, designer fixtures, custom finishes" },
   ];
   const LOCATIONS = [
-    { v:"ncr",      l:"Metro Manila (NCR)" },
-    { v:"luzon",    l:"Luzon (outside NCR)" },
-    { v:"visayas",  l:"Visayas" },
-    { v:"mindanao", l:"Mindanao" },
+    { v:"ncr",              l:"Metro Manila (NCR)" },
+    { v:"ncr_makati",       l:"Makati / BGC / Taguig" },
+    { v:"ncr_qc",           l:"Quezon City / Caloocan" },
+    { v:"luzon_bulacan",    l:"Bulacan" },
+    { v:"luzon_cavite",     l:"Cavite" },
+    { v:"luzon_laguna",     l:"Laguna / Rizal" },
+    { v:"luzon_pampanga",   l:"Pampanga / Central Luzon" },
+    { v:"luzon_batangas",   l:"Batangas" },
+    { v:"luzon_ilocos",     l:"Ilocos Region" },
+    { v:"luzon_bicol",      l:"Bicol Region" },
+    { v:"luzon_other",      l:"Luzon (other provinces)" },
+    { v:"visayas_cebu",     l:"Cebu City / Metro Cebu" },
+    { v:"visayas_iloilo",   l:"Iloilo" },
+    { v:"visayas_other",    l:"Visayas (other)" },
+    { v:"mindanao_davao",   l:"Davao City" },
+    { v:"mindanao_cdo",     l:"Cagayan de Oro" },
+    { v:"mindanao_other",   l:"Mindanao (other)" },
   ];
   const RENOV_LEVELS = [
     { v:"light",    l:"Light",    desc:"Paint, flooring, minor fixtures — no structural" },
@@ -5398,34 +5615,108 @@ function CostEstimator({ apiKey, onResultChange=null }) {
     { v:"heavy",    l:"Heavy / Gut", desc:"Full interior strip, structural modifications" },
   ];
 
+  // Location cost modifiers — granular by city/region
+  const LOCATION_DATA = {
+    ncr:      { label:"Metro Manila (NCR)",         mod:1.00, vatRule:"12% VAT applies to all works",         laborNote:"Highest labor rates, abundant skilled trades" },
+    ncr_makati:{ label:"Makati / BGC / Taguig",     mod:1.08, vatRule:"12% VAT applies to all works",         laborNote:"Premium location — expect 8–12% location premium on all trades" },
+    ncr_qc:   { label:"Quezon City / Caloocan",     mod:1.00, vatRule:"12% VAT applies to all works",         laborNote:"NCR standard rates" },
+    luzon_bulacan:{ label:"Bulacan",                mod:0.93, vatRule:"12% VAT applies",                      laborNote:"Close to NCR — materials cost similar, labor slightly lower" },
+    luzon_cavite: { label:"Cavite",                 mod:0.92, vatRule:"12% VAT applies",                      laborNote:"Active construction area, competitive rates" },
+    luzon_laguna: { label:"Laguna / Rizal",         mod:0.91, vatRule:"12% VAT applies",                      laborNote:"CALABARZON rates — slightly below NCR" },
+    luzon_pampanga:{ label:"Pampanga / Central Luzon", mod:0.88, vatRule:"12% VAT applies",                   laborNote:"Lower labor cost, materials transport adds 3–5%" },
+    luzon_batangas:{ label:"Batangas",              mod:0.87, vatRule:"12% VAT applies",                      laborNote:"Industrial zone presence helps material availability" },
+    luzon_ilocos:  { label:"Ilocos Region",         mod:0.83, vatRule:"12% VAT applies",                      laborNote:"Remote from NCR — add 5–8% for material transport" },
+    luzon_bicol:   { label:"Bicol Region",          mod:0.82, vatRule:"12% VAT applies",                      laborNote:"Typhoon zone — add 5–10% for wind-load-rated materials" },
+    luzon_other:   { label:"Luzon (other provinces)",mod:0.88, vatRule:"12% VAT applies",                     laborNote:"Transport costs add 4–7% for materials" },
+    visayas_cebu:  { label:"Cebu City / Metro Cebu",mod:0.92, vatRule:"12% VAT applies",                      laborNote:"Active market, competitive with NCR on some trades" },
+    visayas_iloilo:{ label:"Iloilo",                mod:0.87, vatRule:"12% VAT applies",                      laborNote:"Growing construction market, good trade availability" },
+    visayas_other: { label:"Visayas (other)",       mod:0.83, vatRule:"12% VAT applies",                      laborNote:"Island transport adds 6–10% to material costs" },
+    mindanao_davao:{ label:"Davao City",            mod:0.88, vatRule:"12% VAT applies",                      laborNote:"Second largest market, good availability" },
+    mindanao_cdo:  { label:"Cagayan de Oro",        mod:0.85, vatRule:"12% VAT applies",                      laborNote:"Northern Mindanao hub, active construction market" },
+    mindanao_other:{ label:"Mindanao (other)",      mod:0.80, vatRule:"12% VAT applies; some areas BARMM-specific rules", laborNote:"Most remote — add 8–15% transport cost on materials" },
+  };
+
   const buildContext = () => {
     const scope   = SCOPE_MODES.find(s=>s.v===scopeMode)?.l || scopeMode;
     const type    = PROJECT_TYPES.find(t=>t.v===projectType)?.l || projectType;
     const finish  = FINISH_LEVELS.find(f=>f.v===finishLevel)?.l || finishLevel;
-    const loc     = LOCATIONS.find(l=>l.v===location)?.l || location;
+    const locData = LOCATION_DATA[location] || LOCATION_DATA["ncr"];
     const renov   = RENOV_LEVELS.find(r=>r.v===renovScope)?.l || renovScope;
-    const locMod  = location==="ncr"?1.0:location==="luzon"?0.9:location==="visayas"?0.85:0.80;
 
-    return `PROJECT CONTEXT FOR COST ESTIMATION:
+    // Finish level rate guidance
+    const finishGuide = {
+      basic:    "Use LOW end of all architectural rate ranges. Economy tiles, hollow-core doors, basic fixtures, plain painted concrete floors.",
+      standard: "Use MID-POINT of all architectural rate ranges. Good-quality local tiles, aluminum windows, standard fixtures, painted ceilings.",
+      highend:  "Use HIGH end of all architectural rate ranges. Imported or designer tiles, powder-coated aluminum, premium fixtures, suspended ceilings.",
+    }[finishLevel] || "Use standard rates";
+
+    // Project type specific instructions
+    const typeGuide = {
+      residential:   "Single-family home or simple house. Include: site, foundation, RC frame or masonry, roofing, doors/windows, tile works, painting, basic plumbing, basic electrical. Carport if visible.",
+      duplex:        "Two-unit residential. Estimate as residential × 2 but share foundation and party wall. Include separate utilities for each unit.",
+      condo:         "Multi-storey condominium. Include: deep foundation (likely piles), RC frame, curtain wall, elevator(s), fire protection, BAS, HVAC, common areas. Estimate per floor.",
+      commercial:    "Commercial building. Include: RC/steel frame, MEP for commercial loads, fire protection, signage allowance, parking. Higher electrical capacity than residential.",
+      office:        "Office building. Include: raised floor, suspended ceiling, commercial HVAC, data/comms, fire protection, security, elevator if multi-storey.",
+      retail:        "Retail store or mall space. Include: high-clearance structure, display lighting, commercial HVAC, fire protection, shopfront glazing.",
+      school:        "School building. Apply DepEd and DPWH school building standards. Include: classrooms fit-out, covered walkways, comfort rooms (1 per 50 students), flag ceremony area, perimeter fence. Typical: ₱18,000–₱25,000/sqm DPWH rate.",
+      warehouse:     "Warehouse or factory. Steel frame preferred. Include: heavy concrete floor slab (200mm+), loading docks, industrial electrical (3-phase), fire protection (ESFR), perimeter fence.",
+      mixed_use:     "Mixed-use building. Split estimate by use: ground floor commercial rates + upper floor residential rates. Separate MEP systems.",
+      infrastructure:"Civil infrastructure. Consult DPWH Blue Book for specific item codes. Include: earthworks, drainage, paving, structures per linear meter or unit.",
+    }[projectType] || "Use appropriate trade breakdown for this project type";
+
+    return `═══════════════════════════════════════════
+PROJECT CONTEXT — READ BEFORE ESTIMATING
+═══════════════════════════════════════════
+
+PROJECT DETAILS:
+- Project Name: ${projectName || "Not specified"}
+- Client: ${clientName || "Not specified"}
 - Scope Mode: ${scope}
 - Project Type: ${type}
 - Finish Level: ${finish}
-- Location: ${loc} (apply ×${locMod} cost modifier vs NCR baseline)
-${gfaOverride ? `- Gross Floor Area (user-provided): ${gfaOverride} sqm — use this GFA, do not override` : "- Gross Floor Area: Estimate from plan drawings"}
-${scopeMode==="renovation"||scopeMode==="fitout" ? `- Renovation Level: ${renov}` : ""}
-${scopeMode==="adhoc" && adhocItems ? `- Custom Scope Items:\n${adhocItems}` : ""}
-${specialNotes ? `- Special Notes / Instructions: ${specialNotes}` : ""}
-${inclProfFees ? "- Include professional fees estimate based on PRC/PICE fee schedule" : "- Exclude professional fees from estimate"}
+- Location: ${locData.label}
+- Location Cost Modifier: ×${locData.mod} applied to ALL NCR baseline rates
+- Tax Rule: ${locData.vatRule}
+- Labor Context: ${locData.laborNote}
 
-INSTRUCTIONS:
-1. Read the uploaded plans carefully. Identify all visible scope.
-2. Generate a detailed parametric estimate broken down by trade.
-3. Apply the location cost modifier to all rates.
-4. For renovation/fitout: only estimate affected areas/trades, not the entire building.
-5. For ad-hoc scope: estimate only the custom items listed above.
-6. Provide a low and high range for each trade.
-7. Include 3–5 value engineering suggestions.
-8. Return ONLY the JSON structure. No markdown, no explanation.`;
+FINISH LEVEL GUIDANCE:
+${finishGuide}
+
+PROJECT TYPE GUIDANCE:
+${typeGuide}
+
+GFA / AREA:
+${gfaOverride
+  ? `- USER-PROVIDED GFA: ${gfaOverride} sqm — USE THIS EXACT VALUE. Do not estimate differently from plans.`
+  : `- GFA NOT PROVIDED — measure from plan dimensions or estimate from grid layout. Report your measurement method in estimationBasis.`}
+
+${(scopeMode==="renovation"||scopeMode==="fitout") ? `RENOVATION SCOPE LEVEL: ${renov}
+- Light: estimate paint, flooring, fixtures ONLY — no structural, no MEP replacement
+- Moderate: include partitions, MEP rough-in, panel upgrade, kitchen/bath remodel
+- Heavy/Gut: include full demolition (₱850–₱1,800/sqm), structural mods, complete MEP` : ""}
+
+${scopeMode==="adhoc" && adhocItems ? `AD-HOC CUSTOM SCOPE ITEMS (estimate ONLY these items):
+${adhocItems}` : ""}
+
+${specialNotes ? `SPECIAL NOTES FROM ENGINEER:
+${specialNotes}` : ""}
+
+PROFESSIONAL FEES:
+${inclProfFees
+  ? `- INCLUDE professional fees in the estimate
+- Use PRC/AAIF schedule: Arch 6–8%, CE 3–5%, MEP 2–4%, CM 3–5% of construction cost
+- Government projects: apply agency-specific fee schedule`
+  : `- EXCLUDE professional fees — construction cost only`}
+
+CRITICAL INSTRUCTIONS:
+1. Read ALL uploaded plan pages before estimating. Note every visible structural member, fixture, and special feature.
+2. Apply the ×${locData.mod} location modifier to every trade rate from the reference table.
+3. Use the project-type guidance above to select which trades to include.
+4. Use the finish-level guidance for architectural rate selection.
+5. Every trade must have: qty, unit, rateLow, rateHigh, totalLow, totalHigh, totalMid, percentOfTotal.
+6. Verify: sum of all trade totalMid + contingency + profFees = summary.totalMid.
+7. Set contingency based on plan completeness — see CONTINGENCY rules in system prompt.
+8. Return ONLY valid JSON. No text before or after the JSON object.`;
   };
 
   const run = async () => {
@@ -5453,7 +5744,7 @@ INSTRUCTIONS:
       blocks.push({ type:"text", text: buildContext() });
 
       setBusyMsg("AI is reading plans and generating cost estimate…"); await tick();
-      const data = await callAI({ apiKey, system:COST_ESTIMATOR_PROMPT, messages:[{ role:"user", content:blocks }], max_tokens:8000 });
+      const data = await callAI({ apiKey, system:COST_ESTIMATOR_PROMPT, messages:[{ role:"user", content:blocks }], max_tokens:12000 });
       const raw  = data.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
       let parsed;
       try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
