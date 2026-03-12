@@ -3,7 +3,7 @@
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
   "functions": {
-    "api/anthropic.js": {
+    "api/claude.js": {
       "maxDuration": 60,
       "memory": 1024
     }
