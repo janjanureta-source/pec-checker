@@ -6407,12 +6407,7 @@ const exportDocument = () => {
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Known Material Quantities <span style={{color:T.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(from BOQ, structural schedules, or takeoff)</span></div>
                 <textarea value={knownQty} onChange={e=>setKnownQty(e.target.value)}
-                  placeholder={"Enter any confirmed quantities — AI will use these instead of estimating:
-• Reinforcing steel: 12,500 kg
-• Concrete volume: 185 cu.m
-• CHB 150mm walls: 420 sqm
-• Ceramic floor tiles: 310 sqm
-• Plumbing fixtures: 18 pcs"}
+                  placeholder={`Enter any confirmed quantities — AI will use these instead of estimating:\n• Reinforcing steel: 12,500 kg\n• Concrete volume: 185 cu.m\n• CHB 150mm walls: 420 sqm\n• Ceramic floor tiles: 310 sqm\n• Plumbing fixtures: 18 pcs`}
                   style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
                   onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
                 <div style={{fontSize:9,color:T.muted,marginTop:3}}>Any quantity you enter is locked — the AI will not estimate it differently. More quantities = more accurate total.</div>
@@ -6422,12 +6417,7 @@ const exportDocument = () => {
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Supplier / Canvassed Prices <span style={{color:T.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(override AI rates with actual quotes)</span></div>
                 <textarea value={supplierPrices} onChange={e=>setSupplierPrices(e.target.value)}
-                  placeholder={"Enter confirmed prices from supplier quotes or recent projects:
-• Portland cement 40kg: ₱295/bag (canvassed Holcim dealer, March 2025)
-• Deformed bars 12mm: ₱61/kg (Pag-asa Steel quote)
-• CHB 150mm: ₱16/pc (local supplier)
-• Ceramic tiles 60×60: ₱1,150/sqm (supplier quote)
-• Split-type AC 1.5HP: ₱44,000/unit installed"}
+                  placeholder={`Enter confirmed prices from supplier quotes or recent projects:\n• Portland cement 40kg: ₱295/bag (canvassed Holcim dealer, March 2025)\n• Deformed bars 12mm: ₱61/kg (Pag-asa Steel quote)\n• CHB 150mm: ₱16/pc (local supplier)\n• Ceramic tiles 60×60: ₱1,150/sqm (supplier quote)\n• Split-type AC 1.5HP: ₱44,000/unit installed`}
                   style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
                   onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
                 <div style={{fontSize:9,color:T.muted,marginTop:3}}>These prices will override the reference table rates for affected trades. Canvassed prices produce the most accurate estimates.</div>
