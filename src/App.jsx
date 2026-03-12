@@ -440,9 +440,8 @@ const getKey = () => {
 };
 
 const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 4 }) => {
-  // ── Secure proxy: API key lives on the server (Vercel env var), never in the browser ──
-  // The apiKey param is kept for local dev fallback only — in production it is ignored.
-  const IS_LOCAL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const key = (typeof apiKey === "string" && apiKey.startsWith("sk-")) ? apiKey : getKey();
+  if (!key) throw new Error("No API key. Paste your Anthropic key using the 🔑 button in the top menu.");
 
   const payload = { model: "claude-sonnet-4-20250514", max_tokens, temperature: 0, messages };
   if (system) payload.system = system;
@@ -452,39 +451,37 @@ const callAI = async ({ apiKey, system, messages, max_tokens = 8000, retries = 4
     try {
       if (attempt > 0) await new Promise(r => setTimeout(r, 2500 * attempt));
 
-      let res;
-      if (IS_LOCAL) {
-        // Local development: still call direct (you control your own machine)
-        const key = (typeof apiKey === "string" && apiKey.startsWith("sk-")) ? apiKey : getKey();
-        if (!key) throw new Error("API key required for local dev. Paste your Anthropic key in the nav bar.");
-        res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": key,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true",
-          },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        // Production: call YOUR server proxy — API key is never sent to the browser
-        res = await fetch("/api/claude", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(payload),
+      });
 
       if (res.status === 529 || res.status === 503 || res.status === 429) {
         lastError = new Error(`API overloaded (${res.status}). Retrying...`);
         continue;
       }
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        const preview = rawText.slice(0, 120).replace(/<[^>]+>/g, "").trim();
+        throw new Error(`Server error: ${preview || `HTTP ${res.status}`}`);
+      }
+
       if (data.error) {
-        if (data.error.type === "overloaded_error" && attempt < retries) { lastError = new Error(data.error.message); continue; }
-        throw new Error(data.error.message || "Anthropic API error");
+        const msg = data.error.message || data.error || "Anthropic API error";
+        if ((data.error.type === "overloaded_error" || res.status === 529) && attempt < retries) {
+          lastError = new Error(msg); continue;
+        }
+        throw new Error(msg);
       }
       return data;
     } catch (e) {
