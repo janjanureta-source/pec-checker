@@ -3847,71 +3847,6 @@ STEP 12 — GENERAL REQUIREMENTS:
 - Mobilization/demobilization: always include
 - Temporary facilities: always include
 
-STEP 13 — FIRE PROTECTION (mandatory for ALL buildings 3 storeys and above per RA 9514):
-Compute from total floor area and number of floors. Include ALL of the following:
-a) Wet pipe sprinkler system: total_floor_area x ₱1,200–₱2,000/sqm
-   - Includes: BI seamless pipe ASTM A53, sprinkler heads (1 head per 9 sqm), alarm valve, OS&Y valve
-   - qtyBasis: e.g. "4,500 sqm total floor area"
-b) Fire pump set: 1 lot per building — includes fire pump (size per floor count: ≤5F=40HP, >5F=60HP) + jockey pump + controller
-   - Unit rate: ₱850,000–₱1,500,000/set for complete pump room
-c) Fire hose cabinet with hose reel: 1 per floor per stairwell — count = number_of_floors x number_of_stairwells
-   - Unit rate: ₱35,000–₱65,000/unit
-d) Fire extinguisher dry chemical 10lbs: 1 per 200 sqm of floor area
-   - Unit rate: ₱3,500–₱6,000/unit
-e) Fire detection and alarm system: total_floor_area x ₱450–₱850/sqm
-   - Includes: heat/smoke detectors, pull stations, alarm bells, FDAS panel, conduit wiring
-OMIT this step only if plans explicitly show no fire protection and building is 2 storeys or below.
-
-STEP 14 — GENERATOR SET + ATS (mandatory for all buildings with essential occupancy or 4+ storeys):
-a) Generator set: 1 unit — size based on total connected load
-   - For commercial/office/hotel buildings: KVA = (total floor area x 50VA/sqm) / 0.8 PF, minimum 100KVA
-   - Rate: 100KVA ₱850,000–₱1,200,000 | 200KVA ₱1,400,000–₱1,900,000 | 400KVA ₱2,200,000–₱3,200,000 | 500KVA ₱2,800,000–₱3,800,000
-   - Include: acoustic enclosure, exhaust system, fuel tank (day tank), concrete pad
-   - qtyBasis: "computed load: [area] sqm x 50VA = [VA] / 0.8PF = [KVA]"
-b) Automatic Transfer Switch (ATS): 1 unit matched to generator KVA
-   - Rate: 100KVA ATS ₱120,000–₱180,000 | 400KVA ₱280,000–₱420,000
-   - Include as separate line item from generator
-OMIT this step only if building is single-storey residential or plans show no generator room.
-
-STEP 15 — EXHAUST FANS / VENTILATION FANS:
-Count from plans or estimate by use:
-a) Toilet exhaust fans: 1 per toilet group (ceiling cassette centrifugal type)
-   - Estimate: total WC count / 3 fans per group (round up)
-   - Rate: ₱4,500–₱8,500/unit installed
-b) Genset room ventilation fans: 2 units per generator room (supply + exhaust)
-   - Rate: ₱18,000–₱35,000/unit (heavy-duty propeller type)
-c) Kitchen exhaust fan: 1 per kitchen area if shown
-   - Rate: ₱8,000–₱15,000/unit
-Include this step for all buildings with toilet facilities.
-
-STEP 16 — PUMPS (include for multi-storey buildings with cistern/water storage):
-a) Sump pump: 1 unit for any building with basement or lower ground floor
-   - Rate: ₱18,000–₱35,000/unit (3HP submersible, complete with controls)
-b) Transfer pump: 1 unit if building has underground cistern feeding rooftop tank
-   - Rate: ₱25,000–₱45,000/unit (2HP centrifugal, complete)
-c) Booster pump set: 1 set if building is 4+ storeys (to maintain pressure upper floors)
-   - Rate: ₱85,000–₱150,000/set (duplex booster pump system)
-d) Rooftop water tanks: 1,000-gal GRP tank per ~50 occupants or 1 per water zone
-   - Rate: ₱45,000–₱75,000/unit (1,000-gal GRP tank installed)
-Include only items applicable to the building type and storey count.
-
-STEP 17 — ELEVATOR POWER SUPPLY PANEL (PP1):
-For buildings with elevator(s):
-a) Elevator power panel (PP1): 1 unit per elevator — 100AT 3P panelboard with dedicated feeder
-   - Rate: ₱45,000–₱85,000/unit (panel + feeder wire + conduit to MDP)
-b) Feeder wire: from MDP to elevator machine room — estimate 1.5x floor-to-floor height x number_of_floors
-   - Wire size: 30mm² THHN 3-phase + ground
-Include only if elevator is shown or implied by building height (5+ storeys).
-
-STEP 18 — INDIRECT COSTS (always the final line items):
-Apply to ALL projects. Use Philippine commercial construction standard rates:
-a) Transportation / hauling: 2% of direct cost subtotal — lot item
-b) Overhead and supervision: 12% of direct cost subtotal — lot item
-c) Contractor's profit: 7% of direct cost subtotal — lot item
-TOTAL indirect = 21% of direct cost subtotal (not compounded — each applied to the same base)
-Include these as 3 separate line items under trade="Indirect Costs" at the end of lineItems.
-qtyBasis for each: "X% of direct cost subtotal ₱[amount]"
-
 OWNER-SUPPLIED ITEMS: list with qty=0, totalLow=0, totalHigh=0, isOwnerSupply=true (still include — do not omit)
 
 OUTPUT RULES:
@@ -5345,11 +5280,7 @@ ELECTRICAL WORKS:
 - Commercial electrical, complete (per sqm of GFA):       ₱2,500–₱4,500/sqm
 - Industrial/3-phase electrical (per sqm of GFA):         ₱3,500–₱6,500/sqm
 - Emergency generator set, 50kVA (per unit):              ₱350,000–₱550,000/unit
-- Emergency generator set, 100kVA (per unit):             ₱850,000–₱1,200,000/unit
-- Emergency generator set, 200kVA (per unit):             ₱1,400,000–₱1,900,000/unit
-- Emergency generator set, 400kVA (per unit):             ₱2,200,000–₱3,200,000/unit
-- Automatic transfer switch, 100kVA (per unit):           ₱120,000–₱180,000/unit
-- Automatic transfer switch, 400kVA (per unit):           ₱280,000–₱420,000/unit
+- Automatic transfer switch (per unit):                   ₱45,000–₱85,000/unit
 - Solar PV system, 5kWp (per unit):                       ₱280,000–₱420,000/unit
 
 FIRE PROTECTION:
@@ -8608,7 +8539,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
             </button>
           ))}
         </div>
-        {(checkerResult || bomResult || estimateResult) && (
+        {(checkerResult || bomResult) && tab !== "estimate" && (
           <button onClick={handleNewReview}
             title="Clear session and start a new review"
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:10,
