@@ -11633,33 +11633,16 @@ function ElecCode({ apiKey, sessionTick=0 }) {
               </div>
 
               <Card>
-                <div style={{display:calcTool==="vdrop"?"block":"none"}}>
-                  <VoltageDropCalc    electricalData={electricalData} calcState={calcStates.vdrop}    onStateChange={s=>updateCalcState("vdrop",s)} verifyHint={calcStates.vdrop?._verifyHint}/>
-                </div>
-                <div style={{display:calcTool==="fault"?"block":"none"}}>
-                  <ShortCircuitCalc  electricalData={electricalData} calcState={calcStates.fault}    onStateChange={s=>updateCalcState("fault",s)} verifyHint={calcStates.fault?._verifyHint}/>
-                </div>
-                <div style={{display:calcTool==="load"?"block":"none"}}>
-                  <LoadCalc          electricalData={electricalData} calcState={calcStates.load}     onStateChange={s=>updateCalcState("load",s)} verifyHint={calcStates.load?._verifyHint}/>
-                </div>
-                <div style={{display:calcTool==="panel"?"block":"none"}}>
-                  <PanelScheduleBuilder electricalData={electricalData} calcState={calcStates.panel} onStateChange={s=>updateCalcState("panel",s)} verifyHint={calcStates.panel?._verifyHint}/>
-                </div>
-                <div style={{display:calcTool==="conduit"?"block":"none"}}>
-                  <ConduitFillCalc   electricalData={electricalData} calcState={calcStates.conduit}  onStateChange={s=>updateCalcState("conduit",s)}/>
-                </div>
-                <div style={{display:calcTool==="ampacity"?"block":"none"}}>
-                  <AmpacityDerating    electricalData={electricalData} calcState={calcStates.ampacity} onStateChange={s=>updateCalcState("ampacity",s)}/>
-                </div>
-                <div style={{display:calcTool==="branch80"?"block":"none"}}>
-                  <Branch80Checker    electricalData={electricalData} calcState={calcStates.branch80} onStateChange={s=>updateCalcState("branch80",s)} verifyHint={calcStates.branch80?._verifyHint}/>
-                </div>
-                <div style={{display:calcTool==="vdtable"?"block":"none"}}>
-                  <MultiCircuitVDTable electricalData={electricalData} calcState={calcStates.vdtable} onStateChange={s=>updateCalcState("vdtable",s)} verifyHint={calcStates.vdtable?._verifyHint}/>
-                </div>
-                <div style={{display:calcTool==="gec"?"block":"none"}}>
-                  <GECCalculator      electricalData={electricalData} calcState={calcStates.gec}      onStateChange={s=>updateCalcState("gec",s)}/>
-                </div>
+                {/* True conditional — each calc only mounts when selected. State lives in calcStates so nothing is lost on switch. */}
+                {calcTool==="vdrop"    && <VoltageDropCalc      electricalData={electricalData} calcState={calcStates.vdrop}    onStateChange={s=>updateCalcState("vdrop",s)}    verifyHint={calcStates.vdrop?._verifyHint}/>}
+                {calcTool==="fault"    && <ShortCircuitCalc     electricalData={electricalData} calcState={calcStates.fault}    onStateChange={s=>updateCalcState("fault",s)}    verifyHint={calcStates.fault?._verifyHint}/>}
+                {calcTool==="load"     && <LoadCalc             electricalData={electricalData} calcState={calcStates.load}     onStateChange={s=>updateCalcState("load",s)}     verifyHint={calcStates.load?._verifyHint}/>}
+                {calcTool==="panel"    && <PanelScheduleBuilder electricalData={electricalData} calcState={calcStates.panel}    onStateChange={s=>updateCalcState("panel",s)}    verifyHint={calcStates.panel?._verifyHint}/>}
+                {calcTool==="conduit"  && <ConduitFillCalc      electricalData={electricalData} calcState={calcStates.conduit}  onStateChange={s=>updateCalcState("conduit",s)}/>}
+                {calcTool==="ampacity" && <AmpacityDerating     electricalData={electricalData} calcState={calcStates.ampacity} onStateChange={s=>updateCalcState("ampacity",s)}/>}
+                {calcTool==="branch80" && <Branch80Checker      electricalData={electricalData} calcState={calcStates.branch80} onStateChange={s=>updateCalcState("branch80",s)} verifyHint={calcStates.branch80?._verifyHint}/>}
+                {calcTool==="vdtable"  && <MultiCircuitVDTable  electricalData={electricalData} calcState={calcStates.vdtable}  onStateChange={s=>updateCalcState("vdtable",s)}  verifyHint={calcStates.vdtable?._verifyHint}/>}
+                {calcTool==="gec"      && <GECCalculator        electricalData={electricalData} calcState={calcStates.gec}      onStateChange={s=>updateCalcState("gec",s)}/>}
               </Card>
             </div>
           )}
