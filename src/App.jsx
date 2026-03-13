@@ -10481,15 +10481,42 @@ function CalcResultRow({ item, T, CALC_LABELS }) {
              : item.status==="FAIL"    ? "#ef4444"
              : "#f59e0b";
   const showWhy = item.status !== "PASS" && item.status !== "COMPUTED";
+
+  // For NO INPUT: always expanded, full-width action box spanning all columns
+  if (isNoInput) {
+    return (
+      <>
+        <tr style={{borderBottom:"none"}}>
+          <td style={{padding:"10px 14px 4px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
+          <td style={{padding:"10px 14px 4px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
+          <td colSpan={2} style={{padding:"10px 14px 4px"}}>
+            <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,
+              background:`${col}15`,color:col,border:`1px solid ${col}30`}}>
+              NEEDS INPUT
+            </span>
+          </td>
+        </tr>
+        <tr style={{borderBottom:`1px solid ${T.border}`}}>
+          <td colSpan={4} style={{padding:"0 14px 12px"}}>
+            <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.3)",
+              borderRadius:8,padding:"10px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
+              <span style={{fontSize:16,flexShrink:0}}>👉</span>
+              <div style={{fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
+                <strong style={{display:"block",marginBottom:3,fontSize:13}}>What to do:</strong>
+                {item.detail}
+              </div>
+            </div>
+          </td>
+        </tr>
+      </>
+    );
+  }
+
   return (
     <tr style={{borderBottom:`1px solid ${T.border}`}}>
       <td style={{padding:"10px 14px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
       <td style={{padding:"10px 14px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
-      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>
-        {isNoInput
-          ? <span style={{color:"#f59e0b",fontStyle:"italic"}}>{item.detail}</span>
-          : item.detail}
-      </td>
+      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>{item.detail}</td>
       <td style={{padding:"10px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,
@@ -10509,11 +10536,9 @@ function CalcResultRow({ item, T, CALC_LABELS }) {
           <div style={{marginTop:6,fontSize:11,color:T.muted,lineHeight:1.6,
             background:`${col}08`,border:`1px solid ${col}25`,borderRadius:7,
             padding:"8px 10px",maxWidth:260}}>
-            {isNoInput
-              ? item.detail
-              : item.status==="FAIL"
-                ? "This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design."
-                : "Result is within acceptable limits but warrants review."}
+            {item.status==="FAIL"
+              ? "This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design."
+              : "Result is within acceptable limits but warrants review."}
           </div>
         )}
       </td>
@@ -10901,7 +10926,7 @@ function runElecComputations(electricalData, calcStates) {
     const faultNoInput = Isc < 1;
     items.push({ tool:"fault", id:"Short Circuit", value:`${(Isc/1000).toFixed(2)} kA`,
       detail: faultNoInput
-        ? "Cable run too long or transformer data missing — enter MERALCO service details to compute"
+        ? `⚠ Isc result is near zero. Likely cause: Cable Length default (${sc.cableLen||15}m) is too long. Open the Short Circuit calculator and set Cable Length to the actual service drop distance (typically 3–10m for MERALCO connections). Also confirm transformer kVA and %Z match your MERALCO service data.`
         : `Isc=${(Isc/1000).toFixed(2)}kA, ratio=${ratio.toFixed(1)}× FLA`,
       status: faultNoInput ? "NO INPUT" : ratio > 1 ? "PASS" : "FAIL",
       noInput: faultNoInput,
@@ -10985,7 +11010,7 @@ function runElecComputations(electricalData, calcStates) {
     const ampNoInput = derated === 0 || baseA === 0;
     items.push({ tool:"ampacity", id:"Ampacity Derating", value:`${derated.toFixed(1)} A`,
       detail: ampNoInput
-        ? "Conductor count or ambient temp not extracted from plans — enter manually to verify"
+        ? `⚠ Derated ampacity is 0A because wire size or conductor count is missing. Open the Ampacity Derating calculator and enter: Wire Size (from your plan's schedule), Number of conductors sharing the conduit, and Ambient Temperature (35°C is standard for Philippine locations).`
         : `#${amp.wireSize} AWG ${ins}, derated=${derated.toFixed(1)}A, load=${loadA}A`,
       status: ampNoInput ? "NO INPUT" : derated >= loadA && loadA > 0 ? "PASS" : derated >= loadA ? "COMPUTED" : "FAIL",
       noInput: ampNoInput,
