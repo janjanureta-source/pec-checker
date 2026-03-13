@@ -700,7 +700,7 @@ const exportRevisionPDF = (result, corrections, revNum) => {
 // Secondary: #ea580c Safety Orange — construction energy, action, alerts  
 // Tertiary:  #0891b2 Cyan          — sanitary/water/plumbing
 // Background: Deep navy-slate — professional dark engineering UI
-const THEME = {
+const T = {
   bg:        "#070c14",
   card:      "#0d1421",
   border:    "rgba(148,163,184,0.1)",
@@ -718,48 +718,48 @@ const THEME = {
 
 // ─── SHARED UI COMPONENTS ────────────────────────────────────────────────────
 const Card = ({children, style={}}) => (
-  <div style={{ background:THEME.card, border:`1px solid ${THEME.border}`, borderRadius:16, padding:24, ...style }}>
+  <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:16, padding:24, ...style }}>
     {children}
   </div>
 );
 
 const Label = ({children}) => (
-  <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.8px", textTransform:"uppercase", color:THEME.muted, marginBottom:6 }}>
+  <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.8px", textTransform:"uppercase", color:T.muted, marginBottom:6 }}>
     {children}
   </div>
 );
 
 const Input = ({style={}, ...props}) => (
   <input style={{
-    width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`,
-    borderRadius:10, padding:"10px 14px", color:THEME.text, fontSize:14,
+    width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`,
+    borderRadius:10, padding:"10px 14px", color:T.text, fontSize:14,
     outline:"none", transition:"border 0.15s",
     ...style
   }} {...props}
-  onFocus={e=>e.target.style.borderColor=THEME.accent}
-  onBlur={e=>e.target.style.borderColor=THEME.border}
+  onFocus={e=>e.target.style.borderColor=T.accent}
+  onBlur={e=>e.target.style.borderColor=T.border}
   />
 );
 
 const Select = ({children, style={}, ...props}) => (
   <select style={{
-    width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`,
-    borderRadius:10, padding:"10px 14px", color:THEME.text, fontSize:14,
+    width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`,
+    borderRadius:10, padding:"10px 14px", color:T.text, fontSize:14,
     outline:"none", cursor:"pointer", ...style
   }} {...props}>
     {children}
   </select>
 );
 
-const Stat = ({label, value, sub, color=THEME.text, accent=false}) => (
+const Stat = ({label, value, sub, color=T.text, accent=false}) => (
   <div style={{
-    background: accent ? THEME.accentDim : THEME.dim,
-    border: `1.5px solid ${accent ? "rgba(245,158,11,0.3)" : THEME.border}`,
+    background: accent ? T.accentDim : T.dim,
+    border: `1.5px solid ${accent ? "rgba(245,158,11,0.3)" : T.border}`,
     borderRadius:12, padding:"16px 18px",
   }}>
     <Label>{label}</Label>
-    <div style={{ fontSize:24, fontWeight:800, color: accent ? THEME.accent : color, lineHeight:1.1, marginBottom:4 }}>{value}</div>
-    {sub && <div style={{ fontSize:12, color:THEME.muted }}>{sub}</div>}
+    <div style={{ fontSize:24, fontWeight:800, color: accent ? T.accent : color, lineHeight:1.1, marginBottom:4 }}>{value}</div>
+    {sub && <div style={{ fontSize:12, color:T.muted }}>{sub}</div>}
   </div>
 );
 
@@ -767,7 +767,7 @@ const Stat = ({label, value, sub, color=THEME.text, accent=false}) => (
 const ComplianceGauge = ({ pct, limit, label }) => {
   const ok = pct <= limit;
   const danger = pct > limit * 1.5;
-  const color = ok ? THEME.success : danger ? THEME.danger : THEME.warn;
+  const color = ok ? T.success : danger ? T.danger : T.warn;
   const angle = Math.min(pct / (limit * 2), 1) * 180;
   const r = 54, cx = 70, cy = 70;
   const toXY = (deg) => {
@@ -779,16 +779,16 @@ const ComplianceGauge = ({ pct, limit, label }) => {
   return (
     <div style={{ textAlign:"center" }}>
       <svg width={140} height={80} style={{ overflow:"visible" }}>
-        <path d={`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}`} fill="none" stroke={THEME.border} strokeWidth={10} strokeLinecap="round"/>
+        <path d={`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}`} fill="none" stroke={T.border} strokeWidth={10} strokeLinecap="round"/>
         {pct > 0 && <path d={`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`} fill="none" stroke={color} strokeWidth={10} strokeLinecap="round" style={{transition:"all 0.5s ease"}}/>}
         <line x1={cx} y1={cy} x2={end.x} y2={end.y} stroke={color} strokeWidth={3} strokeLinecap="round" style={{transition:"all 0.5s ease"}}/>
         <circle cx={cx} cy={cy} r={5} fill={color}/>
         <text x={cx} y={cy+20} textAnchor="middle" fill={color} fontSize={18} fontWeight={800}>{pct.toFixed(2)}%</text>
-        <text x={cx-r+4} y={cy+18} fill={THEME.muted} fontSize={10}>0%</text>
-        <text x={cx+r-14} y={cy+18} fill={THEME.muted} fontSize={10}>{(limit*2).toFixed(0)}%</text>
+        <text x={cx-r+4} y={cy+18} fill={T.muted} fontSize={10}>0%</text>
+        <text x={cx+r-14} y={cy+18} fill={T.muted} fontSize={10}>{(limit*2).toFixed(0)}%</text>
       </svg>
-      <div style={{ fontSize:12, color:THEME.muted, marginTop:-4 }}>{label}</div>
-      <div style={{ marginTop:6, display:"inline-block", padding:"3px 12px", borderRadius:20, fontSize:12, fontWeight:700, background: ok?"rgba(16,185,129,0.12)":"rgba(239,68,68,0.12)", color: ok?THEME.success:THEME.danger }}>
+      <div style={{ fontSize:12, color:T.muted, marginTop:-4 }}>{label}</div>
+      <div style={{ marginTop:6, display:"inline-block", padding:"3px 12px", borderRadius:20, fontSize:12, fontWeight:700, background: ok?"rgba(16,185,129,0.12)":"rgba(239,68,68,0.12)", color: ok?T.success:T.danger }}>
         {ok ? `✓ WITHIN ${limit}% LIMIT` : `✗ EXCEEDS ${limit}% LIMIT`}
       </div>
     </div>
@@ -979,8 +979,8 @@ function VoltageDropCalc({ electricalData, calcState, onStateChange, verifyHint 
   return (
     <div>
       <VerifyHintBanner hint={verifyHint}/>
-      <p style={{ color:THEME.muted, fontSize:13, margin:"0 0 20px" }}>
-        Calculate conductor voltage drop per <strong style={{color:THEME.text}}>PEC 2017 Art. 2.30</strong> — max 3% for branch circuits, 5% total (feeder + branch).
+      <p style={{ color:T.muted, fontSize:13, margin:"0 0 20px" }}>
+        Calculate conductor voltage drop per <strong style={{color:T.text}}>PEC 2017 Art. 2.30</strong> — max 3% for branch circuits, 5% total (feeder + branch).
       </p>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:14, marginBottom:24 }}>
@@ -1033,20 +1033,20 @@ function VoltageDropCalc({ electricalData, calcState, onStateChange, verifyHint 
           <Label>Voltage Drop — Branch Circuit</Label>
           <ComplianceGauge pct={vdropPct} limit={branchLimit} label="PEC limit: 3% (branch), 5% (total)" />
           <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            <div style={{ background:THEME.dim, borderRadius:10, padding:"10px 12px" }}>
-              <div style={{ fontSize:11, color:THEME.muted, marginBottom:2 }}>Voltage Drop</div>
-              <div style={{ fontSize:20, fontWeight:800, color: vdropPct>branchLimit?THEME.danger:THEME.success }}>{vdrop.toFixed(2)} V</div>
+            <div style={{ background:T.dim, borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ fontSize:11, color:T.muted, marginBottom:2 }}>Voltage Drop</div>
+              <div style={{ fontSize:20, fontWeight:800, color: vdropPct>branchLimit?T.danger:T.success }}>{vdrop.toFixed(2)} V</div>
             </div>
-            <div style={{ background:THEME.dim, borderRadius:10, padding:"10px 12px" }}>
-              <div style={{ fontSize:11, color:THEME.muted, marginBottom:2 }}>Receiving End</div>
-              <div style={{ fontSize:20, fontWeight:800, color:THEME.text }}>{vReceiving.toFixed(1)} V</div>
+            <div style={{ background:T.dim, borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ fontSize:11, color:T.muted, marginBottom:2 }}>Receiving End</div>
+              <div style={{ fontSize:20, fontWeight:800, color:T.text }}>{vReceiving.toFixed(1)} V</div>
             </div>
           </div>
         </Card>
 
         {/* Results grid */}
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <Stat label="Voltage Drop %" value={vdropPct.toFixed(3)+"%"} sub={`PEC branch limit: ${branchLimit}%`} color={vdropPct>branchLimit?THEME.danger:THEME.success}/>
+          <Stat label="Voltage Drop %" value={vdropPct.toFixed(3)+"%"} sub={`PEC branch limit: ${branchLimit}%`} color={vdropPct>branchLimit?T.danger:T.success}/>
           <Stat label="Conductor Resistance" value={(getR()*1000).toFixed(3)+" mΩ/m"} sub={`${material} — ${wireSize} AWG`}/>
           <Stat
             label="Recommended Min. Wire Size"
@@ -1055,11 +1055,11 @@ function VoltageDropCalc({ electricalData, calcState, onStateChange, verifyHint 
             accent={vdropPct>branchLimit}
           />
           <div style={{ background:"rgba(59,130,246,0.08)", border:"1px solid rgba(59,130,246,0.2)", borderRadius:10, padding:"12px 14px" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:THEME.info, marginBottom:4 }}>📐 Formula Used</div>
-            <div style={{ fontSize:12, color:THEME.muted, lineHeight:1.7, fontFamily:"monospace" }}>
+            <div style={{ fontSize:12, fontWeight:700, color:T.info, marginBottom:4 }}>📐 Formula Used</div>
+            <div style={{ fontSize:12, color:T.muted, lineHeight:1.7, fontFamily:"monospace" }}>
               VD = {multiplier === 2 ? "2" : "√3"} × I × L × (R·cosθ + X·sinθ) / 1000<br/>
               VD = {multiplier} × {current} × {length} × ({(getR()).toFixed(4)}×{pf} + {X}×{sinPF.toFixed(3)})<br/>
-              VD = <strong style={{color:THEME.text}}>{vdrop.toFixed(3)} V</strong>
+              VD = <strong style={{color:T.text}}>{vdrop.toFixed(3)} V</strong>
             </div>
           </div>
         </div>
@@ -1071,9 +1071,9 @@ function VoltageDropCalc({ electricalData, calcState, onStateChange, verifyHint 
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
             <thead>
-              <tr style={{ background:THEME.dim }}>
+              <tr style={{ background:T.dim }}>
                 {["Wire Size","Ampacity","Resistance (mΩ/m)","Voltage Drop (V)","VD %","Status"].map(h=>(
-                  <th key={h} style={{ padding:"10px 14px", color:THEME.muted, fontWeight:700, fontSize:11, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${THEME.border}` }}>{h}</th>
+                  <th key={h} style={{ padding:"10px 14px", color:T.muted, fontWeight:700, fontSize:11, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}` }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1085,16 +1085,16 @@ function VoltageDropCalc({ electricalData, calcState, onStateChange, verifyHint 
                 const isCurrent = String(size)===String(wireSize);
                 const ok = pct2 <= branchLimit;
                 return (
-                  <tr key={size} style={{ background: isCurrent?"rgba(245,158,11,0.07)":"transparent", borderBottom:`1px solid ${THEME.border}` }}>
-                    <td style={{ padding:"9px 14px", fontWeight: isCurrent?700:400, color: isCurrent?THEME.accent:THEME.text }}>
+                  <tr key={size} style={{ background: isCurrent?"rgba(245,158,11,0.07)":"transparent", borderBottom:`1px solid ${T.border}` }}>
+                    <td style={{ padding:"9px 14px", fontWeight: isCurrent?700:400, color: isCurrent?T.accent:T.text }}>
                       {isCurrent?"▶ ":""}{size} AWG{size>=250?" kcmil":""}
                     </td>
-                    <td style={{ padding:"9px 14px", color:THEME.muted }}>{WIRE_DATA[size]?.ampacity} A</td>
-                    <td style={{ padding:"9px 14px", color:THEME.muted, fontFamily:"monospace" }}>{(r2*1000).toFixed(3)}</td>
-                    <td style={{ padding:"9px 14px", color:THEME.text, fontFamily:"monospace" }}>{vd2.toFixed(3)}</td>
-                    <td style={{ padding:"9px 14px", fontWeight:600, color:ok?THEME.success:THEME.danger }}>{pct2.toFixed(2)}%</td>
+                    <td style={{ padding:"9px 14px", color:T.muted }}>{WIRE_DATA[size]?.ampacity} A</td>
+                    <td style={{ padding:"9px 14px", color:T.muted, fontFamily:"monospace" }}>{(r2*1000).toFixed(3)}</td>
+                    <td style={{ padding:"9px 14px", color:T.text, fontFamily:"monospace" }}>{vd2.toFixed(3)}</td>
+                    <td style={{ padding:"9px 14px", fontWeight:600, color:ok?T.success:T.danger }}>{pct2.toFixed(2)}%</td>
                     <td style={{ padding:"9px 14px" }}>
-                      <span style={{ fontSize:11, fontWeight:700, padding:"2px 10px", borderRadius:20, background:ok?"rgba(16,185,129,0.12)":"rgba(239,68,68,0.12)", color:ok?THEME.success:THEME.danger }}>{ok?"✓ PASS":"✗ FAIL"}</span>
+                      <span style={{ fontSize:11, fontWeight:700, padding:"2px 10px", borderRadius:20, background:ok?"rgba(16,185,129,0.12)":"rgba(239,68,68,0.12)", color:ok?T.success:T.danger }}>{ok?"✓ PASS":"✗ FAIL"}</span>
                     </td>
                   </tr>
                 );
@@ -1154,7 +1154,7 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange, verifyHint
   // Arc flash rough estimate (simplified IEEE 1584 approach)
   const Iarc = Isc_sym * 0.85;
   const arcLevel = Iarc > 50000 ? "Extreme (>4 cal/cm²)" : Iarc > 20000 ? "High (>4 cal/cm²)" : Iarc > 5000 ? "Moderate (1-4 cal/cm²)" : "Low (<1 cal/cm²)";
-  const arcColor = Iarc > 20000 ? THEME.danger : Iarc > 5000 ? THEME.warn : THEME.success;
+  const arcColor = Iarc > 20000 ? T.danger : Iarc > 5000 ? T.warn : T.success;
 
   const rows = [
     { label:"Transformer Impedance (Ztx)", val:Zxfmr.toFixed(5)+" Ω", note:"Referred to LV side" },
@@ -1165,8 +1165,8 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange, verifyHint
 
   return (
     <div>
-      <p style={{ color:THEME.muted, fontSize:13, margin:"0 0 20px" }}>
-        Estimate available fault current for breaker interrupting capacity per <strong style={{color:THEME.text}}>PEC 2017 Art. 2.40</strong>.
+      <p style={{ color:T.muted, fontSize:13, margin:"0 0 20px" }}>
+        Estimate available fault current for breaker interrupting capacity per <strong style={{color:T.text}}>PEC 2017 Art. 2.40</strong>.
       </p>
       <VerifyHintBanner hint={verifyHint}/>
       {!xfmrFromPlans&&(<div style={{background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.25)",borderRadius:10,padding:"10px 16px",marginBottom:16,fontSize:12,color:"#93c5fd"}}>ℹ️ <strong>Transformer not found in plans</strong> — enter MERALCO nameplate values. Defaults (25 kVA, 4%Z) used.</div>)}
@@ -1212,15 +1212,15 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange, verifyHint
 
       {/* Main results */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:12, marginBottom:20 }}>
-        <Stat label="Symmetrical Fault Current" value={Math.round(Isc_sym).toLocaleString()+" A"} sub="RMS (worst case)" color={THEME.danger}/>
-        <Stat label="Asymmetrical Fault Current" value={Math.round(Isc_asym).toLocaleString()+" A"} sub="First half-cycle" color={THEME.warn}/>
-        <Stat label="Peak Fault Current" value={Math.round(Isc_peak).toLocaleString()+" A"} sub="Instantaneous peak" color={THEME.muted}/>
+        <Stat label="Symmetrical Fault Current" value={Math.round(Isc_sym).toLocaleString()+" A"} sub="RMS (worst case)" color={T.danger}/>
+        <Stat label="Asymmetrical Fault Current" value={Math.round(Isc_asym).toLocaleString()+" A"} sub="First half-cycle" color={T.warn}/>
+        <Stat label="Peak Fault Current" value={Math.round(Isc_peak).toLocaleString()+" A"} sub="Instantaneous peak" color={T.muted}/>
         <Stat label="Required Min. AIC Rating" value={minAIC.toLocaleString()+" A"} sub="Next standard ANSI rating" accent/>
         <Stat label="Estimated Arc Fault Current" value={Math.round(Iarc).toLocaleString()+" A"} sub="IEEE 1584 estimate (85%)" color={arcColor}/>
-        <div style={{ background:THEME.dim, border:`1.5px solid ${THEME.border}`, borderRadius:12, padding:"16px 18px" }}>
+        <div style={{ background:T.dim, border:`1.5px solid ${T.border}`, borderRadius:12, padding:"16px 18px" }}>
           <Label>Arc Flash Category</Label>
           <div style={{ fontSize:14, fontWeight:700, color:arcColor, lineHeight:1.3 }}>{arcLevel}</div>
-          <div style={{ fontSize:11, color:THEME.muted, marginTop:4 }}>Wear appropriate PPE</div>
+          <div style={{ fontSize:11, color:T.muted, marginTop:4 }}>Wear appropriate PPE</div>
         </div>
       </div>
 
@@ -1229,18 +1229,18 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange, verifyHint
         <Label>Breaker Interrupting Capacity Check</Label>
         <div style={{ display:"flex", gap:20, alignItems:"center", flexWrap:"wrap", marginTop:8 }}>
           <div>
-            <div style={{ fontSize:12, color:THEME.muted }}>Available Fault Current</div>
-            <div style={{ fontSize:22, fontWeight:800, color:THEME.danger }}>{Math.round(Isc_sym).toLocaleString()} A</div>
+            <div style={{ fontSize:12, color:T.muted }}>Available Fault Current</div>
+            <div style={{ fontSize:22, fontWeight:800, color:T.danger }}>{Math.round(Isc_sym).toLocaleString()} A</div>
           </div>
-          <div style={{ fontSize:24, color:THEME.muted }}>vs</div>
+          <div style={{ fontSize:24, color:T.muted }}>vs</div>
           <div>
-            <div style={{ fontSize:12, color:THEME.muted }}>Your Breaker AIC ({existingFLA}A breaker)</div>
-            <div style={{ fontSize:22, fontWeight:800, color:THEME.accent }}>10,000 A <span style={{fontSize:13, color:THEME.muted}}>(assumed standard)</span></div>
+            <div style={{ fontSize:12, color:T.muted }}>Your Breaker AIC ({existingFLA}A breaker)</div>
+            <div style={{ fontSize:22, fontWeight:800, color:T.accent }}>10,000 A <span style={{fontSize:13, color:T.muted}}>(assumed standard)</span></div>
           </div>
           <div style={{ flex:1, minWidth:160 }}>
             {Isc_sym <= 10000
-              ? <div style={{ background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.25)", borderRadius:10, padding:"10px 16px", color:THEME.success, fontWeight:700 }}>✓ Standard 10kA breaker is adequate</div>
-              : <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 16px", color:THEME.danger, fontWeight:700 }}>✗ Upgrade to {minAIC.toLocaleString()}A AIC rated breaker!</div>
+              ? <div style={{ background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.25)", borderRadius:10, padding:"10px 16px", color:T.success, fontWeight:700 }}>✓ Standard 10kA breaker is adequate</div>
+              : <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 16px", color:T.danger, fontWeight:700 }}>✗ Upgrade to {minAIC.toLocaleString()}A AIC rated breaker!</div>
             }
           </div>
         </div>
@@ -1251,24 +1251,24 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange, verifyHint
       <div style={{ overflowX:"auto" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
           <thead>
-            <tr style={{ background:THEME.dim }}>
+            <tr style={{ background:T.dim }}>
               {["Component","Impedance","Note"].map(h=>(
-                <th key={h} style={{ padding:"10px 14px", color:THEME.muted, fontWeight:700, fontSize:11, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${THEME.border}` }}>{h}</th>
+                <th key={h} style={{ padding:"10px 14px", color:T.muted, fontWeight:700, fontSize:11, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}` }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map(r=>(
-              <tr key={r.label} style={{ borderBottom:`1px solid ${THEME.border}` }}>
-                <td style={{ padding:"9px 14px", color:THEME.text }}>{r.label}</td>
-                <td style={{ padding:"9px 14px", fontFamily:"monospace", color:THEME.accent, fontWeight:600 }}>{r.val}</td>
-                <td style={{ padding:"9px 14px", color:THEME.muted, fontSize:12 }}>{r.note}</td>
+              <tr key={r.label} style={{ borderBottom:`1px solid ${T.border}` }}>
+                <td style={{ padding:"9px 14px", color:T.text }}>{r.label}</td>
+                <td style={{ padding:"9px 14px", fontFamily:"monospace", color:T.accent, fontWeight:600 }}>{r.val}</td>
+                <td style={{ padding:"9px 14px", color:T.muted, fontSize:12 }}>{r.note}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop:14, padding:"10px 14px", background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.18)", borderRadius:10, fontSize:12, color:THEME.muted }}>
+      <div style={{ marginTop:14, padding:"10px 14px", background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.18)", borderRadius:10, fontSize:12, color:T.muted }}>
         ⚠️ Estimated values for preliminary design. A formal short-circuit study by a licensed PEE is required per PEC Art. 2.40 before final equipment specification.
       </div>
     </div>
@@ -1341,12 +1341,12 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
     ? [{ category: "Search Results", items: Object.entries(APPLIANCE_MAP).filter(([n]) => n.toLowerCase().includes(pickerSearch.toLowerCase())).map(([name, v]) => ({ name, ...v })) }]
     : APPLIANCE_CATEGORIES;
 
-  const thStyle = { padding:"10px 12px", color:THEME.muted, fontWeight:700, fontSize:11, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${THEME.border}`, whiteSpace:"nowrap" };
-  const tdStyle = { padding:"6px 8px", borderBottom:`1px solid ${THEME.border}`, verticalAlign:"middle" };
+  const thStyle = { padding:"10px 12px", color:T.muted, fontWeight:700, fontSize:11, textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap" };
+  const tdStyle = { padding:"6px 8px", borderBottom:`1px solid ${T.border}`, verticalAlign:"middle" };
 
   return (
     <div>
-      <p style={{ color:THEME.muted, fontSize:13, margin:"0 0 6px" }}>
+      <p style={{ color:T.muted, fontSize:13, margin:"0 0 6px" }}>
         PEC 2017 Art. 2.20 demand factor method · Watts/unit and demand % are pre-filled from typical averages but fully editable.
       </p>
 
@@ -1367,10 +1367,10 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
       </div>
 
       {/* Load table */}
-      <div style={{ overflowX:"auto", marginBottom:14, borderRadius:12, border:`1px solid ${THEME.border}`, overflow:"hidden" }}>
+      <div style={{ overflowX:"auto", marginBottom:14, borderRadius:12, border:`1px solid ${T.border}`, overflow:"hidden" }}>
         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
           <thead>
-            <tr style={{ background:THEME.dim }}>
+            <tr style={{ background:T.dim }}>
               <th style={{ ...thStyle, minWidth:220 }}>Appliance / Load</th>
               <th style={{ ...thStyle, width:70 }}>Qty</th>
               <th style={{ ...thStyle, width:110 }}>Watts/Unit</th>
@@ -1391,8 +1391,8 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
                       value={l.name}
                       onChange={e => handleNameChange(l.id, e.target.value)}
                       style={{
-                        width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`,
-                        borderRadius:8, padding:"7px 10px", color:THEME.text, fontSize:13,
+                        width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`,
+                        borderRadius:8, padding:"7px 10px", color:T.text, fontSize:13,
                         outline:"none", cursor:"pointer"
                       }}
                     >
@@ -1412,7 +1412,7 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
                     <input
                       type="number" value={l.qty||1} min={1}
                       onChange={e => upd(l.id, "qty", +e.target.value)}
-                      style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:8, padding:"7px 8px", color:THEME.text, fontSize:13, outline:"none", textAlign:"center" }}
+                      style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:8, padding:"7px 8px", color:T.text, fontSize:13, outline:"none", textAlign:"center" }}
                     />
                   </td>
                   {/* Watts - editable */}
@@ -1421,9 +1421,9 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
                       <input
                         type="number" value={l.watts} min={0}
                         onChange={e => upd(l.id, "watts", +e.target.value)}
-                        style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:8, padding:"7px 8px 7px 8px", color:THEME.text, fontSize:13, outline:"none" }}
+                        style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:8, padding:"7px 8px 7px 8px", color:T.text, fontSize:13, outline:"none" }}
                       />
-                      <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:10, color:THEME.muted, pointerEvents:"none" }}>W</span>
+                      <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:10, color:T.muted, pointerEvents:"none" }}>W</span>
                     </div>
                   </td>
                   {/* Demand % - editable */}
@@ -1432,18 +1432,18 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
                       <input
                         type="number" value={l.pct} min={0} max={100}
                         onChange={e => upd(l.id, "pct", +e.target.value)}
-                        style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:8, padding:"7px 8px", color:THEME.text, fontSize:13, outline:"none" }}
+                        style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:8, padding:"7px 8px", color:T.text, fontSize:13, outline:"none" }}
                       />
-                      <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:10, color:THEME.muted, pointerEvents:"none" }}>%</span>
+                      <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:10, color:T.muted, pointerEvents:"none" }}>%</span>
                     </div>
                   </td>
                   {/* Total VA */}
-                  <td style={{ ...tdStyle, fontWeight:700, color: rowVA > 2000 ? THEME.warn : THEME.accent, fontFamily:"monospace", whiteSpace:"nowrap" }}>
+                  <td style={{ ...tdStyle, fontWeight:700, color: rowVA > 2000 ? T.warn : T.accent, fontFamily:"monospace", whiteSpace:"nowrap" }}>
                     {rowVA.toFixed(0)} VA
                   </td>
                   {/* Remove */}
                   <td style={{ ...tdStyle, textAlign:"center" }}>
-                    <button onClick={() => remLoad(l.id)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", color:THEME.danger, width:28, height:28, borderRadius:7, cursor:"pointer", fontSize:15, lineHeight:1 }}>×</button>
+                    <button onClick={() => remLoad(l.id)} style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.2)", color:T.danger, width:28, height:28, borderRadius:7, cursor:"pointer", fontSize:15, lineHeight:1 }}>×</button>
                   </td>
                 </tr>
               );
@@ -1451,9 +1451,9 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
           </tbody>
           {/* Footer totals row */}
           <tfoot>
-            <tr style={{ background:THEME.dim, borderTop:`2px solid ${THEME.border}` }}>
-              <td colSpan={4} style={{ padding:"10px 12px", fontWeight:700, color:THEME.muted, fontSize:12 }}>TOTAL CONNECTED LOAD</td>
-              <td colSpan={2} style={{ padding:"10px 12px", fontWeight:800, color:THEME.accent, fontSize:14, fontFamily:"monospace" }}>{totalVA.toFixed(0)} VA</td>
+            <tr style={{ background:T.dim, borderTop:`2px solid ${T.border}` }}>
+              <td colSpan={4} style={{ padding:"10px 12px", fontWeight:700, color:T.muted, fontSize:12 }}>TOTAL CONNECTED LOAD</td>
+              <td colSpan={2} style={{ padding:"10px 12px", fontWeight:800, color:T.accent, fontSize:14, fontFamily:"monospace" }}>{totalVA.toFixed(0)} VA</td>
             </tr>
           </tfoot>
         </table>
@@ -1463,13 +1463,13 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
       <div style={{ display:"flex", gap:10, marginBottom:24, flexWrap:"wrap" }}>
         <button
           onClick={() => setShowPicker(!showPicker)}
-          style={{ display:"flex", alignItems:"center", gap:8, background:showPicker?THEME.accentDim:"transparent", border:`1.5px solid ${showPicker?THEME.accent:THEME.border}`, color:showPicker?THEME.accent:THEME.muted, padding:"8px 18px", borderRadius:10, cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}
+          style={{ display:"flex", alignItems:"center", gap:8, background:showPicker?T.accentDim:"transparent", border:`1.5px solid ${showPicker?T.accent:T.border}`, color:showPicker?T.accent:T.muted, padding:"8px 18px", borderRadius:10, cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}
         >
           🔍 Browse Appliances
         </button>
         <button
           onClick={addBlankLoad}
-          style={{ display:"flex", alignItems:"center", gap:8, background:"transparent", border:`1.5px dashed ${THEME.border}`, color:THEME.muted, padding:"8px 18px", borderRadius:10, cursor:"pointer", fontSize:13, fontWeight:600 }}
+          style={{ display:"flex", alignItems:"center", gap:8, background:"transparent", border:`1.5px dashed ${T.border}`, color:T.muted, padding:"8px 18px", borderRadius:10, cursor:"pointer", fontSize:13, fontWeight:600 }}
         >
           + Add Custom Load
         </button>
@@ -1477,48 +1477,48 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
 
       {/* Appliance Picker Panel */}
       {showPicker && (
-        <div style={{ background:THEME.dim, border:`1.5px solid ${THEME.border}`, borderRadius:14, padding:20, marginBottom:24, animation:"fadeIn 0.2s ease" }}>
+        <div style={{ background:T.dim, border:`1.5px solid ${T.border}`, borderRadius:14, padding:20, marginBottom:24, animation:"fadeIn 0.2s ease" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-            <div style={{ fontWeight:700, fontSize:14, color:THEME.text }}>🔌 Appliance Library</div>
-            <button onClick={() => { setShowPicker(false); setPickerSearch(""); }} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${THEME.border}`, color:THEME.muted, padding:"4px 12px", borderRadius:6, cursor:"pointer", fontSize:12 }}>✕ Close</button>
+            <div style={{ fontWeight:700, fontSize:14, color:T.text }}>🔌 Appliance Library</div>
+            <button onClick={() => { setShowPicker(false); setPickerSearch(""); }} style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${T.border}`, color:T.muted, padding:"4px 12px", borderRadius:6, cursor:"pointer", fontSize:12 }}>✕ Close</button>
           </div>
           {/* Search */}
           <input
             value={pickerSearch}
             onChange={e => setPickerSearch(e.target.value)}
             placeholder="🔍  Search appliances (e.g. aircon, ref, TV…)"
-            style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:10, padding:"9px 14px", color:THEME.text, fontSize:13, outline:"none", marginBottom:16 }}
-            onFocus={e => e.target.style.borderColor = THEME.accent}
-            onBlur={e => e.target.style.borderColor = THEME.border}
+            style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:10, padding:"9px 14px", color:T.text, fontSize:13, outline:"none", marginBottom:16 }}
+            onFocus={e => e.target.style.borderColor = T.accent}
+            onBlur={e => e.target.style.borderColor = T.border}
             autoFocus
           />
           {/* Category grid */}
           <div style={{ maxHeight:340, overflowY:"auto", paddingRight:4 }}>
             {filteredCats.filter(c => c.items.length > 0).map(cat => (
               <div key={cat.category} style={{ marginBottom:16 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:THEME.muted, letterSpacing:"0.6px", textTransform:"uppercase", marginBottom:8, padding:"0 2px" }}>{cat.category}</div>
+                <div style={{ fontSize:11, fontWeight:700, color:T.muted, letterSpacing:"0.6px", textTransform:"uppercase", marginBottom:8, padding:"0 2px" }}>{cat.category}</div>
                 <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                   {cat.items.map(item => (
                     <button
                       key={item.name}
                       onClick={() => addFromPicker(item)}
                       style={{
-                        background:"rgba(255,255,255,0.03)", border:`1px solid ${THEME.border}`,
+                        background:"rgba(255,255,255,0.03)", border:`1px solid ${T.border}`,
                         borderRadius:8, padding:"7px 12px", cursor:"pointer", textAlign:"left",
-                        transition:"all 0.12s", color:THEME.text
+                        transition:"all 0.12s", color:T.text
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = THEME.accentDim; e.currentTarget.style.borderColor = THEME.accent; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderColor = THEME.border; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.accentDim; e.currentTarget.style.borderColor = T.accent; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderColor = T.border; }}
                     >
-                      <div style={{ fontSize:12, fontWeight:600, color:THEME.text, whiteSpace:"nowrap" }}>{item.name}</div>
-                      <div style={{ fontSize:10, color:THEME.muted, marginTop:2 }}>{item.watts}W · {item.pct}% demand</div>
+                      <div style={{ fontSize:12, fontWeight:600, color:T.text, whiteSpace:"nowrap" }}>{item.name}</div>
+                      <div style={{ fontSize:10, color:T.muted, marginTop:2 }}>{item.watts}W · {item.pct}% demand</div>
                     </button>
                   ))}
                 </div>
               </div>
             ))}
             {filteredCats.every(c => c.items.length === 0) && (
-              <div style={{ textAlign:"center", padding:"20px 0", color:THEME.muted, fontSize:13 }}>No appliances found. Use "+ Add Custom Load" instead.</div>
+              <div style={{ textAlign:"center", padding:"20px 0", color:T.muted, fontSize:13 }}>No appliances found. Use "+ Add Custom Load" instead.</div>
             )}
           </div>
         </div>
@@ -1534,8 +1534,8 @@ function LoadCalc({ electricalData, calcState, onStateChange, verifyHint }) {
       </div>
 
       {/* Demand breakdown note */}
-      <div style={{ marginTop:16, padding:"12px 16px", background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.18)", borderRadius:10, fontSize:12, color:THEME.muted, lineHeight:1.7 }}>
-        <strong style={{ color:THEME.info }}>ℹ️ Demand Factor Applied (PEC Art. 2.20):</strong>
+      <div style={{ marginTop:16, padding:"12px 16px", background:"rgba(59,130,246,0.07)", border:"1px solid rgba(59,130,246,0.18)", borderRadius:10, fontSize:12, color:T.muted, lineHeight:1.7 }}>
+        <strong style={{ color:T.info }}>ℹ️ Demand Factor Applied (PEC Art. 2.20):</strong>
         {occupancy==="residential"
           ? " First 3,000 VA @ 100% · Next 117,000 VA @ 35% · Remainder @ 25%"
           : " First 10,000 VA @ 100% · Remainder @ 50%"}
@@ -1671,37 +1671,37 @@ Be very specific with corrected values and drafting instructions. Reference typi
       <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
         onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}}
         onClick={()=>ref.current?.click()}
-        style={{ border:`2px dashed ${drag?THEME.accent:THEME.border}`, borderRadius:16, padding:"40px 24px", textAlign:"center", cursor:"pointer", background:drag?THEME.accentDim:"rgba(255,255,255,0.01)", transition:"all 0.2s", marginBottom:20 }}>
+        style={{ border:`2px dashed ${drag?T.accent:T.border}`, borderRadius:16, padding:"40px 24px", textAlign:"center", cursor:"pointer", background:drag?T.accentDim:"rgba(255,255,255,0.01)", transition:"all 0.2s", marginBottom:20 }}>
         <input ref={ref} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.dwg,.dxf" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
         <div style={{ fontSize:40, marginBottom:12 }}>📂</div>
-        <div style={{ fontWeight:700, fontSize:16, color:THEME.text, marginBottom:6 }}>Drop your electrical plans here</div>
-        <div style={{ color:THEME.muted, fontSize:13, marginBottom:16 }}>PDF drawings · JPG / PNG images · Excel load schedules</div>
-        <div style={{ display:"inline-block", background:`linear-gradient(135deg,${THEME.accent},#f97316)`, color:"#000", fontWeight:700, padding:"9px 22px", borderRadius:10, fontSize:14 }}>Choose Files</div>
+        <div style={{ fontWeight:700, fontSize:16, color:T.text, marginBottom:6 }}>Drop your electrical plans here</div>
+        <div style={{ color:T.muted, fontSize:13, marginBottom:16 }}>PDF drawings · JPG / PNG images · Excel load schedules</div>
+        <div style={{ display:"inline-block", background:`linear-gradient(135deg,${T.accent},#f97316)`, color:"#000", fontWeight:700, padding:"9px 22px", borderRadius:10, fontSize:14 }}>Choose Files</div>
       </div>
 
       {/* File chips */}
       {files.length>0 && (
         <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
           {files.map(fo=>(
-            <div key={fo.id} style={{ background:THEME.dim, border:`1px solid ${THEME.border}`, borderRadius:8, padding:"7px 10px", display:"flex", alignItems:"center", gap:8 }}>
+            <div key={fo.id} style={{ background:T.dim, border:`1px solid ${T.border}`, borderRadius:8, padding:"7px 10px", display:"flex", alignItems:"center", gap:8 }}>
               <span style={{ fontSize:18 }}>{fo.type.startsWith("image")?"🖼️":fo.type==="application/pdf"?"📄":"📎"}</span>
               <div>
-                <div style={{ fontSize:12, color:THEME.text, maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fo.name}</div>
-                <div style={{ fontSize:10, color:THEME.muted }}>{fmtSize(fo.size)}</div>
+                <div style={{ fontSize:12, color:T.text, maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{fo.name}</div>
+                <div style={{ fontSize:10, color:T.muted }}>{fmtSize(fo.size)}</div>
               </div>
-              <button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{ background:"rgba(239,68,68,0.12)", border:"none", color:THEME.danger, width:22, height:22, borderRadius:5, cursor:"pointer", fontSize:12 }}>✕</button>
+              <button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{ background:"rgba(239,68,68,0.12)", border:"none", color:T.danger, width:22, height:22, borderRadius:5, cursor:"pointer", fontSize:12 }}>✕</button>
             </div>
           ))}
         </div>
       )}
 
       {files.length>0 && (
-        <button onClick={run} disabled={busy} style={{ width:"100%", background:busy?"rgba(245,158,11,0.2)":`linear-gradient(135deg,${THEME.accent},#f97316)`, border:"none", color:busy?"#666":"#000", fontWeight:700, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", marginBottom:20, boxShadow:busy?"none":"0 6px 24px rgba(245,158,11,0.25)", transition:"all 0.2s" }}>
+        <button onClick={run} disabled={busy} style={{ width:"100%", background:busy?"rgba(245,158,11,0.2)":`linear-gradient(135deg,${T.accent},#f97316)`, border:"none", color:busy?"#666":"#000", fontWeight:700, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", marginBottom:20, boxShadow:busy?"none":"0 6px 24px rgba(245,158,11,0.25)", transition:"all 0.2s" }}>
           {busy ? (busyMsg || "⚙️ Analyzing…") : `⚡ Run Full Compliance Check  (${files.length} file${files.length>1?"s":""})`}
         </button>
       )}
 
-      {error && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"12px 16px", marginBottom:20, color:THEME.danger, fontSize:14 }}>⚠️ {error}</div>}
+      {error && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"12px 16px", marginBottom:20, color:T.danger, fontSize:14 }}>⚠️ {error}</div>}
 
       {result?.summary && (
         <div style={{ animation:"fadeIn 0.35s ease" }}>
@@ -1709,29 +1709,29 @@ Be very specific with corrected values and drafting instructions. Reference typi
           <Card style={{ marginBottom:16 }}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:20, alignItems:"start" }}>
               <div>
-                <div style={{ fontSize:11, color:THEME.muted, letterSpacing:"0.8px", textTransform:"uppercase", marginBottom:6 }}>Compliance Assessment</div>
-                <div style={{ fontSize:22, fontWeight:800, color:THEME.text, marginBottom:6 }}>{result.summary.projectName}</div>
+                <div style={{ fontSize:11, color:T.muted, letterSpacing:"0.8px", textTransform:"uppercase", marginBottom:6 }}>Compliance Assessment</div>
+                <div style={{ fontSize:22, fontWeight:800, color:T.text, marginBottom:6 }}>{result.summary.projectName}</div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
                   {[result.summary.occupancyType, result.summary.fileType].filter(Boolean).map(t=>(
-                    <span key={t} style={{ background:THEME.dim, padding:"2px 10px", borderRadius:20, fontSize:11, color:THEME.muted }}>{t}</span>
+                    <span key={t} style={{ background:T.dim, padding:"2px 10px", borderRadius:20, fontSize:11, color:T.muted }}>{t}</span>
                   ))}
                 </div>
-                <div style={{ color:THEME.muted, fontSize:13, marginBottom:18, lineHeight:1.6 }}>{result.summary.analysisNotes}</div>
+                <div style={{ color:T.muted, fontSize:13, marginBottom:18, lineHeight:1.6 }}>{result.summary.analysisNotes}</div>
                 <div style={{ display:"flex", gap:24 }}>
                   {[{l:"Critical",c:result.summary.criticalCount,col:"#ef4444"},{l:"Warnings",c:result.summary.warningCount,col:"#f59e0b"},{l:"Info",c:result.summary.infoCount,col:"#3b82f6"}].map(x=>(
                     <div key={x.l} style={{ textAlign:"center" }}>
                       <div style={{ fontSize:28, fontWeight:800, color:x.col, lineHeight:1 }}>{x.c}</div>
-                      <div style={{ fontSize:10, color:THEME.muted, marginTop:2 }}>{x.l}</div>
+                      <div style={{ fontSize:10, color:T.muted, marginTop:2 }}>{x.l}</div>
                     </div>
                   ))}
                 </div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"flex-end" }}>
                 <div style={{ background:`${STATUS_COL[result.summary.overallStatus]}14`, border:`2px solid ${STATUS_COL[result.summary.overallStatus]}44`, borderRadius:12, padding:"10px 18px", textAlign:"center", minWidth:160 }}>
-                  <div style={{ fontSize:10, color:THEME.muted, marginBottom:4, letterSpacing:"0.5px" }}>OVERALL STATUS</div>
+                  <div style={{ fontSize:10, color:T.muted, marginBottom:4, letterSpacing:"0.5px" }}>OVERALL STATUS</div>
                   <div style={{ fontSize:13, fontWeight:800, color:STATUS_COL[result.summary.overallStatus] }}>{result.summary.overallStatus}</div>
                 </div>
-                <button onClick={()=>exportPDF(result,findings)} style={{ background:`linear-gradient(135deg,${THEME.accent},#f97316)`, border:"none", color:"#000", fontWeight:700, padding:"8px 16px", borderRadius:10, cursor:"pointer", fontSize:13 }}>📄 Export PDF</button>
+                <button onClick={()=>exportPDF(result,findings)} style={{ background:`linear-gradient(135deg,${T.accent},#f97316)`, border:"none", color:"#000", fontWeight:700, padding:"8px 16px", borderRadius:10, cursor:"pointer", fontSize:13 }}>📄 Export PDF</button>
               </div>
             </div>
           </Card>
@@ -1743,13 +1743,13 @@ Be very specific with corrected values and drafting instructions. Reference typi
               {Object.entries(CL_LABELS).map(([k,info])=>{
                 const v=result.checklist?.[k];
                 const vStr = v===null||v===undefined ? null : (typeof v==="boolean" ? (v?"PASS":"FAIL") : String(v));
-                const col = vStr===null?THEME.muted : vStr==="PASS"?THEME.success : vStr==="CANNOT VERIFY"||vStr==="NOT APPLICABLE"?"#f59e0b" : THEME.danger;
+                const col = vStr===null?T.muted : vStr==="PASS"?T.success : vStr==="CANNOT VERIFY"||vStr==="NOT APPLICABLE"?"#f59e0b" : T.danger;
                 const icon = vStr===null?"—" : vStr==="PASS"?"✓" : vStr==="CANNOT VERIFY"?"?" : vStr==="NOT APPLICABLE"?"N/A" : "✗";
                 return (
-                  <div key={k} style={{ display:"flex", alignItems:"center", gap:10, background:THEME.dim, borderRadius:8, padding:"8px 12px" }}>
+                  <div key={k} style={{ display:"flex", alignItems:"center", gap:10, background:T.dim, borderRadius:8, padding:"8px 12px" }}>
                     <span style={{ color:col, fontWeight:800, fontSize:16, width:18 }}>{icon}</span>
                     <div>
-                      <div style={{ fontSize:12, color:vStr===null?THEME.muted:THEME.text }}>{info.l}</div>
+                      <div style={{ fontSize:12, color:vStr===null?T.muted:T.text }}>{info.l}</div>
                       <div style={{ fontSize:10, color:col, fontWeight:600 }}>{vStr||"—"}</div>
                     </div>
                   </div>
@@ -1767,10 +1767,10 @@ Be very specific with corrected values and drafting instructions. Reference typi
                   {["all","CRITICAL","WARNING","INFO"].map(t=>{
                     const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;
                     const active=tab===t;
-                    return <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${active?THEME.accent:THEME.border}`, background:active?THEME.accentDim:"transparent", color:active?THEME.accent:THEME.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>{t==="all"?"All":t} ({cnt})</button>;
+                    return <button key={t} onClick={()=>setTab(t)} style={{ padding:"7px 16px", borderRadius:8, border:`1.5px solid ${active?T.accent:T.border}`, background:active?T.accentDim:"transparent", color:active?T.accent:T.muted, cursor:"pointer", fontSize:12, fontWeight:700, transition:"all 0.15s" }}>{t==="all"?"All":t} ({cnt})</button>;
                   })}
                 </div>
-                <button onClick={toggleAll} style={{ padding:"7px 14px", borderRadius:8, border:`1.5px solid ${THEME.border}`, background:"transparent", color:THEME.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                <button onClick={toggleAll} style={{ padding:"7px 14px", borderRadius:8, border:`1.5px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:12, fontWeight:600 }}>
                   {allChecked ? "☑ Deselect All" : "☐ Select All"}
                 </button>
               </div>
@@ -1782,12 +1782,12 @@ Be very specific with corrected values and drafting instructions. Reference typi
                   const isOpen=open[f.id];
                   const isChecked=!!checked[f.id];
                   return (
-                    <div key={f.id} style={{ background:isChecked?`${cfg.bg}`:"rgba(255,255,255,0.01)", border:`1.5px solid ${isChecked?cfg.border:THEME.border}`, borderRadius:12, overflow:"hidden", transition:"all 0.15s" }}>
+                    <div key={f.id} style={{ background:isChecked?`${cfg.bg}`:"rgba(255,255,255,0.01)", border:`1.5px solid ${isChecked?cfg.border:T.border}`, borderRadius:12, overflow:"hidden", transition:"all 0.15s" }}>
                       <div style={{ padding:"13px 18px", display:"flex", alignItems:"flex-start", gap:12 }}>
                         {/* Checkbox */}
                         <div
                           onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))}
-                          style={{ width:20, height:20, borderRadius:5, border:`2px solid ${isChecked?cfg.badge:THEME.muted}`, background:isChecked?cfg.badge:"transparent", cursor:"pointer", flexShrink:0, marginTop:2, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                          style={{ width:20, height:20, borderRadius:5, border:`2px solid ${isChecked?cfg.badge:T.muted}`, background:isChecked?cfg.badge:"transparent", cursor:"pointer", flexShrink:0, marginTop:2, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
                         >
                           {isChecked && <span style={{ color:"#fff", fontSize:12, fontWeight:800, lineHeight:1 }}>✓</span>}
                         </div>
@@ -1800,19 +1800,19 @@ Be very specific with corrected values and drafting instructions. Reference typi
                               color:f.confidence==="HIGH"?"#16a34a":f.confidence==="LOW"?"#ef4444":"#ca8a04",
                               border:`1px solid ${f.confidence==="HIGH"?"rgba(22,163,74,0.3)":f.confidence==="LOW"?"rgba(239,68,68,0.3)":"rgba(234,179,8,0.3)"}`
                             }}>{f.confidence==="HIGH"?"● HIGH CONFIDENCE":f.confidence==="LOW"?"◌ LOW CONFIDENCE":"◑ MEDIUM CONF."}</span>}
-                            <span style={{ fontSize:11, color:THEME.muted, fontFamily:"monospace" }}>{f.pecReference}</span>
-                            <span style={{ fontSize:11, color:THEME.muted, background:"rgba(255,255,255,0.04)", padding:"1px 8px", borderRadius:4 }}>{f.category}</span>
+                            <span style={{ fontSize:11, color:T.muted, fontFamily:"monospace" }}>{f.pecReference}</span>
+                            <span style={{ fontSize:11, color:T.muted, background:"rgba(255,255,255,0.04)", padding:"1px 8px", borderRadius:4 }}>{f.category}</span>
                           </div>
-                          <div style={{ fontWeight:700, fontSize:14, color:THEME.text }}>{f.title}</div>
+                          <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{f.title}</div>
                         </div>
-                        <span style={{ color:THEME.muted, fontSize:12, marginTop:2, flexShrink:0, cursor:"pointer" }} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
+                        <span style={{ color:T.muted, fontSize:12, marginTop:2, flexShrink:0, cursor:"pointer" }} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
                       </div>
                       {isOpen && (
                         <div style={{ padding:"0 18px 16px 50px", borderTop:`1px solid ${cfg.border}` }}>
                           <div style={{ paddingTop:12, display:"flex", flexDirection:"column", gap:10 }}>
-                            <div><Label>Finding</Label><div style={{ fontSize:13, color:THEME.muted, lineHeight:1.6 }}>{f.description}</div></div>
-                            <div><Label>Recommendation</Label><div style={{ fontSize:13, color:THEME.success, lineHeight:1.6 }}>✓ {f.recommendation}</div></div>
-                            {f.codeBasis && <div style={{ background:"rgba(0,0,0,0.2)", borderLeft:`3px solid ${cfg.border}`, padding:"10px 14px", borderRadius:"0 8px 8px 0", fontSize:12, color:THEME.muted, fontStyle:"italic", lineHeight:1.5 }}>{f.codeBasis}</div>}
+                            <div><Label>Finding</Label><div style={{ fontSize:13, color:T.muted, lineHeight:1.6 }}>{f.description}</div></div>
+                            <div><Label>Recommendation</Label><div style={{ fontSize:13, color:T.success, lineHeight:1.6 }}>✓ {f.recommendation}</div></div>
+                            {f.codeBasis && <div style={{ background:"rgba(0,0,0,0.2)", borderLeft:`3px solid ${cfg.border}`, padding:"10px 14px", borderRadius:"0 8px 8px 0", fontSize:12, color:T.muted, fontStyle:"italic", lineHeight:1.5 }}>{f.codeBasis}</div>}
                           {onVerifyFinding && (()=>{
                             const txt=(f.title+" "+f.description+" "+f.recommendation).toLowerCase();
                             const tool=
@@ -1856,17 +1856,17 @@ Be very specific with corrected values and drafting instructions. Reference typi
 
               {/* Correction action bar */}
               {checkedCount > 0 && (
-                <div style={{ background:THEME.accentDim, border:`1.5px solid rgba(245,158,11,0.3)`, borderRadius:12, padding:"16px 20px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, animation:"fadeIn 0.2s ease" }}>
+                <div style={{ background:T.accentDim, border:`1.5px solid rgba(245,158,11,0.3)`, borderRadius:12, padding:"16px 20px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, animation:"fadeIn 0.2s ease" }}>
                   <div>
-                    <div style={{ fontWeight:700, fontSize:14, color:THEME.accent }}>{checkedCount} error{checkedCount>1?"s":""} selected for correction</div>
-                    <div style={{ fontSize:12, color:THEME.muted, marginTop:2 }}>AI will generate specific drafting instructions for each selected item</div>
+                    <div style={{ fontWeight:700, fontSize:14, color:T.accent }}>{checkedCount} error{checkedCount>1?"s":""} selected for correction</div>
+                    <div style={{ fontSize:12, color:T.muted, marginTop:2 }}>AI will generate specific drafting instructions for each selected item</div>
                   </div>
                   <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <Label>Revision No.</Label>
-                      <input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{ width:60, background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:8, padding:"6px 10px", color:THEME.text, fontSize:14, fontWeight:700, outline:"none", textAlign:"center" }}/>
+                      <input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{ width:60, background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:8, padding:"6px 10px", color:T.text, fontSize:14, fontWeight:700, outline:"none", textAlign:"center" }}/>
                     </div>
-                    <button onClick={generateCorrections} disabled={correcting} style={{ background:correcting?"rgba(245,158,11,0.3)":`linear-gradient(135deg,${THEME.accent},#f97316)`, border:"none", color:correcting?"#666":"#000", fontWeight:700, padding:"10px 20px", borderRadius:10, cursor:correcting?"not-allowed":"pointer", fontSize:13, transition:"all 0.2s" }}>
+                    <button onClick={generateCorrections} disabled={correcting} style={{ background:correcting?"rgba(245,158,11,0.3)":`linear-gradient(135deg,${T.accent},#f97316)`, border:"none", color:correcting?"#666":"#000", fontWeight:700, padding:"10px 20px", borderRadius:10, cursor:correcting?"not-allowed":"pointer", fontSize:13, transition:"all 0.2s" }}>
                       {correcting ? "⚙️ Generating…" : "🤖 Generate Corrections"}
                     </button>
                   </div>
@@ -1878,29 +1878,29 @@ Be very specific with corrected values and drafting instructions. Reference typi
                 <div style={{ background:"rgba(16,185,129,0.05)", border:"1.5px solid rgba(16,185,129,0.25)", borderRadius:12, padding:20, marginBottom:16, animation:"fadeIn 0.3s ease" }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
                     <div>
-                      <div style={{ fontWeight:800, fontSize:15, color:THEME.success }}>✅ Corrections Generated — Rev {revNum}</div>
-                      <div style={{ fontSize:12, color:THEME.muted, marginTop:2 }}>{corrections.length} drafting instruction{corrections.length>1?"s":""} ready for your draftsman</div>
+                      <div style={{ fontWeight:800, fontSize:15, color:T.success }}>✅ Corrections Generated — Rev {revNum}</div>
+                      <div style={{ fontSize:12, color:T.muted, marginTop:2 }}>{corrections.length} drafting instruction{corrections.length>1?"s":""} ready for your draftsman</div>
                     </div>
-                    <button onClick={()=>exportRevisionPDF(result, corrections, revNum)} style={{ background:`linear-gradient(135deg,${THEME.success},#059669)`, border:"none", color:"#fff", fontWeight:700, padding:"10px 20px", borderRadius:10, cursor:"pointer", fontSize:13, boxShadow:"0 4px 14px rgba(16,185,129,0.3)" }}>
+                    <button onClick={()=>exportRevisionPDF(result, corrections, revNum)} style={{ background:`linear-gradient(135deg,${T.success},#059669)`, border:"none", color:"#fff", fontWeight:700, padding:"10px 20px", borderRadius:10, cursor:"pointer", fontSize:13, boxShadow:"0 4px 14px rgba(16,185,129,0.3)" }}>
                       📄 Download Revision PDF
                     </button>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {corrections.map((c,i)=>(
-                      <div key={c.id||i} style={{ background:THEME.dim, border:`1px solid ${THEME.border}`, borderRadius:10, padding:16 }}>
+                      <div key={c.id||i} style={{ background:T.dim, border:`1px solid ${T.border}`, borderRadius:10, padding:16 }}>
                         <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8, flexWrap:"wrap" }}>
-                          <span style={{ background:"#1f2937", color:THEME.accent, fontSize:11, fontWeight:800, padding:"2px 10px", borderRadius:4, letterSpacing:"0.5px" }}>REV-{String(i+1).padStart(2,"0")}</span>
-                          <span style={{ fontSize:12, fontWeight:700, color:THEME.text }}>{c.title}</span>
-                          <span style={{ fontSize:11, color:THEME.muted, fontFamily:"monospace" }}>{c.pecReference}</span>
+                          <span style={{ background:"#1f2937", color:T.accent, fontSize:11, fontWeight:800, padding:"2px 10px", borderRadius:4, letterSpacing:"0.5px" }}>REV-{String(i+1).padStart(2,"0")}</span>
+                          <span style={{ fontSize:12, fontWeight:700, color:T.text }}>{c.title}</span>
+                          <span style={{ fontSize:11, color:T.muted, fontFamily:"monospace" }}>{c.pecReference}</span>
                         </div>
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                           <div style={{ background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:8, padding:"10px 12px" }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:THEME.accent, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4 }}>📐 Corrected Value</div>
-                            <div style={{ fontSize:13, color:THEME.text, lineHeight:1.6 }}>{c.correctedValues||c.recommendation}</div>
+                            <div style={{ fontSize:10, fontWeight:700, color:T.accent, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4 }}>📐 Corrected Value</div>
+                            <div style={{ fontSize:13, color:T.text, lineHeight:1.6 }}>{c.correctedValues||c.recommendation}</div>
                           </div>
                           <div style={{ background:"rgba(16,185,129,0.07)", border:"1px solid rgba(16,185,129,0.2)", borderRadius:8, padding:"10px 12px" }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:THEME.success, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4 }}>✏️ Drafting Instruction</div>
-                            <div style={{ fontSize:13, color:THEME.text, lineHeight:1.6 }}>{c.draftingInstruction||"Apply correction as indicated"}</div>
+                            <div style={{ fontSize:10, fontWeight:700, color:T.success, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4 }}>✏️ Drafting Instruction</div>
+                            <div style={{ fontSize:13, color:T.text, lineHeight:1.6 }}>{c.draftingInstruction||"Apply correction as indicated"}</div>
                           </div>
                         </div>
                       </div>
@@ -1910,7 +1910,7 @@ Be very specific with corrected values and drafting instructions. Reference typi
               )}
             </div>
           )}
-          <div style={{ marginTop:20, padding:"10px 16px", background:THEME.dim, borderRadius:10, fontSize:12, color:THEME.muted, lineHeight:1.5 }}>
+          <div style={{ marginTop:20, padding:"10px 16px", background:T.dim, borderRadius:10, fontSize:12, color:T.muted, lineHeight:1.5 }}>
             ⚠️ AI-generated report for reference only. All plans must be reviewed and stamped by a licensed PEE before submission to MERALCO, LGU, or DPWH.
           </div>
         </div>
@@ -1921,8 +1921,8 @@ Be very specific with corrected values and drafting instructions. Reference typi
           {[{i:"🏠",t:"Residential",d:"House wiring, circuits, panels"},{i:"🏢",t:"Commercial",d:"Office, mall, GFCI/AFCI"},{i:"🔥",t:"FSIC / Fire Code",d:"Emergency lights, exit signs"},{i:"🌱",t:"Green Building",d:"LPD, sub-metering"}].map(x=>(
             <Card key={x.t} style={{ textAlign:"center", padding:18 }}>
               <div style={{ fontSize:28, marginBottom:8 }}>{x.i}</div>
-              <div style={{ fontWeight:700, fontSize:13, color:THEME.text, marginBottom:4 }}>{x.t}</div>
-              <div style={{ fontSize:11, color:THEME.muted, lineHeight:1.5 }}>{x.d}</div>
+              <div style={{ fontWeight:700, fontSize:13, color:T.text, marginBottom:4 }}>{x.t}</div>
+              <div style={{ fontSize:11, color:T.muted, lineHeight:1.5 }}>{x.d}</div>
             </Card>
           ))}
         </div>
@@ -2514,39 +2514,39 @@ Respond ONLY as valid JSON array:
       <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
         onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}}
         onClick={()=>ref.current?.click()}
-        style={{border:`2px dashed ${drag?"#3b82f6":THEME.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(59,130,246,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
+        style={{border:`2px dashed ${drag?"#3b82f6":T.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(59,130,246,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
         <input ref={ref} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
         <div style={{fontSize:40,marginBottom:12}}>📐</div>
-        <div style={{fontWeight:700,fontSize:16,color:THEME.text,marginBottom:6}}>Drop structural plans here</div>
-        <div style={{color:THEME.muted,fontSize:13,marginBottom:16}}>PDF drawings · JPG / PNG images</div>
+        <div style={{fontWeight:700,fontSize:16,color:T.text,marginBottom:6}}>Drop structural plans here</div>
+        <div style={{color:T.muted,fontSize:13,marginBottom:16}}>PDF drawings · JPG / PNG images</div>
         <div style={{display:"inline-block",background:"linear-gradient(135deg,#3b82f6,#6366f1)",color:"#fff",fontWeight:700,padding:"9px 22px",borderRadius:10,fontSize:14}}>Choose Files</div>
       </div>
-      {files.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=>(<div key={fo.id} style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:THEME.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:THEME.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>))}</div>)}
+      {files.length>0&&(<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=>(<div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:T.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>))}</div>)}
       {files.length>0&&(<button onClick={run} disabled={busy} style={{width:"100%",background:busy?"rgba(59,130,246,0.2)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?(busyMsg||"⚙️ Analyzing…"):`🏗️ Run Structural Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>)}
-      {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:THEME.danger,fontSize:14}}>⚠️ {error}</div>}
+      {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
 
       {result?.summary&&(
         <div style={{animation:"fadeIn 0.35s ease"}}>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
               <div>
-                <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>PROJECT</div>
-                <div style={{fontWeight:800,fontSize:18,color:THEME.text}}>{result.summary.projectName}</div>
-                <div style={{fontSize:13,color:THEME.muted,marginTop:2}}>{result.summary.structureType} · {result.summary.fileType}</div>
+                <div style={{fontSize:11,color:T.muted,marginBottom:4}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:18,color:T.text}}>{result.summary.projectName}</div>
+                <div style={{fontSize:13,color:T.muted,marginTop:2}}>{result.summary.structureType} · {result.summary.fileType}</div>
                 <div style={{marginTop:12,display:"flex",gap:24}}>
-                  <div><div style={{fontSize:26,fontWeight:800,color:"#dc2626"}}>{result.summary.criticalCount}</div><div style={{fontSize:11,color:THEME.muted}}>CRITICAL</div></div>
-                  <div><div style={{fontSize:26,fontWeight:800,color:"#d97706"}}>{result.summary.warningCount}</div><div style={{fontSize:11,color:THEME.muted}}>WARNINGS</div></div>
-                  <div><div style={{fontSize:26,fontWeight:800,color:"#3b82f6"}}>{result.summary.infoCount}</div><div style={{fontSize:11,color:THEME.muted}}>INFO</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#dc2626"}}>{result.summary.criticalCount}</div><div style={{fontSize:11,color:T.muted}}>CRITICAL</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#d97706"}}>{result.summary.warningCount}</div><div style={{fontSize:11,color:T.muted}}>WARNINGS</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#3b82f6"}}>{result.summary.infoCount}</div><div style={{fontSize:11,color:T.muted}}>INFO</div></div>
                 </div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{background:`${S_STATUS[result.summary.overallStatus]}14`,border:`2px solid ${S_STATUS[result.summary.overallStatus]}44`,borderRadius:12,padding:"10px 18px",marginBottom:8}}>
-                  <div style={{fontSize:10,color:THEME.muted,marginBottom:4}}>OVERALL STATUS</div>
+                  <div style={{fontSize:10,color:T.muted,marginBottom:4}}>OVERALL STATUS</div>
                   <div style={{fontSize:13,fontWeight:800,color:S_STATUS[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
                 </div>
               </div>
             </div>
-            <div style={{marginTop:12,fontSize:13,color:THEME.muted,lineHeight:1.6,background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.analysisNotes}</div>
+            <div style={{marginTop:12,fontSize:13,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.analysisNotes}</div>
           </Card>
 
           {findings.length>0&&(
@@ -2556,10 +2556,10 @@ Respond ONLY as valid JSON array:
                   {["all","CRITICAL","WARNING","INFO"].map(t=>{
                     const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;
                     const active=tab===t;
-                    return <button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${active?"#3b82f6":THEME.border}`,background:active?"rgba(59,130,246,0.12)":"transparent",color:active?"#3b82f6":THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="all"?"All":t} ({cnt})</button>;
+                    return <button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${active?"#3b82f6":T.border}`,background:active?"rgba(59,130,246,0.12)":"transparent",color:active?"#3b82f6":T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="all"?"All":t} ({cnt})</button>;
                   })}
                 </div>
-                <button onClick={toggleAll} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${THEME.border}`,background:"transparent",color:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>{allChecked?"☑ Deselect All":"☐ Select All"}</button>
+                <button onClick={toggleAll} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>{allChecked?"☑ Deselect All":"☐ Select All"}</button>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
                 {filtered.map(f=>{
@@ -2567,9 +2567,9 @@ Respond ONLY as valid JSON array:
                   const bg={CRITICAL:"rgba(220,38,38,0.06)",WARNING:"rgba(217,119,6,0.06)",INFO:"rgba(59,130,246,0.06)"}[f.severity]||"rgba(59,130,246,0.06)";
                   const isOpen=open[f.id]; const isChecked=!!checked[f.id];
                   return (
-                    <div key={f.id} style={{background:isChecked?bg:"rgba(255,255,255,0.01)",border:`1.5px solid ${isChecked?col:THEME.border}`,borderRadius:12,overflow:"hidden",transition:"all 0.15s"}}>
+                    <div key={f.id} style={{background:isChecked?bg:"rgba(255,255,255,0.01)",border:`1.5px solid ${isChecked?col:T.border}`,borderRadius:12,overflow:"hidden",transition:"all 0.15s"}}>
                       <div style={{padding:"13px 18px",display:"flex",alignItems:"flex-start",gap:12}}>
-                        <div onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))} style={{width:20,height:20,borderRadius:5,border:`2px solid ${isChecked?col:THEME.muted}`,background:isChecked?col:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
+                        <div onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))} style={{width:20,height:20,borderRadius:5,border:`2px solid ${isChecked?col:T.muted}`,background:isChecked?col:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
                           {isChecked&&<span style={{color:"#fff",fontSize:12,fontWeight:800,lineHeight:1}}>✓</span>}
                         </div>
                         <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>
@@ -2580,18 +2580,18 @@ Respond ONLY as valid JSON array:
                               color:f.confidence==="HIGH"?"#16a34a":f.confidence==="LOW"?"#ef4444":"#ca8a04",
                               border:`1px solid ${f.confidence==="HIGH"?"rgba(22,163,74,0.3)":f.confidence==="LOW"?"rgba(239,68,68,0.3)":"rgba(234,179,8,0.3)"}`
                             }}>{f.confidence==="HIGH"?"● HIGH CONFIDENCE":f.confidence==="LOW"?"◌ LOW CONFIDENCE":"◑ MEDIUM CONF."}</span>}
-                            <span style={{fontSize:11,color:THEME.muted,fontFamily:"monospace"}}>{f.nscpReference}</span>
-                            <span style={{fontSize:11,color:THEME.muted,background:"rgba(255,255,255,0.04)",padding:"1px 8px",borderRadius:4}}>{f.category}</span>
+                            <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{f.nscpReference}</span>
+                            <span style={{fontSize:11,color:T.muted,background:"rgba(255,255,255,0.04)",padding:"1px 8px",borderRadius:4}}>{f.category}</span>
                           </div>
-                          <div style={{fontWeight:700,fontSize:14,color:THEME.text}}>{f.title}</div>
+                          <div style={{fontWeight:700,fontSize:14,color:T.text}}>{f.title}</div>
                         </div>
-                        <span style={{color:THEME.muted,fontSize:12,marginTop:2,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
+                        <span style={{color:T.muted,fontSize:12,marginTop:2,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
                       </div>
                       {isOpen&&(<div style={{padding:"0 18px 16px 50px",borderTop:`1px solid ${col}33`}}>
                         <div style={{paddingTop:12,display:"flex",flexDirection:"column",gap:10}}>
-                          <div><Label>Finding</Label><div style={{fontSize:13,color:THEME.muted,lineHeight:1.6}}>{f.description}</div></div>
-                          <div><Label>Recommendation</Label><div style={{fontSize:13,color:THEME.success,lineHeight:1.6}}>✓ {f.recommendation}</div></div>
-                          {f.codeBasis&&<div style={{background:"rgba(0,0,0,0.2)",borderLeft:`3px solid ${col}`,padding:"10px 14px",borderRadius:"0 8px 8px 0",fontSize:12,color:THEME.muted,fontStyle:"italic",lineHeight:1.5}}>{f.codeBasis}</div>}
+                          <div><Label>Finding</Label><div style={{fontSize:13,color:T.muted,lineHeight:1.6}}>{f.description}</div></div>
+                          <div><Label>Recommendation</Label><div style={{fontSize:13,color:T.success,lineHeight:1.6}}>✓ {f.recommendation}</div></div>
+                          {f.codeBasis&&<div style={{background:"rgba(0,0,0,0.2)",borderLeft:`3px solid ${col}`,padding:"10px 14px",borderRadius:"0 8px 8px 0",fontSize:12,color:T.muted,fontStyle:"italic",lineHeight:1.5}}>{f.codeBasis}</div>}
                         </div>
                       </div>)}
                     </div>
@@ -2603,10 +2603,10 @@ Respond ONLY as valid JSON array:
                 <div style={{background:"rgba(59,130,246,0.08)",border:"1.5px solid rgba(59,130,246,0.25)",borderRadius:12,padding:"16px 20px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
                   <div>
                     <div style={{fontWeight:700,fontSize:14,color:"#3b82f6"}}>{checkedCount} item{checkedCount>1?"s":""} selected for correction</div>
-                    <div style={{fontSize:12,color:THEME.muted,marginTop:2}}>AI will generate specific drafting instructions per NSCP 2015</div>
+                    <div style={{fontSize:12,color:T.muted,marginTop:2}}>AI will generate specific drafting instructions per NSCP 2015</div>
                   </div>
                   <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}><Label>Rev No.</Label><input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{width:60,background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:8,padding:"6px 10px",color:THEME.text,fontSize:14,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><Label>Rev No.</Label><input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{width:60,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"6px 10px",color:T.text,fontSize:14,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
                     <button onClick={generateCorrections} disabled={correcting} style={{background:correcting?"rgba(59,130,246,0.3)":"linear-gradient(135deg,#3b82f6,#6366f1)",border:"none",color:correcting?"#666":"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:correcting?"not-allowed":"pointer",fontSize:13}}>
                       {correcting?"⚙️ Generating…":"🤖 Generate Corrections"}
                     </button>
@@ -2617,7 +2617,7 @@ Respond ONLY as valid JSON array:
               {corrections&&(
                 <div style={{background:"rgba(16,185,129,0.05)",border:"1.5px solid rgba(16,185,129,0.25)",borderRadius:12,padding:20,marginBottom:16}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-                    <div><div style={{fontWeight:800,fontSize:15,color:THEME.success}}>✅ Corrections Generated — Rev {revNum}</div><div style={{fontSize:12,color:THEME.muted,marginTop:2}}>{corrections.length} drafting instruction{corrections.length>1?"s":""} ready</div></div>
+                    <div><div style={{fontWeight:800,fontSize:15,color:T.success}}>✅ Corrections Generated — Rev {revNum}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{corrections.length} drafting instruction{corrections.length>1?"s":""} ready</div></div>
                     <button onClick={()=>{
                       const w=window.open("","_blank");
                       const date=new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
@@ -2628,15 +2628,15 @@ Respond ONLY as valid JSON array:
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {corrections.map((c,i)=>(
-                      <div key={c.id||i} style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:10,padding:16}}>
+                      <div key={c.id||i} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:16}}>
                         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
                           <span style={{background:"#1f2937",color:"#3b82f6",fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:4}}>REV-{String(i+1).padStart(2,"0")}</span>
-                          <span style={{fontSize:12,fontWeight:700,color:THEME.text}}>{c.title}</span>
-                          <span style={{fontSize:11,color:THEME.muted,fontFamily:"monospace"}}>{c.nscpReference}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:T.text}}>{c.title}</span>
+                          <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{c.nscpReference}</span>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                          <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:THEME.accent,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📐 Corrected Value</div><div style={{fontSize:13,color:THEME.text,lineHeight:1.6}}>{c.correctedValues||c.recommendation}</div></div>
-                          <div style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:THEME.success,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>✏️ Drafting Instruction</div><div style={{fontSize:13,color:THEME.text,lineHeight:1.6}}>{c.draftingInstruction||"Apply correction as indicated"}</div></div>
+                          <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📐 Corrected Value</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.correctedValues||c.recommendation}</div></div>
+                          <div style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.success,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>✏️ Drafting Instruction</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.draftingInstruction||"Apply correction as indicated"}</div></div>
                         </div>
                       </div>
                     ))}
@@ -2647,13 +2647,13 @@ Respond ONLY as valid JSON array:
           )}
 
 
-          <div style={{marginTop:20,padding:"10px 16px",background:THEME.dim,borderRadius:10,fontSize:12,color:THEME.muted,lineHeight:1.5}}>⚠️ AI-generated report for reference only. All plans must be reviewed and stamped by a licensed PSCE before submission to DPWH or LGU.</div>
+          <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>⚠️ AI-generated report for reference only. All plans must be reviewed and stamped by a licensed PSCE before submission to DPWH or LGU.</div>
         </div>
       )}
       {!files.length&&!result&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginTop:4}}>
           {[{i:"🏠",t:"Residential",d:"Beams, columns, slabs, footings"},{i:"🏢",t:"Commercial",d:"Multi-storey RC/Steel structures"},{i:"🌉",t:"Bridge/Infrastructure",d:"DPWH Blue Book compliance"},{i:"🌍",t:"Seismic Check",d:"NSCP 2015 Section 208"}].map(x=>(
-            <Card key={x.t} style={{textAlign:"center",padding:18}}><div style={{fontSize:28,marginBottom:8}}>{x.i}</div><div style={{fontWeight:700,fontSize:13,color:THEME.text,marginBottom:4}}>{x.t}</div><div style={{fontSize:11,color:THEME.muted,lineHeight:1.5}}>{x.d}</div></Card>
+            <Card key={x.t} style={{textAlign:"center",padding:18}}><div style={{fontSize:28,marginBottom:8}}>{x.i}</div><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{x.t}</div><div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{x.d}</div></Card>
           ))}
         </div>
       )}
@@ -2709,7 +2709,7 @@ function SeismicCalc({ structuralData, structuralResults }) {
     setResult({Ca,Cv,Ts,T0,Sa,V,Cs,Vmin,Vmax,Zv,I,Fa,Fv});
   };
 
-  const Hint = ({children}) => <div style={{fontSize:11,color:THEME.muted,marginBottom:12,fontStyle:"italic"}}>{children}</div>;
+  const Hint = ({children}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{children}</div>;
   const canCalc = zone && soil && occ && W!=="" && TK!=="" && R!=="";
 
   return (
@@ -2723,7 +2723,7 @@ function SeismicCalc({ structuralData, structuralResults }) {
         {sd && !sd.seismic?.seismicWeight && !sd.seismic?.zone && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>⚠ Unverifiable — No seismic data found in plans</strong><br/>
-            <span style={{color:THEME.muted}}>The AI could not extract seismic parameters (zone, weight, period, soil type) from the uploaded structural plans. This is common when plans don't include a seismic analysis sheet. Enter values manually below to run the computation, or re-upload plans that include seismic design data.</span>
+            <span style={{color:T.muted}}>The AI could not extract seismic parameters (zone, weight, period, soil type) from the uploaded structural plans. This is common when plans don't include a seismic analysis sheet. Enter values manually below to run the computation, or re-upload plans that include seismic design data.</span>
           </div>
         )}
         <Label>Seismic Zone (NSCP 2015 Sec. 208.4) {fp.zone && <FromPlansBadge/>}</Label>
@@ -2731,7 +2731,7 @@ function SeismicCalc({ structuralData, structuralResults }) {
           <option value="">— Select zone —</option>
           {Object.entries(PH_SEISMIC_ZONES).map(([k,v])=><option key={k} value={k}>{k} — Z={v.Z}</option>)}
         </Select>
-        {zone ? <div style={{fontSize:11,color:THEME.muted,marginBottom:16}}>{PH_SEISMIC_ZONES[zone].desc}</div>
+        {zone ? <div style={{fontSize:11,color:T.muted,marginBottom:16}}>{PH_SEISMIC_ZONES[zone].desc}</div>
                : <Hint>Zone 4 covers most of Luzon and Mindanao. Confirm with geohazard map.</Hint>}
 
         <Label>Soil Profile Type (NSCP Table 208-2) {fp.soil && <FromPlansBadge/>}</Label>
@@ -2757,16 +2757,16 @@ function SeismicCalc({ structuralData, structuralResults }) {
         <Input type="number" value={R} onChange={e=>setR(e.target.value)} step="0.5" placeholder="SMRF=8.5 · OMRF=3.5 · Shear Wall=5.5" style={{marginBottom:4}}/>
         <Hint>Per NSCP Table 208-11. Confirm with structural system type.</Hint>
 
-        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":THEME.muted,fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
           {canCalc ? "⚡ Calculate Seismic Base Shear" : "Fill all fields to calculate"}
         </button>
       </Card>
       {result ? (
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card style={{background:"rgba(6,150,215,0.06)",border:"1.5px solid rgba(6,150,215,0.3)"}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>DESIGN BASE SHEAR</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>DESIGN BASE SHEAR</div>
             <div style={{fontSize:42,fontWeight:900,color:"#0696d7",letterSpacing:"-2px"}}>{result.V.toFixed(1)} <span style={{fontSize:18,fontWeight:400}}>kN</span></div>
-            <div style={{fontSize:13,color:THEME.muted,marginTop:4}}>Cs = {(result.Cs*100).toFixed(2)}% of seismic weight</div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Cs = {(result.Cs*100).toFixed(2)}% of seismic weight</div>
           </Card>
           {[
             {l:"Zone Factor Z",v:`${result.Zv}`},{l:"Fa",v:`${result.Fa}`},{l:"Fv",v:`${result.Fv}`},
@@ -2774,15 +2774,15 @@ function SeismicCalc({ structuralData, structuralResults }) {
             {l:"Ts",v:`${result.Ts.toFixed(3)} s`},{l:"Vmin",v:`${result.Vmin.toFixed(1)} kN`},{l:"Vmax",v:`${result.Vmax.toFixed(1)} kN`},
             {l:"Design Base Shear V",v:`${result.V.toFixed(1)} kN`,hi:true},
           ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:r.hi?"rgba(6,150,215,0.1)":THEME.dim,borderRadius:8,border:r.hi?"1px solid rgba(6,150,215,0.3)":"none"}}>
-              <span style={{fontSize:13,color:THEME.muted}}>{r.l}</span>
-              <span style={{fontSize:14,fontWeight:700,color:r.hi?"#0696d7":THEME.text,fontFamily:"monospace"}}>{r.v}</span>
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:r.hi?"rgba(6,150,215,0.1)":T.dim,borderRadius:8,border:r.hi?"1px solid rgba(6,150,215,0.3)":"none"}}>
+              <span style={{fontSize:13,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:14,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
           {/* ── Engineering Insights ── */}
           <div style={{padding:"14px 16px",background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:10}}>
             <div style={{fontSize:11,fontWeight:800,color:"#0696d7",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ Engineering Insight</div>
-            <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
               {(() => {
                 const insights = [];
                 const CsPercent = (result.Cs*100).toFixed(2);
@@ -2821,7 +2821,7 @@ function SeismicCalc({ structuralData, structuralResults }) {
               })()}
             </div>
           </div>
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>V = Sa·I·W/R, bounded by Vmin=0.11·Ca·I·W and Vmax=2.5·Ca·I·W/R (NSCP 2015 Sec. 208.5.2)</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>V = Sa·I·W/R, bounded by Vmin=0.11·Ca·I·W and Vmax=2.5·Ca·I·W/R (NSCP 2015 Sec. 208.5.2)</div>
         </div>
       ) : (
         (() => {
@@ -2831,7 +2831,7 @@ function SeismicCalc({ structuralData, structuralResults }) {
             return (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <Card style={{background:priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.06)":"rgba(6,150,215,0.06)",border:`1.5px solid ${priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.3)":"rgba(6,150,215,0.3)"}`}}>
-                  <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RUN ALL — SEISMIC LOAD RESULT</div>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — SEISMIC LOAD RESULT</div>
                   <div style={{fontSize:16,fontWeight:900,color:priorItems[0].status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",marginBottom:4}}>
                     {priorItems[0].status==="CANNOT VERIFY"?"⚠ CANNOT VERIFY":"✓ COMPUTED"}
                   </div>
@@ -2841,7 +2841,7 @@ function SeismicCalc({ structuralData, structuralResults }) {
                 {seisRes && (
                   <div style={{padding:"14px 16px",background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:10}}>
                     <div style={{fontSize:11,fontWeight:800,color:"#0696d7",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ Engineering Insight</div>
-                    <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
                       <div style={{display:"flex",gap:8,marginBottom:6}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Base shear V = {seisRes.V} kN (Cs = {seisRes.Cs}%). {seisRes.Cs>15?"High seismic demand.":seisRes.Cs>8?"Moderate seismic demand.":"Low seismic demand."}</span></div>
                       <div style={{display:"flex",gap:8,marginBottom:6}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#0696d7"}}>ℹ</span><span>Zone: {seisRes.zone}, R = {seisRes.R}. Distribute V vertically per NSCP Sec. 208.5.5.</span></div>
                     </div>
@@ -2849,15 +2849,15 @@ function SeismicCalc({ structuralData, structuralResults }) {
                 )}
                 <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
                   <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL DETAILED CHECK</div>
-                  <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>Fill in seismic zone, soil type, W, T, and R on the left then click Calculate for a full parameter breakdown.</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Fill in seismic zone, soil type, W, T, and R on the left then click Calculate for a full parameter breakdown.</div>
                 </Card>
               </div>
             );
           }
           return (
             <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-              <Icon name="seismic" size={40} color={THEME.muted}/>
-              <div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+              <Icon name="seismic" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
             </Card>
           );
         })()
@@ -2907,7 +2907,7 @@ function BeamDesign({ structuralData, structuralResults }) {
     setResult({Rn,rho_req,rho_min,rho_max,rho_use,As_req,Vc,Vs_req,status_flex,status_shear});
   };
 
-  const Hint = ({c}) => <div style={{fontSize:11,color:THEME.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const Hint = ({c}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc = [fc,fy,b,d,Mu,Vu].every(v=>v!=="");
 
   const beamPriorItems = structuralResults?.items?.filter(i=>i.tool==="beam") || [];
@@ -2926,13 +2926,13 @@ function BeamDesign({ structuralData, structuralResults }) {
         {sd && !sd.beams?.length && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>⚠ No beam schedule found in plans</strong><br/>
-            <span style={{color:THEME.muted}}>The AI could not extract beam dimensions or schedule from the uploaded plans. Enter beam dimensions manually below for a design check, or re-upload plans with the beam schedule visible.</span>
+            <span style={{color:T.muted}}>The AI could not extract beam dimensions or schedule from the uploaded plans. Enter beam dimensions manually below for a design check, or re-upload plans with the beam schedule visible.</span>
           </div>
         )}
         {sd && sd.beams?.length > 0 && (
           <div style={{padding:"12px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#0696d7",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>✓ {sd.beams.length} beam(s) extracted — NSCP verification available via Run All</strong><br/>
-            <span style={{color:THEME.muted}}>Beam reinforcement was extracted from plans. Click "Run All" in the intelligence panel to verify against NSCP minimums. The manual calculator below is for additional analysis with factored loads (Mu, Vu) if available.</span>
+            <span style={{color:T.muted}}>Beam reinforcement was extracted from plans. Click "Run All" in the intelligence panel to verify against NSCP minimums. The manual calculator below is for additional analysis with factored loads (Mu, Vu) if available.</span>
           </div>
         )}
         <Label>Concrete Strength f'c (MPa) {fp.fc && <FromPlansBadge/>}</Label>
@@ -2956,16 +2956,16 @@ function BeamDesign({ structuralData, structuralResults }) {
           <div><Label>Vu (kN) {fp.Vu && <FromPlansBadge/>}</Label><Input type="number" value={Vu} onChange={e=>setVu(e.target.value)} placeholder="Factored shear"/></div>
         </div>
         <Hint c="Use factored loads per NSCP Sec. 203. Critical section for Vu at distance d from face of support."/>
-        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":THEME.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
           {canCalc ? "⚡ Design Beam (NSCP 2015 Sec. 406)" : "Fill all fields to calculate"}
         </button>
       </Card>
       {result ? (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <Card style={{background:result.status_flex.includes("PASS")?"rgba(34,197,94,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status_flex.includes("PASS")?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:2}}>FLEXURE STATUS</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:2}}>FLEXURE STATUS</div>
             <div style={{fontSize:16,fontWeight:800,color:result.status_flex.includes("PASS")?"#22c55e":"#ef4444"}}>{result.status_flex}</div>
-            <div style={{fontSize:22,fontWeight:900,color:THEME.text,marginTop:8}}>{result.As_req.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:THEME.muted}}>mm² required</span></div>
+            <div style={{fontSize:22,fontWeight:900,color:T.text,marginTop:8}}>{result.As_req.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:T.muted}}>mm² required</span></div>
           </Card>
           {[
             {l:"Nominal Coeff. Rn",v:`${result.Rn.toFixed(4)} MPa`},
@@ -2977,9 +2977,9 @@ function BeamDesign({ structuralData, structuralResults }) {
             {l:"Concrete Shear Vc",v:`${result.Vc.toFixed(1)} kN`},
             {l:"Shear Status",v:result.status_shear,color:result.status_shear.includes("✓")?"#22c55e":"#f59e0b"},
           ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":THEME.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
-              <span style={{fontSize:12,color:THEME.muted}}>{r.l}</span>
-              <span style={{fontSize:13,fontWeight:700,color:r.color||(r.hi?"#0696d7":THEME.text),fontFamily:"monospace"}}>{r.v}</span>
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+              <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.color||(r.hi?"#0696d7":T.text),fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
           {/* ── Engineering Insights ── */}
@@ -2987,7 +2987,7 @@ function BeamDesign({ structuralData, structuralResults }) {
             <div style={{fontSize:11,fontWeight:800,color:result.status_flex.includes("PASS")?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
               {result.status_flex.includes("PASS") ? "✓ Engineering Insight" : "⚠ Why This Beam Fails"}
             </div>
-            <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
               {(() => {
                 const insights = [];
                 const rhoP = (result.rho_req*100).toFixed(3);
@@ -3017,24 +3017,24 @@ function BeamDesign({ structuralData, structuralResults }) {
               })()}
             </div>
           </div>
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 — Singly reinforced. Verify bar selection and spacing per Sec. 406.4.</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 406 — Singly reinforced. Verify bar selection and spacing per Sec. 406.4.</div>
         </div>
       ) : beamPriorItems.length > 0 ? (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <Card style={{background:beamAnyFail?"rgba(239,68,68,0.06)":(beamAllUnverifiable||beamMixed)?"rgba(245,158,11,0.06)":beamTruePass?"rgba(34,197,94,0.06)":"rgba(255,255,255,0.03)",border:`1.5px solid ${beamAnyFail?"rgba(239,68,68,0.3)":(beamAllUnverifiable||beamMixed)?"rgba(245,158,11,0.3)":beamTruePass?"rgba(34,197,94,0.3)":"rgba(255,255,255,0.08)"}`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RUN ALL — BEAM DESIGN RESULT</div>
-            <div style={{fontSize:18,fontWeight:900,color:beamAnyFail?"#ef4444":(beamAllUnverifiable||beamMixed)?"#f59e0b":beamTruePass?"#22c55e":THEME.muted,marginBottom:8}}>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — BEAM DESIGN RESULT</div>
+            <div style={{fontSize:18,fontWeight:900,color:beamAnyFail?"#ef4444":(beamAllUnverifiable||beamMixed)?"#f59e0b":beamTruePass?"#22c55e":T.muted,marginBottom:8}}>
               {beamAnyFail?"✗ FAIL — Beam(s) do not satisfy NSCP Sec. 406":beamAllUnverifiable?"⚠ CANNOT VERIFY — Enter Mu and Vu for each beam":beamMixed?"⚠ PARTIAL — Some beams cannot be verified":beamTruePass?"✓ PASS — All beams satisfy NSCP requirements":"— Run All to compute beam results"}
             </div>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:10}}>Results from last Run All. Enter Mu and Vu then click Calculate for a full detailed check on any member.</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Results from last Run All. Enter Mu and Vu then click Calculate for a full detailed check on any member.</div>
             {beamPriorItems.map((item,idx)=>(
-              <div key={idx} style={{padding:"8px 12px",background:THEME.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
+              <div key={idx} style={{padding:"8px 12px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:12,fontWeight:700,color:THEME.text}}>{item.id}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id}</span>
                   <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":"#0696d7",padding:"1px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
                 </div>
-                {item.value && <div style={{fontSize:11,color:THEME.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
-                {item.detail && <div style={{fontSize:11,color:THEME.muted,marginTop:2,fontFamily:"monospace"}}>{item.detail}</div>}
+                {item.value && <div style={{fontSize:11,color:T.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
+                {item.detail && <div style={{fontSize:11,color:T.muted,marginTop:2,fontFamily:"monospace"}}>{item.detail}</div>}
                 {item.failReason && <div style={{fontSize:11,color:"#ef4444",marginTop:5,padding:"5px 8px",background:"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:"2px solid #ef4444",lineHeight:1.5}}>⚠ Why it failed: {item.failReason}</div>}
                 {item.error && <div style={{fontSize:11,color:item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444",marginTop:5,padding:"5px 8px",background:item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.08)":"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:`2px solid ${item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444"}`,lineHeight:1.5}}>{item.status==="CANNOT VERIFY"?"⚠ Cannot verify: ":"⚠ "}{item.error}</div>}
               </div>
@@ -3042,13 +3042,13 @@ function BeamDesign({ structuralData, structuralResults }) {
           </Card>
           <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
             <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>HOW TO DO A DETAILED CHECK</div>
-            <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>1. Enter the beam's Mu (factored moment) and Vu (factored shear) on the left.<br/>2. Verify fc, fy, width b, effective depth d for that member.<br/>3. Click Calculate for full Rn, ρ, As, Vc compliance check.</div>
+            <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>1. Enter the beam's Mu (factored moment) and Vu (factored shear) on the left.<br/>2. Verify fc, fy, width b, effective depth d for that member.<br/>3. Click Calculate for full Rn, ρ, As, Vc compliance check.</div>
           </Card>
         </div>
       ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <Icon name="beam" size={40} color={THEME.muted}/>
-          <div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+          <Icon name="beam" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
@@ -3091,7 +3091,7 @@ function ColumnDesign({ structuralData, structuralResults }) {
     setResult({Ag,Ast_req,rho_req,rho_min,rho_max,phiPn,ecc,status,phi});
   };
 
-  const Hint=({c})=><div style={{fontSize:11,color:THEME.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc=[fc,fy,b,h,Pu].every(v=>v!=="");
 
   return (
@@ -3101,7 +3101,7 @@ function ColumnDesign({ structuralData, structuralResults }) {
         {sd && !sd.columns?.length && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>⚠ Unverifiable — No column data found in plans</strong><br/>
-            <span style={{color:THEME.muted}}>The AI could not extract column dimensions or schedule from the uploaded plans. Enter column dimensions (b, h) and factored axial load (Pu) manually below to run the design check.</span>
+            <span style={{color:T.muted}}>The AI could not extract column dimensions or schedule from the uploaded plans. Enter column dimensions (b, h) and factored axial load (Pu) manually below to run the design check.</span>
           </div>
         )}
         <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
@@ -3130,16 +3130,16 @@ function ColumnDesign({ structuralData, structuralResults }) {
           <div><Label>Mu (kN·m) {fp.Mu&&<FromPlansBadge/>}</Label><Input type="number" value={Mu} onChange={e=>setMu(e.target.value)} placeholder="Optional"/></div>
         </div>
         <Hint c="Pu = 1.2D + 1.6L. Sum tributary loads per floor × number of floors above."/>
-        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":THEME.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
           {canCalc?"⚡ Design Column (NSCP 2015 Sec. 410)":"Fill required fields to calculate"}
         </button>
       </Card>
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <Card style={{background:result.status.includes("PASS")?"rgba(34,197,94,0.06)":"rgba(239,68,68,0.06)",border:`1.5px solid ${result.status.includes("PASS")?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:2}}>STATUS</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:2}}>STATUS</div>
             <div style={{fontSize:16,fontWeight:800,color:result.status.includes("PASS")?"#22c55e":"#ef4444"}}>{result.status}</div>
-            <div style={{fontSize:22,fontWeight:900,color:THEME.text,marginTop:8}}>{result.Ast_req.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:THEME.muted}}>mm² steel req'd</span></div>
+            <div style={{fontSize:22,fontWeight:900,color:T.text,marginTop:8}}>{result.Ast_req.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:T.muted}}>mm² steel req'd</span></div>
           </Card>
           {[
             {l:"Gross Area Ag",v:`${result.Ag.toFixed(0)} mm²`},
@@ -3150,9 +3150,9 @@ function ColumnDesign({ structuralData, structuralResults }) {
             {l:"Eccentricity e",v:result.ecc?`${result.ecc.toFixed(1)} mm`:"—"},
             {l:"φ factor",v:`${result.phi}`},
           ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":THEME.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
-              <span style={{fontSize:12,color:THEME.muted}}>{r.l}</span>
-              <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":THEME.text,fontFamily:"monospace"}}>{r.v}</span>
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+              <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
           {/* ── Engineering Insights ── */}
@@ -3160,7 +3160,7 @@ function ColumnDesign({ structuralData, structuralResults }) {
             <div style={{fontSize:11,fontWeight:800,color:result.status.includes("PASS")?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
               {result.status.includes("PASS") ? "✓ Engineering Insight" : "⚠ Why This Column Fails"}
             </div>
-            <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+            <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
               {(() => {
                 const insights = [];
                 const rhoP = (result.rho_req*100).toFixed(2);
@@ -3204,7 +3204,7 @@ function ColumnDesign({ structuralData, structuralResults }) {
               })()}
             </div>
           </div>
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 — Short column, concentric load. Apply magnification for slender columns per Sec. 410.12.</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 410 — Short column, concentric load. Apply magnification for slender columns per Sec. 410.12.</div>
         </div>
       ):(
         (() => {
@@ -3214,18 +3214,18 @@ function ColumnDesign({ structuralData, structuralResults }) {
             return (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
-                  <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RUN ALL — COLUMN DESIGN RESULTS</div>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — COLUMN DESIGN RESULTS</div>
                   <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
                     {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Column(s) do not satisfy NSCP Sec. 410":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"⚠ CANNOT VERIFY — Incomplete column data":"✓ PASS — Column(s) satisfy NSCP requirements"}
                   </div>
                   {priorItems.map((item,idx)=>(
-                    <div key={idx} style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.2)":"rgba(34,197,94,0.2)"}`}}>
+                    <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.2)":"rgba(34,197,94,0.2)"}`}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700,color:THEME.text}}>{item.id}</span>
+                        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.id}</span>
                         <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":item.status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",padding:"2px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
                       </div>
-                      {item.value && <div style={{fontSize:11,color:THEME.muted,fontFamily:"monospace"}}>{item.value}</div>}
-                      {item.detail && <div style={{fontSize:11,color:THEME.muted,fontFamily:"monospace",marginTop:2}}>{item.detail}</div>}
+                      {item.value && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{item.value}</div>}
+                      {item.detail && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace",marginTop:2}}>{item.detail}</div>}
                       {item.error && <div style={{fontSize:11,color:item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444",marginTop:6,padding:"6px 10px",background:item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.06)":"rgba(239,68,68,0.06)",borderRadius:6,borderLeft:`2px solid ${item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444"}`,lineHeight:1.6}}>{item.error}</div>}
                     </div>
                   ))}
@@ -3236,7 +3236,7 @@ function ColumnDesign({ structuralData, structuralResults }) {
                     <div style={{fontSize:11,fontWeight:800,color:col.rho>=0.0095&&col.rho<=0.084?"#22c55e":"#ef4444",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
                       {col.id} — {col.rho>=0.0095&&col.rho<=0.084?"✓ NSCP Compliant":"⚠ Check Required"}
                     </div>
-                    <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
                       <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Section: {col.b}mm × {col.h}mm (Ag = {col.Ag?.toFixed(0)} mm²)</span></div>
                       <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:col.rho>=0.0095?"#22c55e":"#ef4444"}}>{col.rho>=0.0095?"✓":"✗"}</span><span>ρ = {(col.rho*100).toFixed(2)}% — As = {col.Ast?.toFixed(0)}mm² ({col.mainBarCount}-{col.mainBarDia}mmØ)</span></div>
                       {col.tieDia && col.tieSpacing && <div style={{display:"flex",gap:8}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#0696d7"}}>ℹ</span><span>Ties: {col.tieDia}mmØ @ {col.tieSpacing}mm</span></div>}
@@ -3245,15 +3245,15 @@ function ColumnDesign({ structuralData, structuralResults }) {
                 ))}
                 <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
                   <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL DETAILED CHECK</div>
-                  <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>Enter Pu (kN) and optionally Mu (kN·m) on the left, then click Calculate for a full detailed analysis with interactive parameters.</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Enter Pu (kN) and optionally Mu (kN·m) on the left, then click Calculate for a full detailed analysis with interactive parameters.</div>
                 </Card>
               </div>
             );
           }
           return (
             <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-              <Icon name="column" size={40} color={THEME.muted}/>
-              <div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+              <Icon name="column" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
             </Card>
           );
         })()
@@ -3298,7 +3298,7 @@ function FootingDesign({ structuralData, structuralResults }) {
     setResult({qnet,B,qu,d,Mu_f,As,rho_use});
   };
 
-  const Hint=({c})=><div style={{fontSize:11,color:THEME.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc=[fc,fy,P,qa,Df].every(v=>v!=="");
 
   return (
@@ -3308,7 +3308,7 @@ function FootingDesign({ structuralData, structuralResults }) {
         {sd && !sd.footings?.length && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>⚠ Unverifiable — No footing data found in plans</strong><br/>
-            <span style={{color:THEME.muted}}>The AI could not extract footing dimensions or soil bearing capacity from the uploaded plans. Enter column service load (P), allowable bearing (qa), and foundation depth (Df) manually below.</span>
+            <span style={{color:T.muted}}>The AI could not extract footing dimensions or soil bearing capacity from the uploaded plans. Enter column service load (P), allowable bearing (qa), and foundation depth (Df) manually below.</span>
           </div>
         )}
         <Label>f'c (MPa) {fp.fc&&<FromPlansBadge/>}</Label>
@@ -3330,7 +3330,7 @@ function FootingDesign({ structuralData, structuralResults }) {
         <Label>Foundation Depth Df (m) {fp.Df&&<FromPlansBadge/>}</Label>
         <Input type="number" value={Df} onChange={e=>setDf(e.target.value)} step="0.1" placeholder="e.g. 1.50" style={{marginBottom:4}}/>
         <Hint c="Depth from finished grade to bottom of footing. Min 0.60m for non-frost areas."/>
-        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":THEME.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
           {canCalc?"⚡ Design Footing (NSCP 2015 Sec. 415)":"Fill all fields to calculate"}
         </button>
       </Card>
@@ -3342,9 +3342,9 @@ function FootingDesign({ structuralData, structuralResults }) {
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <Card style={{background:"rgba(34,197,94,0.06)",border:"1.5px solid rgba(34,197,94,0.3)"}}>
-              <div style={{fontSize:11,color:THEME.muted,marginBottom:2}}>FOOTING SIZE</div>
+              <div style={{fontSize:11,color:T.muted,marginBottom:2}}>FOOTING SIZE</div>
               <div style={{fontSize:32,fontWeight:900,color:"#22c55e"}}>{result.B.toFixed(2)} m × {result.B.toFixed(2)} m</div>
-              <div style={{fontSize:13,color:THEME.muted,marginTop:4}}>d = {result.d.toFixed(0)} mm effective depth</div>
+              <div style={{fontSize:13,color:T.muted,marginTop:4}}>d = {result.d.toFixed(0)} mm effective depth</div>
             </Card>
             {[
               {l:"Net Bearing qnet",v:`${result.qnet.toFixed(1)} kPa`},
@@ -3353,15 +3353,15 @@ function FootingDesign({ structuralData, structuralResults }) {
               {l:"Design ρ",v:`${(result.rho_use*100).toFixed(4)}%`,hi:true},
               {l:"Steel Area As",v:`${result.As.toFixed(0)} mm²/m`,hi:true},
             ].map(r=>(
-              <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":THEME.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
-                <span style={{fontSize:12,color:THEME.muted}}>{r.l}</span>
-                <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":THEME.text,fontFamily:"monospace"}}>{r.v}</span>
+              <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+                <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+                <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
               </div>
             ))}
             {/* ── Engineering Insights ── */}
             <div style={{padding:"14px 16px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10}}>
               <div style={{fontSize:11,fontWeight:800,color:"#22c55e",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ Engineering Insight</div>
-              <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+              <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
                 {(() => {
                   const insights = [];
                   const bearingUtil = ((+P)/(result.qnet*result.B*result.B)*100).toFixed(0);
@@ -3404,7 +3404,7 @@ function FootingDesign({ structuralData, structuralResults }) {
                 })()}
               </div>
             </div>
-            <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>NSCP 2015 Sec. 415 — Square isolated footing. Results above include punching shear estimate. Verify wide-beam shear and development length separately.</div>
+            <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 415 — Square isolated footing. Results above include punching shear estimate. Verify wide-beam shear and development length separately.</div>
           </div>
         )
       ):(
@@ -3415,18 +3415,18 @@ function FootingDesign({ structuralData, structuralResults }) {
             return (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <Card style={{background:priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.06)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${priorItems.some(i=>i.status==="FAIL")?"rgba(239,68,68,0.3)":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
-                  <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RUN ALL — FOOTING DESIGN RESULTS</div>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — FOOTING DESIGN RESULTS</div>
                   <div style={{fontSize:16,fontWeight:900,color:priorItems.some(i=>i.status==="FAIL")?"#ef4444":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"#f59e0b":priorItems.every(i=>i.status==="PASS")?"#22c55e":"#0696d7",marginBottom:8}}>
                     {priorItems.some(i=>i.status==="FAIL")?"✗ FAIL — Footing(s) have issues":priorItems.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA")?"⚠ CANNOT VERIFY — Incomplete footing data":priorItems.every(i=>i.status==="PASS")?"✓ PASS — Footing(s) are adequate":"✓ COMPUTED"}
                   </div>
                   {priorItems.map((item,idx)=>(
-                    <div key={idx} style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":"rgba(34,197,94,0.2)"}`}}>
+                    <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":"rgba(34,197,94,0.2)"}`}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700,color:THEME.text}}>{item.id}</span>
+                        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.id}</span>
                         <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":"#22c55e",padding:"2px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":"rgba(34,197,94,0.1)"}}>{item.status}</span>
                       </div>
-                      {item.value && <div style={{fontSize:11,color:THEME.muted,fontFamily:"monospace"}}>{item.value}</div>}
-                      {item.detail && <div style={{fontSize:11,color:THEME.muted,fontFamily:"monospace",marginTop:2}}>{item.detail}</div>}
+                      {item.value && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{item.value}</div>}
+                      {item.detail && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace",marginTop:2}}>{item.detail}</div>}
                       {item.error && <div style={{fontSize:11,color:"#ef4444",marginTop:6,padding:"6px 10px",background:"rgba(239,68,68,0.06)",borderRadius:6,borderLeft:"2px solid #ef4444",lineHeight:1.6}}>{item.error}</div>}
                     </div>
                   ))}
@@ -3435,7 +3435,7 @@ function FootingDesign({ structuralData, structuralResults }) {
                 {ftgMemberData.length > 0 && ftgMemberData.map((ft,idx)=>(
                   <div key={idx} style={{padding:"14px 16px",background:"rgba(34,197,94,0.04)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:10}}>
                     <div style={{fontSize:11,fontWeight:800,color:"#22c55e",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>✓ {ft.id} — Footing Reinforcement</div>
-                    <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
                       {ft.thickness && <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Thickness: {ft.thickness}mm</span></div>}
                       {ft.As_per_m && <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:"#22c55e"}}>✓</span><span>Reinforcement: As = {ft.As_per_m}mm²/m ({ft.botBarDia}mmØ @ {ft.botBarSpacing}mm)</span></div>}
                       {ft.rho && <div style={{display:"flex",gap:8,marginBottom:4}}><span style={{flexShrink:0,fontSize:11,fontWeight:800,color:ft.rho>=0.0016?"#22c55e":"#ef4444"}}>{ft.rho>=0.0016?"✓":"✗"}</span><span>ρ = {(ft.rho*100).toFixed(3)}% {ft.rho>=0.0016?"≥ 0.18% min — OK":"< 0.18% min — Increase reinforcement"}</span></div>}
@@ -3445,15 +3445,15 @@ function FootingDesign({ structuralData, structuralResults }) {
                 ))}
                 <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
                   <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL DETAILED CHECK</div>
-                  <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>Enter column service load P (kN), allowable bearing qa (kPa), and foundation depth Df (m) on the left, then click Calculate for interactive results.</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Enter column service load P (kN), allowable bearing qa (kPa), and foundation depth Df (m) on the left, then click Calculate for interactive results.</div>
                 </Card>
               </div>
             );
           }
           return (
             <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-              <Icon name="footing" size={40} color={THEME.muted}/>
-              <div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+              <Icon name="footing" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
             </Card>
           );
         })()
@@ -3503,7 +3503,7 @@ function SlabDesign({ structuralData, structuralResults }) {
     setResult({wu,h,d,Ma,Mb,Mu_des,As,rho_use});
   };
 
-  const Hint=({c})=><div style={{fontSize:11,color:THEME.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const Hint=({c})=><div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc=[fc,fy,L,wDL,wLL].every(v=>v!=="")&&(slabType==="one-way"||S!=="");
 
   const slabPriorItems = structuralResults?.items?.filter(i=>i.tool==="slab") || [];
@@ -3517,7 +3517,7 @@ function SlabDesign({ structuralData, structuralResults }) {
         {sd && !sd.slabs?.length && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>⚠ Unverifiable — No slab data found in plans</strong><br/>
-            <span style={{color:THEME.muted}}>The AI could not extract slab dimensions or loading data from the uploaded plans. Enter slab type, span, thickness, and loads manually below to run the design check.</span>
+            <span style={{color:T.muted}}>The AI could not extract slab dimensions or loading data from the uploaded plans. Enter slab type, span, thickness, and loads manually below to run the design check.</span>
           </div>
         )}
         <Label>Slab Type</Label>
@@ -3549,16 +3549,16 @@ function SlabDesign({ structuralData, structuralResults }) {
           <div><Label>LL (kPa) {fp.wLL&&<FromPlansBadge/>}</Label><Input type="number" value={wLL} onChange={e=>setWLL(e.target.value)} step="0.1" placeholder="e.g. 2.4"/></div>
         </div>
         <Hint c="LL per NSCP Table 205-1: Residential=2.0, Office=2.4, Corridor=4.8kPa."/>
-        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":THEME.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",marginTop:8,transition:"all 0.2s"}}>
           {canCalc?"⚡ Design Slab (NSCP 2015 Sec. 409)":"Fill all fields to calculate"}
         </button>
       </Card>
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <Card style={{background:"rgba(34,197,94,0.06)",border:"1.5px solid rgba(34,197,94,0.3)"}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:2}}>SLAB THICKNESS</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:2}}>SLAB THICKNESS</div>
             <div style={{fontSize:36,fontWeight:900,color:"#22c55e"}}>{result.h} <span style={{fontSize:16,fontWeight:400}}>mm</span></div>
-            <div style={{fontSize:13,color:THEME.muted,marginTop:4}}>d = {result.d} mm</div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>d = {result.d} mm</div>
           </Card>
           {[
             {l:"wu (factored)",v:`${result.wu.toFixed(2)} kPa`},
@@ -3567,29 +3567,29 @@ function SlabDesign({ structuralData, structuralResults }) {
             {l:"ρ used",v:`${(result.rho_use*100).toFixed(4)}%`,hi:true},
             {l:"As required",v:`${result.As.toFixed(0)} mm²/m`,hi:true},
           ].map(r=>(
-            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":THEME.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
-              <span style={{fontSize:12,color:THEME.muted}}>{r.l}</span>
-              <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":THEME.text,fontFamily:"monospace"}}>{r.v}</span>
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 14px",background:r.hi?"rgba(6,150,215,0.08)":T.dim,borderRadius:7,border:r.hi?"1px solid rgba(6,150,215,0.2)":"none"}}>
+              <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
+              <span style={{fontSize:13,fontWeight:700,color:r.hi?"#0696d7":T.text,fontFamily:"monospace"}}>{r.v}</span>
             </div>
           ))}
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>NSCP 2015 Sec. 409 — Minimum h for deflection control. Bar spacing ≤ 3h or 450mm (Sec. 407.7.5).</div>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NSCP 2015 Sec. 409 — Minimum h for deflection control. Bar spacing ≤ 3h or 450mm (Sec. 407.7.5).</div>
         </div>
       ) : slabPriorItems.length > 0 ? (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <Card style={{background:slabAnyFail?"rgba(239,68,68,0.06)":slabAllUnverifiable?"rgba(245,158,11,0.06)":"rgba(34,197,94,0.06)",border:`1.5px solid ${slabAnyFail?"rgba(239,68,68,0.3)":slabAllUnverifiable?"rgba(245,158,11,0.3)":"rgba(34,197,94,0.3)"}`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RUN ALL — SLAB DESIGN RESULT</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — SLAB DESIGN RESULT</div>
             <div style={{fontSize:18,fontWeight:900,color:slabAnyFail?"#ef4444":slabAllUnverifiable?"#f59e0b":"#22c55e",marginBottom:8}}>
               {slabAnyFail?"✗ FAIL — Slab(s) do not satisfy NSCP Sec. 409":slabAllUnverifiable?"⚠ CANNOT VERIFY — Enter loads and span for each slab":"✓ PASS — All slabs satisfy NSCP requirements"}
             </div>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:10}}>Results from last Run All. Fill in spans and loads then click Calculate for a full check.</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:10}}>Results from last Run All. Fill in spans and loads then click Calculate for a full check.</div>
             {slabPriorItems.map((item,idx)=>(
-              <div key={idx} style={{padding:"8px 12px",background:THEME.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
+              <div key={idx} style={{padding:"8px 12px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:12,fontWeight:700,color:THEME.text}}>{item.id}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id}</span>
                   <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":"#0696d7",padding:"1px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
                 </div>
-                {item.value && <div style={{fontSize:11,color:THEME.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
-                {item.detail && <div style={{fontSize:11,color:THEME.muted,marginTop:2,fontFamily:"monospace"}}>{item.detail}</div>}
+                {item.value && <div style={{fontSize:11,color:T.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
+                {item.detail && <div style={{fontSize:11,color:T.muted,marginTop:2,fontFamily:"monospace"}}>{item.detail}</div>}
                 {item.failReason && <div style={{fontSize:11,color:"#ef4444",marginTop:5,padding:"5px 8px",background:"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:"2px solid #ef4444",lineHeight:1.5}}>⚠ Why it failed: {item.failReason}</div>}
                 {item.error && <div style={{fontSize:11,color:item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444",marginTop:5,padding:"5px 8px",background:item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.08)":"rgba(239,68,68,0.08)",borderRadius:6,borderLeft:`2px solid ${item.status==="CANNOT VERIFY"?"#f59e0b":"#ef4444"}`,lineHeight:1.5}}>{item.status==="CANNOT VERIFY"?"⚠ Cannot verify: ":"⚠ "}{item.error}</div>}
               </div>
@@ -3597,13 +3597,13 @@ function SlabDesign({ structuralData, structuralResults }) {
           </Card>
           <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
             <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>HOW TO DO A DETAILED CHECK</div>
-            <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>1. Enter slab spans (S, L) and loads (DL, LL).<br/>2. Verify fc, fy, and slab type.<br/>3. Click Calculate for full thickness, reinforcement, and deflection check.</div>
+            <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>1. Enter slab spans (S, L) and loads (DL, LL).<br/>2. Verify fc, fy, and slab type.<br/>3. Click Calculate for full thickness, reinforcement, and deflection check.</div>
           </Card>
         </div>
       ) : (
         <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-          <Icon name="slab" size={40} color={THEME.muted}/>
-          <div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
+          <Icon name="slab" size={40} color={T.muted}/>
+          <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Fill parameters and click<br/>Calculate to see results</div>
         </Card>
       )}
     </div>
@@ -3642,7 +3642,7 @@ function LoadCombinations({ structuralData, structuralResults }) {
     setResult(combos.map(c=>({...c,isMax:Math.abs(c.val-maxVal)<0.01})));
   };
 
-  const Hint = ({c}) => <div style={{fontSize:11,color:THEME.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
+  const Hint = ({c}) => <div style={{fontSize:11,color:T.muted,marginBottom:12,fontStyle:"italic"}}>{c}</div>;
   const canCalc = D!==""&&L!=="";
 
   const fields = [
@@ -3664,10 +3664,10 @@ function LoadCombinations({ structuralData, structuralResults }) {
         {sd && !sd.loads?.floorDL && !sd.loads?.floorLL && (
           <div style={{padding:"12px 14px",background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,marginBottom:16,fontSize:12,color:"#f59e0b",lineHeight:1.7}}>
             <strong style={{fontSize:13}}>⚠ Unverifiable — No load data found in plans</strong><br/>
-            <span style={{color:THEME.muted}}>The AI could not extract dead load (DL) or live load (LL) values from the uploaded plans. Enter load values manually below to compute NSCP load combinations.</span>
+            <span style={{color:T.muted}}>The AI could not extract dead load (DL) or live load (LL) values from the uploaded plans. Enter load values manually below to compute NSCP load combinations.</span>
           </div>
         )}
-        <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:12,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 203 — Factored Load Combinations (LRFD)</div>
+        <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:12,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 203 — Factored Load Combinations (LRFD)</div>
         <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
           {fields.map(f=>(
             <div key={f.l}>
@@ -3677,27 +3677,27 @@ function LoadCombinations({ structuralData, structuralResults }) {
           ))}
         </div>
         <Hint c="D and L are required. W and E are optional — combos using zero values will show 0 contribution."/>
-        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":THEME.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",transition:"all 0.2s"}}>
+        <button onClick={calc} disabled={!canCalc} style={{width:"100%",background:canCalc?"linear-gradient(135deg,#0696d7,#0569a8)":"rgba(255,255,255,0.05)",border:"none",color:canCalc?"#fff":T.muted,fontWeight:700,fontSize:14,padding:"13px",borderRadius:12,cursor:canCalc?"pointer":"not-allowed",transition:"all 0.2s"}}>
           {canCalc ? "📊 Calculate Load Combinations" : "Enter D and L to calculate"}
         </button>
       </Card>
 
       {result ? (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <div style={{fontSize:12,color:THEME.muted,marginBottom:4}}>Factored load combinations — NSCP 2015 Sec. 203.3</div>
+          <div style={{fontSize:12,color:T.muted,marginBottom:4}}>Factored load combinations — NSCP 2015 Sec. 203.3</div>
           {result.map(r=>(
-            <div key={r.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:r.isMax?"rgba(239,68,68,0.08)":THEME.dim,borderRadius:10,border:r.isMax?"1.5px solid rgba(239,68,68,0.3)":"1px solid transparent",transition:"all 0.15s"}}>
+            <div key={r.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",background:r.isMax?"rgba(239,68,68,0.08)":T.dim,borderRadius:10,border:r.isMax?"1.5px solid rgba(239,68,68,0.3)":"1px solid transparent",transition:"all 0.15s"}}>
               <div>
-                <div style={{fontSize:13,fontWeight:700,color:r.isMax?"#ef4444":THEME.text}}>{r.name}</div>
-                <div style={{fontSize:10,color:THEME.muted,marginTop:2,fontFamily:"monospace"}}>{r.formula}</div>
+                <div style={{fontSize:13,fontWeight:700,color:r.isMax?"#ef4444":T.text}}>{r.name}</div>
+                <div style={{fontSize:10,color:T.muted,marginTop:2,fontFamily:"monospace"}}>{r.formula}</div>
               </div>
               <div style={{textAlign:"right"}}>
-                <div style={{fontSize:18,fontWeight:900,color:r.isMax?"#ef4444":THEME.text,fontFamily:"monospace"}}>{r.val.toFixed(1)}</div>
-                <div style={{fontSize:10,color:THEME.muted}}>kN</div>
+                <div style={{fontSize:18,fontWeight:900,color:r.isMax?"#ef4444":T.text,fontFamily:"monospace"}}>{r.val.toFixed(1)}</div>
+                <div style={{fontSize:10,color:T.muted}}>kN</div>
               </div>
             </div>
           ))}
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6,marginTop:4}}>
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6,marginTop:4}}>
             Highlighted combination governs design. Use for member sizing and connection design.
           </div>
         </div>
@@ -3709,7 +3709,7 @@ function LoadCombinations({ structuralData, structuralResults }) {
             return (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <Card style={{background:priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.06)":"rgba(6,150,215,0.06)",border:`1.5px solid ${priorItems[0].status==="CANNOT VERIFY"?"rgba(245,158,11,0.3)":"rgba(6,150,215,0.3)"}`}}>
-                  <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RUN ALL — LOAD COMBINATIONS</div>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RUN ALL — LOAD COMBINATIONS</div>
                   <div style={{fontSize:16,fontWeight:900,color:priorItems[0].status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",marginBottom:4}}>
                     {priorItems[0].status==="CANNOT VERIFY"?"⚠ CANNOT VERIFY — No load data in plans":"✓ COMPUTED"}
                   </div>
@@ -3719,13 +3719,13 @@ function LoadCombinations({ structuralData, structuralResults }) {
                 {combos && combos.length > 0 && (
                   <div style={{padding:"14px 16px",background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:10}}>
                     <div style={{fontSize:11,fontWeight:800,color:"#0696d7",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>NSCP Load Combinations (Sec. 203)</div>
-                    <div style={{fontSize:12,color:THEME.text,lineHeight:1.8}}>
+                    <div style={{fontSize:12,color:T.text,lineHeight:1.8}}>
                       {combos.map((c,i)=>{
                         const isMax = c.val === Math.max(...combos.map(x=>x.val));
                         return (
                           <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",marginBottom:3,borderRadius:6,background:isMax?"rgba(6,150,215,0.08)":"transparent",border:isMax?"1px solid rgba(6,150,215,0.2)":"none"}}>
-                            <span style={{fontFamily:"monospace",fontSize:12,color:isMax?"#0696d7":THEME.muted}}>{c.name}</span>
-                            <span style={{fontFamily:"monospace",fontSize:12,fontWeight:isMax?800:400,color:isMax?"#0696d7":THEME.text}}>{c.val} kN/m²{isMax?" ← GOVERNS":""}</span>
+                            <span style={{fontFamily:"monospace",fontSize:12,color:isMax?"#0696d7":T.muted}}>{c.name}</span>
+                            <span style={{fontFamily:"monospace",fontSize:12,fontWeight:isMax?800:400,color:isMax?"#0696d7":T.text}}>{c.val} kN/m²{isMax?" ← GOVERNS":""}</span>
                           </div>
                         );
                       })}
@@ -3734,15 +3734,15 @@ function LoadCombinations({ structuralData, structuralResults }) {
                 )}
                 <Card style={{background:"rgba(6,150,215,0.04)",border:"1px solid rgba(6,150,215,0.15)"}}>
                   <div style={{fontSize:11,color:"#0696d7",fontWeight:700,marginBottom:4}}>MANUAL CHECK</div>
-                  <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>Enter D, L, and E values on the left then click Calculate for interactive results with custom loads.</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>Enter D, L, and E values on the left then click Calculate for interactive results with custom loads.</div>
                 </Card>
               </div>
             );
           }
           return (
             <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}>
-              <Icon name="loads" size={40} color={THEME.muted}/>
-              <div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate to see combinations</div>
+              <Icon name="loads" size={40} color={T.muted}/>
+              <div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter loads and click<br/>Calculate to see combinations</div>
             </Card>
           );
         })()
@@ -4456,20 +4456,20 @@ CRITICAL OUTPUT RULES:
       <div>
         <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
           onDrop={e=>{e.preventDefault();setDrag(false);onAdd(e.dataTransfer.files)}} onClick={()=>inputRef.current?.click()}
-          style={{border:`2px dashed ${dragState?c:THEME.border}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",background:dragState?`${c}09`:"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:8}}>
+          style={{border:`2px dashed ${dragState?c:T.border}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",background:dragState?`${c}09`:"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:8}}>
           <input ref={inputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>onAdd(e.target.files)} style={{display:"none"}}/>
           <div style={{fontSize:22,marginBottom:5}}>{icon}</div>
-          <div style={{fontWeight:700,fontSize:12,color:THEME.text,marginBottom:3}}>{label}</div>
-          <div style={{color:THEME.muted,fontSize:10,marginBottom:9}}>{sublabel}</div>
+          <div style={{fontWeight:700,fontSize:12,color:T.text,marginBottom:3}}>{label}</div>
+          <div style={{color:T.muted,fontSize:10,marginBottom:9}}>{sublabel}</div>
           <div style={{display:"inline-block",background:c,color:"#fff",fontWeight:700,padding:"5px 14px",borderRadius:7,fontSize:11}}>Choose Files</div>
         </div>
         {files.length > 0 && (
           <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
             {files.map(fo => (
-              <div key={fo.id} style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:7,padding:"4px 8px",display:"flex",alignItems:"center",gap:5,maxWidth:200}}>
+              <div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 8px",display:"flex",alignItems:"center",gap:5,maxWidth:200}}>
                 <span style={{fontSize:10}}>{fo.type?.startsWith("image/")?"🖼️":"📄"}</span>
-                <span style={{fontSize:10,color:THEME.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
-                <button onClick={e=>{e.stopPropagation();onRemove(fo.id)}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:THEME.danger,width:16,height:16,borderRadius:3,cursor:"pointer",fontSize:10,flexShrink:0}}>✕</button>
+                <span style={{fontSize:10,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
+                <button onClick={e=>{e.stopPropagation();onRemove(fo.id)}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:16,height:16,borderRadius:3,cursor:"pointer",fontSize:10,flexShrink:0}}>✕</button>
               </div>
             ))}
           </div>
@@ -4506,7 +4506,7 @@ CRITICAL OUTPUT RULES:
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
             {[{v:"single",l:"Review BOM"},{v:"generate",l:"Generate BOM ✨",premium:true}].map(o=>(
-              <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?(o.premium?"#a78bfa":STR):THEME.border}`,background:mode===o.v?(o.premium?"rgba(167,139,250,0.13)":"rgba(59,130,246,0.12)"):"transparent",color:mode===o.v?(o.premium?"#a78bfa":STR):THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
+              <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?(o.premium?"#a78bfa":STR):T.border}`,background:mode===o.v?(o.premium?"rgba(167,139,250,0.13)":"rgba(59,130,246,0.12)"):"transparent",color:mode===o.v?(o.premium?"#a78bfa":STR):T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
                 {o.l}
                 {o.premium && <span style={{fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:20,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",letterSpacing:"0.5px",boxShadow:"0 1px 6px rgba(124,58,237,0.4)"}}>PREMIUM</span>}
               </button>
@@ -4514,16 +4514,16 @@ CRITICAL OUTPUT RULES:
           </div>
           <div style={{display:"flex",gap:5,marginLeft:"auto"}}>
             {[{v:"private",l:"🏠 Private / NCR Rates"},{v:"government",l:"🏛️ Gov't / DPWH Rates"}].map(o=>(
-              <button key={o.v} onClick={()=>setProjectType(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${projectType===o.v?"#f59e0b":THEME.border}`,background:projectType===o.v?"rgba(245,158,11,0.12)":"transparent",color:projectType===o.v?"#f59e0b":THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
+              <button key={o.v} onClick={()=>setProjectType(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${projectType===o.v?"#f59e0b":T.border}`,background:projectType===o.v?"rgba(245,158,11,0.12)":"transparent",color:projectType===o.v?"#f59e0b":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
             ))}
           </div>
         </div>
 
         {/* Project Preset */}
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Project Type Preset</div>
+          <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>Project Type Preset</div>
           <select value={projectPreset} onChange={e=>setProjectPreset(e.target.value)}
-            style={{background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 14px",color:THEME.text,fontSize:13,outline:"none",width:"100%",cursor:"pointer"}}>
+            style={{background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 14px",color:T.text,fontSize:13,outline:"none",width:"100%",cursor:"pointer"}}>
             {PROJECT_PRESETS.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
@@ -4537,12 +4537,12 @@ CRITICAL OUTPUT RULES:
                 <span style={{fontWeight:800,fontSize:14,color:"#a78bfa"}}>AI BOM Generator</span>
                 <span style={{fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:20,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",letterSpacing:"0.5px",boxShadow:"0 1px 8px rgba(124,58,237,0.5)"}}>PREMIUM</span>
               </div>
-              <div style={{fontSize:12,color:THEME.muted,lineHeight:1.6}}>Upload your engineering plans and let AI generate a complete contractor-ready Bill of Materials — concrete, rebar, masonry, MEP, electrical, finishes, and more. No manual counting needed.</div>
+              <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>Upload your engineering plans and let AI generate a complete contractor-ready Bill of Materials — concrete, rebar, masonry, MEP, electrical, finishes, and more. No manual counting needed.</div>
             </div>
             <div style={{textAlign:"right",minWidth:90}}>
               <div style={{fontSize:10,color:"#a78bfa",fontWeight:700,marginBottom:2}}>ACCURACY</div>
               <div style={{fontSize:18,fontWeight:900,color:"#a78bfa"}}>±20–35%</div>
-              <div style={{fontSize:9,color:THEME.muted}}>parametric</div>
+              <div style={{fontSize:9,color:T.muted}}>parametric</div>
             </div>
           </div>
         )}
@@ -4558,8 +4558,8 @@ CRITICAL OUTPUT RULES:
           </div>
           {mode !== "generate" && (<div style={{display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#ff6b2b"}}>"📋 Draft BOM" <span style={{color:THEME.muted,fontWeight:400}}>(optional)</span></div>
-              <div style={{fontSize:10,color:THEME.muted}}>💡 Excel → Save As PDF before uploading</div>
+              <div style={{fontSize:10,fontWeight:700,color:"#ff6b2b"}}>"📋 Draft BOM" <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
+              <div style={{fontSize:10,color:T.muted}}>💡 Excel → Save As PDF before uploading</div>
             </div>
             <DropZone label="Upload BOM (PDF)" sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#ff6b2b"/>
           </div>)}
@@ -4567,7 +4567,7 @@ CRITICAL OUTPUT RULES:
         </div>
 
         
-        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:THEME.danger}}>⚠️ {error}</div>}
+        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
         {error && debugInfo && (
           <div style={{background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontFamily:"monospace",fontSize:11,color:"#94a3b8",lineHeight:1.6,wordBreak:"break-all"}}>
             <div style={{color:"#f59e0b",fontWeight:700,marginBottom:4}}>🔍 Debug info (share with support):</div>
@@ -4575,35 +4575,35 @@ CRITICAL OUTPUT RULES:
           </div>
         )}
         {mode === "generate" && !generateResult && !busy && (
-          <div style={{background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,padding:"12px 16px",marginBottom:12,fontSize:12.5,color:THEME.muted,lineHeight:1.6}}>
+          <div style={{background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,padding:"12px 16px",marginBottom:12,fontSize:12.5,color:T.muted,lineHeight:1.6}}>
             <span style={{fontWeight:700,color:STR}}>✨ BOM Generator</span> — Upload your engineering plans and the AI will compute all quantities and produce a complete Bill of Materials from scratch. No existing BOM needed.
-            <div style={{fontSize:11,color:THEME.muted,marginTop:4}}>Works best with complete floor plans + structural plans + schedules. The more detail in the plans, the more accurate the takeoff.</div>
+            <div style={{fontSize:11,color:T.muted,marginTop:4}}>Works best with complete floor plans + structural plans + schedules. The more detail in the plans, the more accurate the takeoff.</div>
           </div>
         )}
 
         {/* ── Markup & Contingency — set before running ── */}
         {mode !== "generate" && (
-          <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${THEME.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
+          <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
             <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",cursor:"pointer",userSelect:"none"}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:12,fontWeight:700,color:THEME.text}}>⚙️ Markup &amp; Contingency</span>
-                <span style={{fontSize:10,color:THEME.muted}}>(applied to Adjusted Total in report)</span>
+                <span style={{fontSize:12,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
+                <span style={{fontSize:10,color:T.muted}}>(applied to Adjusted Total in report)</span>
                 {bomTotalMarkupPct > 0.1 && <span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:20,background:"rgba(6,150,215,0.12)",color:STR}}>+{bomTotalMarkupPct.toFixed(1)}%</span>}
               </div>
-              <span style={{color:THEME.muted,fontSize:12}}>{showMarkup ? "▲" : "▼"}</span>
+              <span style={{color:T.muted,fontSize:12}}>{showMarkup ? "▲" : "▼"}</span>
             </div>
             {showMarkup && (
-              <div style={{padding:"0 14px 14px",borderTop:`1px solid ${THEME.border}`}}>
-                <div style={{fontSize:10,color:THEME.muted,marginBottom:10,marginTop:8}}>Set before running the review. Applies to the Adjusted Total only — BOM Submitted and AI Base are never changed.</div>
+              <div style={{padding:"0 14px 14px",borderTop:`1px solid ${T.border}`}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:10,marginTop:8}}>Set before running the review. Applies to the Adjusted Total only — BOM Submitted and AI Base are never changed.</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                   {[["materials","Materials",STR],["labor","Labor","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
-                    <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${THEME.border}`,borderRadius:8,padding:"10px 12px"}}>
+                    <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px"}}>
                       <div style={{fontSize:9,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:6}}>{label}</div>
                       <div style={{display:"flex",alignItems:"center",gap:4}}>
                         <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
                           onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                          style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"5px 7px",color:THEME.text,fontSize:14,fontWeight:700,textAlign:"right",outline:"none"}}/>
-                        <span style={{fontSize:12,color:THEME.muted,fontWeight:700}}>%</span>
+                          style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"5px 7px",color:T.text,fontSize:14,fontWeight:700,textAlign:"right",outline:"none"}}/>
+                        <span style={{fontSize:12,color:T.muted,fontWeight:700}}>%</span>
                       </div>
                       <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
                         onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
@@ -4613,7 +4613,7 @@ CRITICAL OUTPUT RULES:
                 </div>
                 {bomTotalMarkupPct > 0.1 && (
                   <div style={{marginTop:10,background:"rgba(6,150,215,0.05)",border:`1px solid ${STR}22`,borderRadius:7,padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:11,color:THEME.muted}}>Combined multiplier on base estimate</span>
+                    <span style={{fontSize:11,color:T.muted}}>Combined multiplier on base estimate</span>
                     <span style={{fontSize:13,fontWeight:800,color:STR}}>×{(1+bomTotalMarkupPct/100).toFixed(3)} (+{bomTotalMarkupPct.toFixed(1)}%)</span>
                   </div>
                 )}
@@ -4631,7 +4631,7 @@ CRITICAL OUTPUT RULES:
             <span>{busyMsg||"Working…"}</span>
           </div>
         )}
-        {!planFiles.length && !busy && <div style={{textAlign:"center",fontSize:11,color:THEME.muted,marginTop:7}}>Upload at least one plan file to begin</div>}
+        {!planFiles.length && !busy && <div style={{textAlign:"center",fontSize:11,color:T.muted,marginTop:7}}>Upload at least one plan file to begin</div>}
       </Card>
 
       {/* ── RESULTS ── */}
@@ -4641,29 +4641,29 @@ CRITICAL OUTPUT RULES:
           <Card style={{marginBottom:14,background:`${STATUS_COL[result.summary.overallStatus]}08`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
               <div style={{flex:1,minWidth:200}}>
-                <div style={{fontSize:10,color:THEME.muted,marginBottom:3}}>PROJECT</div>
-                <div style={{fontWeight:800,fontSize:19,color:THEME.text,letterSpacing:"-0.5px"}}>{result.summary.projectName}</div>
-                <div style={{fontSize:11,color:THEME.muted,marginTop:2}}>{result.summary.projectType} · {result.summary.discipline}</div>
-                {result.summary.projectScope && <div style={{fontSize:10,color:THEME.muted,marginTop:2,fontStyle:"italic"}}>{result.summary.projectScope}</div>}
+                <div style={{fontSize:10,color:T.muted,marginBottom:3}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:19,color:T.text,letterSpacing:"-0.5px"}}>{result.summary.projectName}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>{result.summary.projectType} · {result.summary.discipline}</div>
+                {result.summary.projectScope && <div style={{fontSize:10,color:T.muted,marginTop:2,fontStyle:"italic"}}>{result.summary.projectScope}</div>}
                 <div style={{marginTop:12,display:"flex",gap:16,flexWrap:"wrap"}}>
                   {[{n:result.summary.criticalCount,l:"CRITICAL",c:"#ef4444"},{n:result.summary.warningCount,l:"WARNINGS",c:"#f59e0b"},{n:missingItems.length,l:"MISSING",c:"#8b5cf6"},{n:excessItems.length,l:"EXCESS",c:"#64748b"}].map(s=>(
-                    <div key={s.l}><div style={{fontSize:22,fontWeight:800,color:s.c}}>{s.n}</div><div style={{fontSize:9,color:THEME.muted}}>{s.l}</div></div>
+                    <div key={s.l}><div style={{fontSize:22,fontWeight:800,color:s.c}}>{s.n}</div><div style={{fontSize:9,color:T.muted}}>{s.l}</div></div>
                   ))}
                 </div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:240}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-                  <div style={{background:THEME.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
-                    <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>BOM SUBMITTED</div>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>BOM SUBMITTED</div>
                     <div style={{fontSize:14,fontWeight:800,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</div>
                   </div>
-                  <div style={{background:THEME.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
-                    <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>AI BASE</div>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"right"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>AI BASE</div>
                     <div style={{fontSize:14,fontWeight:800,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</div>
                   </div>
                 </div>
                 <div style={{background:`${STR}12`,border:`1.5px solid ${STR}44`,borderRadius:9,padding:"11px 14px",textAlign:"right"}}>
-                  <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>ADJUSTED TOTAL (with margins)</div>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:2}}>ADJUSTED TOTAL (with margins)</div>
                   <div style={{fontSize:20,fontWeight:900,color:STR,fontFamily:"monospace"}}>{bomMf(adjustedTotal)}</div>
                   {bomTotal>0 && <div style={{fontSize:10,color:adjustedTotal>bomTotal?"#ef4444":"#10b981",marginTop:2}}>
                     {adjustedTotal>bomTotal?`▲ ${((adjustedTotal/bomTotal-1)*100).toFixed(1)}% vs submitted`:`▼ ${((1-adjustedTotal/bomTotal)*100).toFixed(1)}% vs submitted`}
@@ -4671,7 +4671,7 @@ CRITICAL OUTPUT RULES:
                 </div>
 
                 <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`1.5px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:9,padding:"8px 14px",textAlign:"center"}}>
-                  <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>OVERALL STATUS</div>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:2}}>OVERALL STATUS</div>
                   <div style={{fontSize:12,fontWeight:800,color:STATUS_COL[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
                 </div>
               </div>
@@ -4682,7 +4682,7 @@ CRITICAL OUTPUT RULES:
                 {result.priceEscalationWarning  && <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444"}}>📈 {result.priceEscalationWarning}</div>}
               </div>
             )}
-            <div style={{marginTop:12,fontSize:12,color:THEME.muted,lineHeight:1.6,background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.notes}</div>
+            <div style={{marginTop:12,fontSize:12,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.notes}</div>
           </Card>
 
           {/* Tab nav */}
@@ -4696,7 +4696,7 @@ CRITICAL OUTPUT RULES:
                 {k:"excess",    l:`🟡 Excess (${excessItems.length})`},
                 {k:"markup",    l:"⚙️ Markup"},
               ].map(t=>(
-                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?STR:THEME.border}`,background:activeTab===t.k?"rgba(59,130,246,0.12)":"transparent",color:activeTab===t.k?STR:THEME.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
+                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?STR:T.border}`,background:activeTab===t.k?"rgba(59,130,246,0.12)":"transparent",color:activeTab===t.k?STR:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
               ))}
             </div>
             <button onClick={exportReport} style={{background:`linear-gradient(135deg,${STR},#6366f1)`,border:"none",color:"#fff",fontWeight:700,padding:"7px 16px",borderRadius:9,cursor:"pointer",fontSize:11}}>📄 Export Report</button>
@@ -4708,19 +4708,19 @@ CRITICAL OUTPUT RULES:
               <Card>
                 <Label>Cost Components</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:THEME.dim,borderRadius:8}}><span style={{fontSize:12,color:THEME.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:THEME.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span></div>
-                  <div style={{height:1,background:THEME.border}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>BOM Submitted</span><span style={{fontSize:13,fontWeight:700,color:"#f59e0b",fontFamily:"monospace"}}>{fmt(bomTotal)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>AI Validated Base</span><span style={{fontSize:13,fontWeight:700,color:STR,fontFamily:"monospace"}}>{fmt(aiBase)}</span></div>
+                  <div style={{height:1,background:T.border}}/>
                   {[["Materials / Escalation",bomMarkup.materials,STR],["Labor Markup",bomMarkup.labor,"#06b6d4"],["Overhead & Profit",bomMarkup.overhead,"#ff6b2b"],["Contingency",bomMarkup.contingency,"#a78bfa"]].filter(([,pct])=>pct>0).map(([label,pct,col])=>(
-                    <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 12px",background:THEME.dim,borderRadius:7}}>
-                      <span style={{fontSize:12,color:THEME.muted}}>{label}</span>
+                    <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 12px",background:T.dim,borderRadius:7}}>
+                      <span style={{fontSize:12,color:T.muted}}>{label}</span>
                       <span style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontSize:12,fontWeight:600,color:THEME.text,fontFamily:"monospace"}}>+{fmt(aiBase*(pct/100))}</span>
+                        <span style={{fontSize:12,fontWeight:600,color:T.text,fontFamily:"monospace"}}>+{fmt(aiBase*(pct/100))}</span>
                         <span style={{fontSize:10,fontWeight:700,color:col,minWidth:32,textAlign:"right"}}>{pct}%</span>
                       </span>
                     </div>
                   ))}
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"11px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}><span style={{fontSize:14,fontWeight:800,color:THEME.text}}>ADJUSTED TOTAL</span><span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{bomMf(adjustedTotal)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"11px 14px",background:`${STR}14`,border:`1.5px solid ${STR}44`,borderRadius:10}}><span style={{fontSize:14,fontWeight:800,color:T.text}}>ADJUSTED TOTAL</span><span style={{fontSize:16,fontWeight:900,color:STR,fontFamily:"monospace"}}>{bomMf(adjustedTotal)}</span></div>
                 </div>
               </Card>
               <Card>
@@ -4728,8 +4728,8 @@ CRITICAL OUTPUT RULES:
                 <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
                   {[{l:"BOM vs AI Base",a:bomTotal,b:aiBase},{l:"BOM vs Adjusted",a:bomTotal,b:adjustedTotal},{l:"AI Base vs Adjusted",a:aiBase,b:adjustedTotal}].map(r=>{
                     const diff=r.b-r.a; const pct=r.a?(diff/r.a*100):0; const col=diff>0?"#ef4444":diff<0?"#10b981":"#64748b";
-                    return (<div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:THEME.dim,borderRadius:9}}>
-                      <span style={{fontSize:12,color:THEME.muted}}>{r.l}</span>
+                    return (<div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:T.dim,borderRadius:9}}>
+                      <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
                       <div style={{textAlign:"right"}}>
                         <div style={{fontSize:14,fontWeight:800,color:col,fontFamily:"monospace"}}>{diff>=0?"+":""}{fmt(diff)}</div>
                         <div style={{fontSize:10,color:col}}>{pct>=0?"+":""}{pct.toFixed(1)}%</div>
@@ -4746,20 +4746,20 @@ CRITICAL OUTPUT RULES:
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               <Card>
                 <Label>Cost Breakdown by Trade</Label>
-                <div style={{fontSize:12,color:THEME.muted,marginTop:4,marginBottom:16,lineHeight:1.5}}>Estimated cost distribution across trades based on AI analysis of the BOM and plans.</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:4,marginBottom:16,lineHeight:1.5}}>Estimated cost distribution across trades based on AI analysis of the BOM and plans.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   {Object.entries(tradeScores).map(([trade,score])=>{
                     const col = "#0696d7";
                     const lbl = fmt(score);
                     return (
-                      <div key={trade} style={{background:THEME.dim,borderRadius:12,padding:"14px 16px"}}>
+                      <div key={trade} style={{background:T.dim,borderRadius:12,padding:"14px 16px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                          <span style={{fontWeight:700,fontSize:14,color:THEME.text,textTransform:"capitalize"}}>{trade}</span>
+                          <span style={{fontWeight:700,fontSize:14,color:T.text,textTransform:"capitalize"}}>{trade}</span>
                           <div style={{display:"flex",alignItems:"center",gap:10}}>
                             <span style={{fontSize:14,fontWeight:800,color:col,fontFamily:"monospace"}}>{lbl}</span>
                           </div>
                         </div>
-                        <div style={{background:THEME.border,borderRadius:99,height:8,overflow:"hidden"}}>
+                        <div style={{background:T.border,borderRadius:99,height:8,overflow:"hidden"}}>
                           <div style={{width:`${score}%`,height:"100%",background:`linear-gradient(90deg,${col}88,${col})`,borderRadius:99,transition:"width 0.6s ease"}}/>
                         </div>
                       </div>
@@ -4777,8 +4777,8 @@ CRITICAL OUTPUT RULES:
                       return (<div key={pri}>
                         <div style={{fontSize:10,fontWeight:800,color:MISS_COL[pri],marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>{pri} — {items.length} item{items.length>1?"s":""}</div>
                         {items.map((m,i)=>(
-                          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:THEME.dim,borderRadius:8,marginBottom:4}}>
-                            <span style={{fontSize:12,color:THEME.text}}>{m.description} <span style={{color:THEME.muted}}>· {m.estimatedQty}</span></span>
+                          <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8,marginBottom:4}}>
+                            <span style={{fontSize:12,color:T.text}}>{m.description} <span style={{color:T.muted}}>· {m.estimatedQty}</span></span>
                             <span style={{fontSize:12,fontWeight:700,color:MISS_COL[pri],fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</span>
                           </div>
                         ))}
@@ -4801,29 +4801,29 @@ CRITICAL OUTPUT RULES:
                 <table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}>
                   <thead><tr style={{background:"rgba(59,130,246,0.1)"}}>
                     {["Description","Category","Unit","Qty BOM","Qty Plans","Qty","Unit Cost BOM","Unit Cost Market","Cost","Total BOM","Total Market","Remarks"].map(h=>(
-                      <th key={h} style={{padding:"9px 10px",textAlign:["Total BOM","Total Market","Unit Cost BOM","Unit Cost Market","Qty BOM","Qty Plans"].includes(h)?"right":"left",fontSize:10,color:THEME.muted,fontWeight:700,borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                      <th key={h} style={{padding:"9px 10px",textAlign:["Total BOM","Total Market","Unit Cost BOM","Unit Cost Market","Qty BOM","Qty Plans"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {lineItems.map((li,i)=>(
-                      <tr key={li.id||i} style={{borderBottom:`1px solid ${THEME.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
-                        <td style={{padding:"8px 10px",fontSize:12,color:THEME.text,fontWeight:600,maxWidth:180}}>{li.description}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,color:THEME.muted}}>{li.trade}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,color:THEME.muted,textAlign:"center"}}>{li.unit}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.text}}>{fmtN(li.qtyBom)}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.text}}>{fmtN(li.qtyPlans)}</td>
+                      <tr key={li.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+                        <td style={{padding:"8px 10px",fontSize:12,color:T.text,fontWeight:600,maxWidth:180}}>{li.description}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:T.muted}}>{li.trade}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,color:T.muted,textAlign:"center"}}>{li.unit}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyBom)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmtN(li.qtyPlans)}</td>
                         <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${QTY_COL[li.status]||"#64748b"}18`,color:QTY_COL[li.status]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.status}</span></td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.text}}>{fmt(li.unitCostBom)}</td>
-                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.text}}>{fmt(li.unitCostMarket)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostBom)}</td>
+                        <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>{fmt(li.unitCostMarket)}</td>
                         <td style={{padding:"8px 10px",textAlign:"center"}}><span style={{background:`${COST_COL[li.unitCostBom>li.unitCostMarket*1.1?"HIGH":li.unitCostBom<li.unitCostMarket*0.9?"LOW":"OK"]||"#64748b"}18`,color:COST_COL[li.unitCostBom>li.unitCostMarket*1.1?"HIGH":li.unitCostBom<li.unitCostMarket*0.9?"LOW":"OK"]||"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>{li.unitCostBom>li.unitCostMarket*1.1?"HIGH":li.unitCostBom<li.unitCostMarket*0.9?"LOW":"OK"}</span></td>
                         <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:"#f59e0b"}}>{fmt(li.totalBom)}</td>
                         <td style={{padding:"8px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:STR,fontWeight:700}}>{fmt(li.totalMarket)}</td>
-                        <td style={{padding:"8px 10px",fontSize:10,color:THEME.muted,maxWidth:180,lineHeight:1.4}}>{li.remark}</td>
+                        <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:180,lineHeight:1.4}}>{li.remark}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot><tr style={{background:`rgba(59,130,246,0.08)`,borderTop:`2px solid ${STR}44`}}>
-                    <td colSpan={9} style={{padding:"9px 10px",fontSize:12,fontWeight:800,color:THEME.text}}>TOTALS</td>
+                    <td colSpan={9} style={{padding:"9px 10px",fontSize:12,fontWeight:800,color:T.text}}>TOTALS</td>
                     <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:"#f59e0b",textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalBom||0),0))}</td>
                     <td style={{padding:"9px 10px",fontSize:13,fontWeight:800,color:STR,textAlign:"right",fontFamily:"monospace"}}>{fmt(lineItems.reduce((s,li)=>s+(+li.totalMarket||0),0))}</td>
                     <td/>
@@ -4837,20 +4837,20 @@ CRITICAL OUTPUT RULES:
           {activeTab==="missing" && (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {missingItems.length===0
-                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:THEME.muted}}>No missing items detected</div></Card>
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No missing items detected</div></Card>
                 : missingItems.map((m,i)=>(
                   <div key={i} style={{background:`${MISS_COL[m.severity||"WARNING"]}09`,border:`1.5px solid ${MISS_COL[m.severity||"WARNING"]}33`,borderRadius:12,padding:"12px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}}>
                       <div>
                         <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
                           <span style={{background:`${MISS_COL[m.severity||"WARNING"]}22`,color:MISS_COL[m.severity||"WARNING"],fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{m.priority||"WARNING"}</span>
-                          <span style={{fontSize:10,color:THEME.muted,background:THEME.dim,padding:"2px 7px",borderRadius:4}}>{m.category}</span>
+                          <span style={{fontSize:10,color:T.muted,background:T.dim,padding:"2px 7px",borderRadius:4}}>{m.category}</span>
                         </div>
-                        <div style={{fontWeight:700,fontSize:14,color:THEME.text}}>{m.description}</div>
-                        <div style={{fontSize:11,color:THEME.muted,marginTop:3}}>Est. qty: <strong style={{color:THEME.text}}>{m.estimatedQty}</strong> · Found in: {m.basis}</div>
+                        <div style={{fontWeight:700,fontSize:14,color:T.text}}>{m.description}</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:3}}>Est. qty: <strong style={{color:T.text}}>{m.estimatedQty}</strong> · Found in: {m.basis}</div>
                       </div>
                       <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>EST. COST</div>
+                        <div style={{fontSize:9,color:T.muted,marginBottom:2}}>EST. COST</div>
                         <div style={{fontSize:16,fontWeight:800,color:MISS_COL[m.severity||"WARNING"],fontFamily:"monospace"}}>{fmt(m.estimatedCost)}</div>
                       </div>
                     </div>
@@ -4870,16 +4870,16 @@ CRITICAL OUTPUT RULES:
           {activeTab==="excess" && (
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {excessItems.length===0
-                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:THEME.muted}}>No excess items detected</div></Card>
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No excess items detected</div></Card>
                 : excessItems.map((e,i)=>(
                   <div key={i} style={{background:"rgba(100,116,139,0.05)",border:"1.5px solid rgba(100,116,139,0.2)",borderRadius:12,padding:"12px 16px"}}>
                     <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5}}>
                       <span style={{background:"rgba(100,116,139,0.2)",color:"#64748b",fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:4}}>EXCESS</span>
-                      <span style={{fontSize:10,color:THEME.muted,background:THEME.dim,padding:"2px 7px",borderRadius:4}}>{e.category}</span>
+                      <span style={{fontSize:10,color:T.muted,background:T.dim,padding:"2px 7px",borderRadius:4}}>{e.category}</span>
                     </div>
-                    <div style={{fontWeight:700,fontSize:14,color:THEME.text,marginBottom:3}}>{e.description}</div>
-                    <div style={{fontSize:11,color:THEME.muted}}>BOM qty: <strong style={{color:"#64748b"}}>{fmtN(e.qtyBOM)} {e.unit}</strong></div>
-                    <div style={{fontSize:11,color:THEME.muted,marginTop:3}}>{e.remarks}</div>
+                    <div style={{fontWeight:700,fontSize:14,color:T.text,marginBottom:3}}>{e.description}</div>
+                    <div style={{fontSize:11,color:T.muted}}>BOM qty: <strong style={{color:"#64748b"}}>{fmtN(e.qtyBOM)} {e.unit}</strong></div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:3}}>{e.remarks}</div>
                   </div>
                 ))
               }
@@ -4897,28 +4897,28 @@ CRITICAL OUTPUT RULES:
                       <div style={{display:"flex",alignItems:"center",gap:9}}>
                         <span style={{fontSize:15}}>{r.found?"✅":"❌"}</span>
                         <div>
-                          <div style={{fontSize:13,fontWeight:700,color:THEME.text}}>{r.l}</div>
-                          <div style={{fontSize:10,color:THEME.muted}}>Standard: {r.std}</div>
+                          <div style={{fontSize:13,fontWeight:700,color:T.text}}>{r.l}</div>
+                          <div style={{fontSize:10,color:T.muted}}>Standard: {r.std}</div>
                         </div>
                       </div>
                       <div style={{fontSize:15,fontWeight:800,color:r.found?"#10b981":"#ef4444"}}>{r.found?`${r.pct}%`:"Not found"}</div>
                     </div>
                   ))}
-                  <div style={{padding:"7px 12px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted}}>VAT Status: <strong style={{color:THEME.text}}>{markup.vatStatus||"NOT STATED"}</strong></div>
-                  <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:12,color:THEME.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
+                  <div style={{padding:"7px 12px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>VAT Status: <strong style={{color:T.text}}>{markup.vatStatus||"NOT STATED"}</strong></div>
+                  <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:12,color:T.muted,lineHeight:1.6,fontStyle:"italic"}}>{markup.recommendation}</div>
                 </div>
               </Card>
               <Card>
                 <Label>Your Applied Margins</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
                   {Object.entries(marginsState).map(([k,m])=>(
-                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:m.pct>0?"rgba(59,130,246,0.06)":THEME.dim,borderRadius:7}}>
-                      <span style={{fontSize:12,color:THEME.muted}}>{m.label}</span>
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:m.pct>0?"rgba(59,130,246,0.06)":T.dim,borderRadius:7}}>
+                      <span style={{fontSize:12,color:T.muted}}>{m.label}</span>
                       <span style={{fontSize:13,fontWeight:800,color:m.pct>0?STR:"#64748b",fontFamily:"monospace"}}>{m.pct}%</span>
                     </div>
                   ))}
                   <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:`${STR}12`,border:`1px solid ${STR}33`,borderRadius:8,marginTop:4}}>
-                    <span style={{fontSize:13,fontWeight:700,color:THEME.text}}>Combined uplift</span>
+                    <span style={{fontSize:13,fontWeight:700,color:T.text}}>Combined uplift</span>
                     <span style={{fontSize:15,fontWeight:900,color:STR}}>+{((Object.values(marginsState).reduce((a,m)=>(a*(1+m.pct/100)),1)-1)*100).toFixed(1)}%</span>
                   </div>
                 </div>
@@ -4926,7 +4926,7 @@ CRITICAL OUTPUT RULES:
             </div>
           )}
 
-          <div style={{marginTop:12,padding:"9px 14px",background:THEME.dim,borderRadius:9,fontSize:11,color:THEME.muted,lineHeight:1.5}}>
+          <div style={{marginTop:12,padding:"9px 14px",background:T.dim,borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.5}}>
             ⚠️ AI-assisted review. All findings must be verified by a licensed QS or Engineer before submission. · PH Engineering Suite
           </div>
         </div>
@@ -4946,8 +4946,8 @@ CRITICAL OUTPUT RULES:
           ].map(x=>(
             <Card key={x.t} style={{textAlign:"center",padding:18}}>
               <div style={{fontSize:24,marginBottom:7}}>{x.i}</div>
-              <div style={{fontWeight:700,fontSize:12,color:THEME.text,marginBottom:3}}>{x.t}</div>
-              <div style={{fontSize:10,color:THEME.muted,lineHeight:1.5}}>{x.d}</div>
+              <div style={{fontWeight:700,fontSize:12,color:T.text,marginBottom:3}}>{x.t}</div>
+              <div style={{fontSize:10,color:T.muted,lineHeight:1.5}}>{x.d}</div>
             </Card>
           ))}
         </div>
@@ -4968,8 +4968,8 @@ CRITICAL OUTPUT RULES:
             {/* Header row */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
               <div>
-                <div style={{fontWeight:800,fontSize:16,color:THEME.text}}>Generated Bill of Materials</div>
-                <div style={{fontSize:12,color:THEME.muted,marginTop:2}}>
+                <div style={{fontWeight:800,fontSize:16,color:T.text}}>Generated Bill of Materials</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:2}}>
                   {s.projectName||"Project"} &nbsp;&middot;&nbsp; {g.lineItems?.length||0} line items &nbsp;&middot;&nbsp; {g.tradeSummary?.length||0} work categories
                 </div>
               </div>
@@ -5103,26 +5103,26 @@ CRITICAL OUTPUT RULES:
 
           {/* ── Markup & Contingency panel ── */}
           {(result || (mode==="generate" && generateResult)) && (
-            <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${THEME.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
+            <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,marginBottom:14,overflow:"hidden"}}>
               <div onClick={()=>setShowMarkup(p=>!p)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",cursor:"pointer",userSelect:"none"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:13,fontWeight:700,color:THEME.text}}>⚙️ Markup &amp; Contingency</span>
+                  <span style={{fontSize:13,fontWeight:700,color:T.text}}>⚙️ Markup &amp; Contingency</span>
                   {bomTotalMarkupPct > 0.1 && <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:20,background:"rgba(6,150,215,0.15)",color:STR}}>+{bomTotalMarkupPct.toFixed(1)}% applied</span>}
                 </div>
-                <span style={{color:THEME.muted,fontSize:13}}>{showMarkup ? "▲" : "▼"}</span>
+                <span style={{color:T.muted,fontSize:13}}>{showMarkup ? "▲" : "▼"}</span>
               </div>
               {showMarkup && (
-                <div style={{padding:"0 16px 16px",borderTop:`1px solid ${THEME.border}`}}>
-                  <div style={{fontSize:11,color:THEME.muted,marginBottom:12,marginTop:10}}>Compounds on the base estimate. Use to account for price escalation, contractor margin, contingency, and VAT.</div>
+                <div style={{padding:"0 16px 16px",borderTop:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:12,marginTop:10}}>Compounds on the base estimate. Use to account for price escalation, contractor margin, contingency, and VAT.</div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
                     {[["materials","Materials / Escalation",STR],["labor","Labor Markup","#06b6d4"],["overhead","Overhead & Profit","#ff6b2b"],["contingency","Contingency","#a78bfa"]].map(([key,label,color])=>(
-                      <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${THEME.border}`,borderRadius:9,padding:"12px 14px"}}>
+                      <div key={key} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:9,padding:"12px 14px"}}>
                         <div style={{fontSize:10,fontWeight:700,color,textTransform:"uppercase",letterSpacing:"0.4px",marginBottom:8}}>{label}</div>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           <input type="number" min="0" max="100" step="0.5" value={bomMarkup[key]}
                             onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
-                            style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:THEME.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
-                          <span style={{fontSize:14,color:THEME.muted,fontWeight:700}}>%</span>
+                            style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1.5px solid ${color}44`,borderRadius:6,padding:"6px 8px",color:T.text,fontSize:15,fontWeight:700,textAlign:"right",outline:"none"}}/>
+                          <span style={{fontSize:14,color:T.muted,fontWeight:700}}>%</span>
                         </div>
                         <input type="range" min="0" max="50" step="0.5" value={bomMarkup[key]}
                           onChange={e=>setBomMarkup(p=>({...p,[key]:parseFloat(e.target.value)||0}))}
@@ -5132,7 +5132,7 @@ CRITICAL OUTPUT RULES:
                   </div>
                   {bomTotalMarkupPct > 0.1 && (
                     <div style={{marginTop:12,background:"rgba(6,150,215,0.06)",border:`1px solid ${STR}22`,borderRadius:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontSize:12,color:THEME.muted}}>Combined multiplier on base estimate</span>
+                      <span style={{fontSize:12,color:T.muted}}>Combined multiplier on base estimate</span>
                       <span style={{fontSize:15,fontWeight:800,color:STR}}>×{(1+bomTotalMarkupPct/100).toFixed(3)} &nbsp;(+{bomTotalMarkupPct.toFixed(1)}%)</span>
                     </div>
                   )}
@@ -5144,15 +5144,15 @@ CRITICAL OUTPUT RULES:
             {/* Cost summary cards */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
               <div style={{background:`${STR}10`,border:`1.5px solid ${STR}33`,borderRadius:12,padding:"16px 20px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Total Estimated Cost {totalMarkupPct>0.1 && <span style={{color:STR}}>(with markup)</span>}</div>
-                <div style={{fontSize:22,fontWeight:900,color:THEME.text}}>{mf(s.totalCostLow)} &ndash; {mf(s.totalCostHigh)}</div>
-                <div style={{fontSize:11,color:THEME.muted,marginTop:4}}>Midpoint: <strong style={{color:STR}}>{mf(s.totalCostMid)}</strong> &nbsp;&middot;&nbsp; {(+s.totalFloorArea||0).toLocaleString()} sqm total</div>
-                {totalMarkupPct>0.1 && <div style={{fontSize:10,color:THEME.muted,marginTop:4}}>Base (no markup): {fmt(s.totalCostLow)} – {fmt(s.totalCostHigh)}</div>}
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Total Estimated Cost {totalMarkupPct>0.1 && <span style={{color:STR}}>(with markup)</span>}</div>
+                <div style={{fontSize:22,fontWeight:900,color:T.text}}>{mf(s.totalCostLow)} &ndash; {mf(s.totalCostHigh)}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:4}}>Midpoint: <strong style={{color:STR}}>{mf(s.totalCostMid)}</strong> &nbsp;&middot;&nbsp; {(+s.totalFloorArea||0).toLocaleString()} sqm total</div>
+                {totalMarkupPct>0.1 && <div style={{fontSize:10,color:T.muted,marginTop:4}}>Base (no markup): {fmt(s.totalCostLow)} – {fmt(s.totalCostHigh)}</div>}
               </div>
-              <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${THEME.border}`,borderRadius:12,padding:"16px 20px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Per Square Meter {totalMarkupPct>0.1 && <span style={{color:STR}}>(with markup)</span>}</div>
+              <div style={{background:"rgba(255,255,255,0.03)",border:`1.5px solid ${T.border}`,borderRadius:12,padding:"16px 20px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Per Square Meter {totalMarkupPct>0.1 && <span style={{color:STR}}>(with markup)</span>}</div>
                 <div style={{fontSize:22,fontWeight:900,color:STR}}>{mf(s.costPerSqmLow)} &ndash; {mf(s.costPerSqmHigh)}</div>
-                <div style={{fontSize:11,color:THEME.muted,marginTop:4}}>{s.structuralSystem||""} &nbsp;&middot;&nbsp; {s.finishLevel||"Standard"} Finish</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:4}}>{s.structuralSystem||""} &nbsp;&middot;&nbsp; {s.finishLevel||"Standard"} Finish</div>
               </div>
             </div>
 
@@ -5162,27 +5162,27 @@ CRITICAL OUTPUT RULES:
               </div>
             )}
             {s.notes && (
-              <div style={{background:`${STR}08`,border:`1px solid ${STR}22`,borderRadius:10,padding:"11px 16px",marginBottom:14,fontSize:12.5,color:THEME.muted,lineHeight:1.6}}>{s.notes}</div>
+              <div style={{background:`${STR}08`,border:`1px solid ${STR}22`,borderRadius:10,padding:"11px 16px",marginBottom:14,fontSize:12.5,color:T.muted,lineHeight:1.6}}>{s.notes}</div>
             )}
 
             {/* Trade summary bars */}
             {g.tradeSummary?.length > 0 && (
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:10,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Cost by Work Category</div>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Cost by Work Category</div>
                 {g.tradeSummary.map((t,i) => (
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.02)",border:`1px solid ${THEME.border}`,borderRadius:8,padding:"9px 14px",marginBottom:4}}>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.02)",border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 14px",marginBottom:4}}>
                     <div style={{flex:1}}>
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <span style={{fontSize:12,fontWeight:600,color:THEME.text}}>{t.trade}</span>
-                        <span style={{fontSize:11,color:THEME.muted}}>{t.itemCount} items</span>
+                        <span style={{fontSize:12,fontWeight:600,color:T.text}}>{t.trade}</span>
+                        <span style={{fontSize:11,color:T.muted}}>{t.itemCount} items</span>
                       </div>
                       <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden"}}>
                         <div style={{height:"100%",width:`${Math.max(2,+t.percentOfTotal||0)}%`,background:STR,borderRadius:2}}/>
                       </div>
                     </div>
                     <div style={{textAlign:"right",minWidth:130}}>
-                      <div style={{fontWeight:700,color:THEME.text,fontSize:12}}>{mf(t.totalHigh)}</div>
-                      <div style={{fontSize:11,color:THEME.muted}}>{(+t.percentOfTotal||0).toFixed(1)}% of total</div>
+                      <div style={{fontWeight:700,color:T.text,fontSize:12}}>{mf(t.totalHigh)}</div>
+                      <div style={{fontSize:11,color:T.muted}}>{(+t.percentOfTotal||0).toFixed(1)}% of total</div>
                     </div>
                   </div>
                 ))}
@@ -5190,34 +5190,34 @@ CRITICAL OUTPUT RULES:
             )}
 
             {/* Full line items */}
-            <div style={{fontSize:10,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>
               Complete Bill of Materials &mdash; {g.lineItems?.length||0} Items
             </div>
-            <div style={{border:`1px solid ${THEME.border}`,borderRadius:10,overflow:"hidden"}}>
+            <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead>
                     <tr style={{background:"rgba(6,150,215,0.1)"}}>
                       {["Trade","Description","Unit","Qty","Unit Rate","Low Total","High Total","Conf."].map(h => (
-                        <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.3px",borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                        <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.3px",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {(g.lineItems||[]).map((item,i) => (
-                      <tr key={i} style={{background:i%2===0?"rgba(255,255,255,0.01)":"rgba(255,255,255,0.03)",borderBottom:`1px solid ${THEME.border}`}}>
-                        <td style={{padding:"8px 10px",fontSize:10,color:THEME.muted,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.trade}</td>
+                      <tr key={i} style={{background:i%2===0?"rgba(255,255,255,0.01)":"rgba(255,255,255,0.03)",borderBottom:`1px solid ${T.border}`}}>
+                        <td style={{padding:"8px 10px",fontSize:10,color:T.muted,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.trade}</td>
                         <td style={{padding:"8px 10px"}}>
-                          <div style={{fontWeight:600,color:THEME.text}}>{item.isOwnerSupply && <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,background:"rgba(100,116,139,0.15)",color:"#94a3b8",marginLeft:6}}>OWNER SUPPLY</span>}{item.description}</div>
+                          <div style={{fontWeight:600,color:T.text}}>{item.isOwnerSupply && <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,background:"rgba(100,116,139,0.15)",color:"#94a3b8",marginLeft:6}}>OWNER SUPPLY</span>}{item.description}</div>
                           {item.subCategory && <div style={{fontSize:10,fontWeight:600,color:`${STR}99`,marginTop:1}}>{item.subCategory}</div>}
-                          {item.specification && <div style={{fontSize:10,color:THEME.muted,marginTop:1}}>{item.specification}</div>}
+                          {item.specification && <div style={{fontSize:10,color:T.muted,marginTop:1}}>{item.specification}</div>}
                           {item.qtyBasis && <div style={{fontSize:10,color:`${STR}99`,marginTop:1}}>{item.qtyBasis}</div>}
                         </td>
-                        <td style={{padding:"8px 10px",textAlign:"center",color:THEME.muted,fontSize:11}}>{item.unit}</td>
-                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:THEME.text}}>{(+item.qty||0).toLocaleString("en-PH",{maximumFractionDigits:2})}</td>
-                        <td style={{padding:"8px 10px",textAlign:"right",color:THEME.muted,fontSize:11,whiteSpace:"nowrap"}}>{fmt(item.unitRateLow)}&ndash;{fmt(item.unitRateHigh)}</td>
-                        <td style={{padding:"8px 10px",textAlign:"right",color:THEME.muted,fontSize:11}}>{mf(item.totalLow)}</td>
-                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:THEME.text}}>{mf(item.totalHigh)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"center",color:T.muted,fontSize:11}}>{item.unit}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{(+item.qty||0).toLocaleString("en-PH",{maximumFractionDigits:2})}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11,whiteSpace:"nowrap"}}>{fmt(item.unitRateLow)}&ndash;{fmt(item.unitRateHigh)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontSize:11}}>{mf(item.totalLow)}</td>
+                        <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text}}>{mf(item.totalHigh)}</td>
                         <td style={{padding:"8px 10px",textAlign:"center"}}>
                           <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,
                             background:`${confColor(item.confidence)}18`,color:confColor(item.confidence),
@@ -5226,8 +5226,8 @@ CRITICAL OUTPUT RULES:
                       </tr>
                     ))}
                     <tr style={{background:`${STR}15`,borderTop:`2px solid ${STR}`}}>
-                      <td colSpan={5} style={{padding:"10px 12px",fontWeight:800,color:THEME.text,fontSize:13}}>TOTAL ESTIMATED COST</td>
-                      <td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,color:THEME.muted}}>{fmt(s.totalCostLow)}</td>
+                      <td colSpan={5} style={{padding:"10px 12px",fontWeight:800,color:T.text,fontSize:13}}>TOTAL ESTIMATED COST</td>
+                      <td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,color:T.muted}}>{fmt(s.totalCostLow)}</td>
                       <td style={{padding:"10px 12px",textAlign:"right",fontWeight:800,color:STR,fontSize:14}}>{fmt(s.totalCostHigh)}</td>
                       <td/>
                     </tr>
@@ -5241,7 +5241,7 @@ CRITICAL OUTPUT RULES:
               <div style={{marginTop:12,background:"rgba(217,119,6,0.07)",border:"1px solid rgba(217,119,6,0.2)",borderRadius:10,padding:"12px 16px"}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#d97706",marginBottom:8}}>&starf; Items Requiring Field Verification</div>
                 {s.limitations.map((l,i) => (
-                  <div key={i} style={{fontSize:12,color:THEME.muted,paddingLeft:12,marginBottom:4,lineHeight:1.5}}>&bull; {l}</div>
+                  <div key={i} style={{fontSize:12,color:T.muted,paddingLeft:12,marginBottom:4,lineHeight:1.5}}>&bull; {l}</div>
                 ))}
               </div>
             )}
@@ -6378,17 +6378,17 @@ const exportDocument = () => {
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
           <div style={{width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${GOLD},#f97316)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💰</div>
           <div>
-            <div style={{fontWeight:800,fontSize:16,color:THEME.text,letterSpacing:"-0.3px"}}>Project Cost Estimator</div>
-            <div style={{fontSize:11,color:THEME.muted}}>Upload plans → AI reads scope → generates client-ready estimate</div>
+            <div style={{fontWeight:800,fontSize:16,color:T.text,letterSpacing:"-0.3px"}}>Project Cost Estimator</div>
+            <div style={{fontSize:11,color:T.muted}}>Upload plans → AI reads scope → generates client-ready estimate</div>
           </div>
         </div>
 
         {/* Scope mode */}
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:10,fontWeight:700,color:THEME.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Scope Mode</div>
+          <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Scope Mode</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {SCOPE_MODES.map(o=>(
-              <button key={o.v} onClick={()=>setScopeMode(o.v)} style={{padding:"7px 14px",borderRadius:9,border:`1.5px solid ${scopeMode===o.v?GOLD:THEME.border}`,background:scopeMode===o.v?"rgba(245,158,11,0.12)":"transparent",color:scopeMode===o.v?GOLD:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
+              <button key={o.v} onClick={()=>setScopeMode(o.v)} style={{padding:"7px 14px",borderRadius:9,border:`1.5px solid ${scopeMode===o.v?GOLD:T.border}`,background:scopeMode===o.v?"rgba(245,158,11,0.12)":"transparent",color:scopeMode===o.v?GOLD:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>{o.l}</button>
             ))}
           </div>
         </div>
@@ -6399,7 +6399,7 @@ const exportDocument = () => {
             <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:8,textTransform:"uppercase"}}>Renovation Extent</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {RENOV_LEVELS.map(o=>(
-                <button key={o.v} onClick={()=>setRenovScope(o.v)} style={{flex:1,minWidth:140,padding:"10px 12px",borderRadius:9,border:`1.5px solid ${renovScope===o.v?GOLD:THEME.border}`,background:renovScope===o.v?"rgba(245,158,11,0.12)":"transparent",color:renovScope===o.v?GOLD:THEME.muted,cursor:"pointer",transition:"all 0.15s",textAlign:"left"}}>
+                <button key={o.v} onClick={()=>setRenovScope(o.v)} style={{flex:1,minWidth:140,padding:"10px 12px",borderRadius:9,border:`1.5px solid ${renovScope===o.v?GOLD:T.border}`,background:renovScope===o.v?"rgba(245,158,11,0.12)":"transparent",color:renovScope===o.v?GOLD:T.muted,cursor:"pointer",transition:"all 0.15s",textAlign:"left"}}>
                   <div style={{fontSize:12,fontWeight:800}}>{o.l}</div>
                   <div style={{fontSize:10,marginTop:2,lineHeight:1.4}}>{o.desc}</div>
                 </button>
@@ -6414,31 +6414,31 @@ const exportDocument = () => {
             <div style={{fontSize:10,fontWeight:700,color:"#6366f1",marginBottom:6,textTransform:"uppercase"}}>Custom Scope Description</div>
             <textarea value={adhocItems} onChange={e=>setAdhocItems(e.target.value)}
               placeholder={"Describe the specific works to be estimated. Examples:\n- Replace all windows (12 units, analok frame)\n- Install new 150A electrical panel + rewire 2nd floor\n- Construct perimeter fence 45 linear meters\n- Install ceramic tiles living/dining area ~80 sqm"}
-              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"10px 12px",color:THEME.text,fontSize:12,outline:"none",resize:"vertical",minHeight:100,lineHeight:1.6,fontFamily:"inherit"}}
-              onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor=THEME.border}/>
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:100,lineHeight:1.6,fontFamily:"inherit"}}
+              onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor=T.border}/>
           </div>
         )}
 
         {/* Project details grid */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:14}}>
           <div>
-            <div style={{fontSize:10,fontWeight:700,color:THEME.muted,marginBottom:5,textTransform:"uppercase"}}>Project Type</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Project Type</div>
             <select value={projectType} onChange={e=>setProjectType(e.target.value)}
-              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 12px",color:THEME.text,fontSize:12,outline:"none",cursor:"pointer"}}>
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}>
               {PROJECT_TYPES.map(p=><option key={p.v} value={p.v}>{p.l}</option>)}
             </select>
           </div>
           <div>
-            <div style={{fontSize:10,fontWeight:700,color:THEME.muted,marginBottom:5,textTransform:"uppercase"}}>Finish Level</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Finish Level</div>
             <select value={finishLevel} onChange={e=>setFinishLevel(e.target.value)}
-              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 12px",color:THEME.text,fontSize:12,outline:"none",cursor:"pointer"}}>
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}>
               {FINISH_LEVELS.map(f=><option key={f.v} value={f.v}>{f.l} — {f.desc}</option>)}
             </select>
           </div>
           <div>
-            <div style={{fontSize:10,fontWeight:700,color:THEME.muted,marginBottom:5,textTransform:"uppercase"}}>Location</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Location</div>
             <select value={location} onChange={e=>setLocation(e.target.value)}
-              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 12px",color:THEME.text,fontSize:12,outline:"none",cursor:"pointer"}}>
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}>
               {LOCATIONS.map(l=><option key={l.v} value={l.v}>{l.l}</option>)}
             </select>
           </div>
@@ -6453,10 +6453,10 @@ const exportDocument = () => {
             {l:"GFA Override (sqm)",v:gfaOverride,   s:setGfaOverride,    ph:"Leave blank to auto-detect"},
           ].map(f=>(
             <div key={f.l}>
-              <div style={{fontSize:10,fontWeight:700,color:THEME.muted,marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
+              <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
               <input value={f.v} onChange={e=>f.s(e.target.value)} placeholder={f.ph}
-                style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 10px",color:THEME.text,fontSize:12,outline:"none"}}
-                onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=THEME.border}/>
+                style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none"}}
+                onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=T.border}/>
             </div>
           ))}
         </div>
@@ -6464,13 +6464,13 @@ const exportDocument = () => {
         {/* Special notes + pro fees toggle */}
         <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,marginBottom:14,alignItems:"start"}}>
           <div>
-            <div style={{fontSize:10,fontWeight:700,color:THEME.muted,marginBottom:5,textTransform:"uppercase"}}>Special Notes / Scope Clarifications</div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Special Notes / Scope Clarifications</div>
             <input value={specialNotes} onChange={e=>setSpecialNotes(e.target.value)} placeholder="e.g. Exclude MEP works · Ground floor only · Existing slab to remain"
-              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 12px",color:THEME.text,fontSize:12,outline:"none"}}
-              onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=THEME.border}/>
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none"}}
+              onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=T.border}/>
           </div>
           <div style={{paddingTop:20}}>
-            <button onClick={()=>setInclProfFees(!inclProfFees)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:9,border:`1.5px solid ${inclProfFees?"#10b981":THEME.border}`,background:inclProfFees?"rgba(16,185,129,0.1)":"transparent",color:inclProfFees?"#10b981":THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
+            <button onClick={()=>setInclProfFees(!inclProfFees)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",borderRadius:9,border:`1.5px solid ${inclProfFees?"#10b981":T.border}`,background:inclProfFees?"rgba(16,185,129,0.1)":"transparent",color:inclProfFees?"#10b981":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>
               <span>{inclProfFees?"✓":"○"}</span> Include Prof. Fees
             </button>
           </div>
@@ -6479,7 +6479,7 @@ const exportDocument = () => {
         {/* ── Advanced Accuracy Inputs ── */}
         <div style={{marginBottom:14}}>
           <button onClick={()=>setShowAdvanced(p=>!p)}
-            style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",borderRadius:9,border:`1.5px solid ${showAdvanced?"rgba(99,102,241,0.5)":THEME.border}`,background:showAdvanced?"rgba(99,102,241,0.08)":"transparent",color:showAdvanced?"#818cf8":THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,width:"100%",justifyContent:"space-between"}}>
+            style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",borderRadius:9,border:`1.5px solid ${showAdvanced?"rgba(99,102,241,0.5)":T.border}`,background:showAdvanced?"rgba(99,102,241,0.08)":"transparent",color:showAdvanced?"#818cf8":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,width:"100%",justifyContent:"space-between"}}>
             <span>🎯 Advanced Accuracy Inputs <span style={{fontSize:10,fontWeight:400,opacity:0.7}}>(optional — improves estimate precision)</span></span>
             <span style={{fontSize:14,transition:"transform 0.2s",transform:showAdvanced?"rotate(180deg)":"none"}}>▾</span>
           </button>
@@ -6492,28 +6492,28 @@ const exportDocument = () => {
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Floor-to-Floor Height (m)</div>
                   <input value={storeyHeight} onChange={e=>setStoreyHeight(e.target.value)} placeholder="e.g. 3.0 (leave blank = AI assumes)"
-                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 10px",color:THEME.text,fontSize:12,outline:"none"}}
-                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=THEME.border}/>
-                  <div style={{fontSize:9,color:THEME.muted,marginTop:3}}>Affects wall area, MEP runs, column height costs</div>
+                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none"}}
+                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                  <div style={{fontSize:9,color:T.muted,marginTop:3}}>Affects wall area, MEP runs, column height costs</div>
                 </div>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Soil Condition</div>
                   <select value={soilCondition} onChange={e=>setSoilCondition(e.target.value)}
-                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 10px",color:THEME.text,fontSize:12,outline:"none",cursor:"pointer"}}
-                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=THEME.border}>
+                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}
+                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}>
                     <option value="rock">Rock / Very Stiff — cheapest foundation</option>
                     <option value="good">Good (dense sand/gravel, SBC ≥120 kPa)</option>
                     <option value="average">Average (medium clay, SBC 75–120 kPa)</option>
                     <option value="soft">Soft (loose fill, SBC &lt;75 kPa) — most expensive</option>
                     <option value="unknown">Unknown — AI will use conservative rates</option>
                   </select>
-                  <div style={{fontSize:9,color:THEME.muted,marginTop:3}}>Directly affects foundation type and cost</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:3}}>Directly affects foundation type and cost</div>
                 </div>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Expected Construction Start</div>
                   <select value={constructionStart} onChange={e=>setConstructionStart(e.target.value)}
-                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"8px 10px",color:THEME.text,fontSize:12,outline:"none",cursor:"pointer"}}
-                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=THEME.border}>
+                    style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 10px",color:T.text,fontSize:12,outline:"none",cursor:"pointer"}}
+                    onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}>
                     <option value="">Immediate / Not specified</option>
                     <option value="3">~3 months from now</option>
                     <option value="6">~6 months from now (+3–5% escalation)</option>
@@ -6521,28 +6521,28 @@ const exportDocument = () => {
                     <option value="18">~18 months from now (+9–15% escalation)</option>
                     <option value="24">~24 months from now (+12–20% escalation)</option>
                   </select>
-                  <div style={{fontSize:9,color:THEME.muted,marginTop:3}}>PH construction inflation ~6–10%/yr — affects material costs</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:3}}>PH construction inflation ~6–10%/yr — affects material costs</div>
                 </div>
               </div>
 
               {/* Row 2: Known quantities */}
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Known Material Quantities <span style={{color:THEME.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(from BOQ, structural schedules, or takeoff)</span></div>
+                <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Known Material Quantities <span style={{color:T.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(from BOQ, structural schedules, or takeoff)</span></div>
                 <textarea value={knownQty} onChange={e=>setKnownQty(e.target.value)}
                   placeholder={`Enter any confirmed quantities — AI will use these instead of estimating:\n• Reinforcing steel: 12,500 kg\n• Concrete volume: 185 cu.m\n• CHB 150mm walls: 420 sqm\n• Ceramic floor tiles: 310 sqm\n• Plumbing fixtures: 18 pcs`}
-                  style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"10px 12px",color:THEME.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
-                  onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=THEME.border}/>
-                <div style={{fontSize:9,color:THEME.muted,marginTop:3}}>Any quantity you enter is locked — the AI will not estimate it differently. More quantities = more accurate total.</div>
+                  style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
+                  onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                <div style={{fontSize:9,color:T.muted,marginTop:3}}>Any quantity you enter is locked — the AI will not estimate it differently. More quantities = more accurate total.</div>
               </div>
 
               {/* Row 3: Supplier price overrides */}
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Supplier / Canvassed Prices <span style={{color:THEME.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(override AI rates with actual quotes)</span></div>
+                <div style={{fontSize:10,fontWeight:700,color:"#818cf8",marginBottom:5,textTransform:"uppercase"}}>Supplier / Canvassed Prices <span style={{color:T.muted,fontWeight:400,textTransform:"none",fontSize:9}}>(override AI rates with actual quotes)</span></div>
                 <textarea value={supplierPrices} onChange={e=>setSupplierPrices(e.target.value)}
                   placeholder={`Enter confirmed prices from supplier quotes or recent projects:\n• Portland cement 40kg: ₱295/bag (canvassed Holcim dealer, March 2025)\n• Deformed bars 12mm: ₱61/kg (Pag-asa Steel quote)\n• CHB 150mm: ₱16/pc (local supplier)\n• Ceramic tiles 60×60: ₱1,150/sqm (supplier quote)\n• Split-type AC 1.5HP: ₱44,000/unit installed`}
-                  style={{width:"100%",background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:9,padding:"10px 12px",color:THEME.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
-                  onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=THEME.border}/>
-                <div style={{fontSize:9,color:THEME.muted,marginTop:3}}>These prices will override the reference table rates for affected trades. Canvassed prices produce the most accurate estimates.</div>
+                  style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:90,lineHeight:1.6,fontFamily:"inherit"}}
+                  onFocus={e=>e.target.style.borderColor="#818cf8"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                <div style={{fontSize:9,color:T.muted,marginTop:3}}>These prices will override the reference table rates for affected trades. Canvassed prices produce the most accurate estimates.</div>
               </div>
 
             </div>
@@ -6551,30 +6551,30 @@ const exportDocument = () => {
 
         {/* File upload */}
         <div style={{marginBottom:14}}>
-          <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:6,textTransform:"uppercase"}}>📐 Upload Plans * <span style={{color:THEME.muted,fontWeight:400,textTransform:"none"}}>(PDF, JPG, PNG — floor plans, elevations, site plans)</span></div>
+          <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:6,textTransform:"uppercase"}}>📐 Upload Plans * <span style={{color:T.muted,fontWeight:400,textTransform:"none"}}>(PDF, JPG, PNG — floor plans, elevations, site plans)</span></div>
           <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)}
             onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>fileRef.current?.click()}
-            style={{border:`2px dashed ${drag?GOLD:THEME.border}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",background:drag?"rgba(245,158,11,0.06)":"rgba(255,255,255,0.01)",transition:"all 0.2s"}}>
+            style={{border:`2px dashed ${drag?GOLD:T.border}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",background:drag?"rgba(245,158,11,0.06)":"rgba(255,255,255,0.01)",transition:"all 0.2s"}}>
             <input ref={fileRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
             <div style={{fontSize:28,marginBottom:6}}>📐</div>
-            <div style={{fontWeight:700,fontSize:13,color:THEME.text,marginBottom:3}}>Drag & drop plans here</div>
-            <div style={{color:THEME.muted,fontSize:11,marginBottom:10}}>More plans = more accurate estimate · floor plans · site plan · elevations</div>
+            <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:3}}>Drag & drop plans here</div>
+            <div style={{color:T.muted,fontSize:11,marginBottom:10}}>More plans = more accurate estimate · floor plans · site plan · elevations</div>
             <div style={{display:"inline-block",background:GOLD,color:"#000",fontWeight:700,padding:"7px 18px",borderRadius:8,fontSize:12}}>Choose Files</div>
           </div>
           {files.length>0 && (
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:8}}>
               {files.map(fo=>(
-                <div key={fo.id} style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:7,padding:"4px 8px",display:"flex",alignItems:"center",gap:5,maxWidth:200}}>
+                <div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 8px",display:"flex",alignItems:"center",gap:5,maxWidth:200}}>
                   <span style={{fontSize:10}}>{fo.type?.startsWith("image/")?"🖼️":"📄"}</span>
-                  <span style={{fontSize:10,color:THEME.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
-                  <button onClick={e=>{e.stopPropagation();setFiles(p=>p.filter(f=>f.id!==fo.id))}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:THEME.danger,width:16,height:16,borderRadius:3,cursor:"pointer",fontSize:10,flexShrink:0}}>✕</button>
+                  <span style={{fontSize:10,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{fo.name}</span>
+                  <button onClick={e=>{e.stopPropagation();setFiles(p=>p.filter(f=>f.id!==fo.id))}} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:16,height:16,borderRadius:3,cursor:"pointer",fontSize:10,flexShrink:0}}>✕</button>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:THEME.danger}}>⚠️ {error}</div>}
+        {error && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,color:T.danger}}>⚠️ {error}</div>}
 
         <button onClick={run} disabled={busy||!files.length} style={{width:"100%",background:busy||!files.length?`rgba(245,158,11,0.2)`:`linear-gradient(135deg,${GOLD},#f97316)`,border:"none",color:busy||!files.length?"#555":"#000",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!files.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
           {busy ? (busyMsg||"⚙️ Generating estimate…") : "💰 Generate Cost Estimate"}
@@ -6585,7 +6585,7 @@ const exportDocument = () => {
             <span>{busyMsg||"Working…"}</span>
           </div>
         )}
-        {!files.length && !busy && <div style={{textAlign:"center",fontSize:11,color:THEME.muted,marginTop:7}}>Upload at least one plan file to begin</div>}
+        {!files.length && !busy && <div style={{textAlign:"center",fontSize:11,color:T.muted,marginTop:7}}>Upload at least one plan file to begin</div>}
       </Card>
 
       {/* ── RESULTS ── */}
@@ -6596,33 +6596,33 @@ const exportDocument = () => {
           <Card style={{marginBottom:14,background:"rgba(245,158,11,0.04)",border:"1.5px solid rgba(245,158,11,0.25)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
               <div style={{flex:1,minWidth:200}}>
-                <div style={{fontSize:10,color:THEME.muted,marginBottom:3}}>PROJECT</div>
-                <div style={{fontWeight:800,fontSize:19,color:THEME.text,letterSpacing:"-0.5px"}}>{project.name||projectName||"Project"}</div>
-                <div style={{fontSize:11,color:THEME.muted,marginTop:2}}>{project.type} · {project.subtype} · {project.finishLevel} Finish</div>
-                <div style={{fontSize:11,color:THEME.muted,marginTop:1}}>{project.location} · {fmtN(project.estimatedGFA)} sqm · {project.floors} floor{project.floors>1?"s":""}</div>
-                <div style={{fontSize:11,color:THEME.muted,marginTop:8,lineHeight:1.6,background:THEME.dim,borderRadius:8,padding:"8px 12px"}}>{project.scopeSummary}</div>
+                <div style={{fontSize:10,color:T.muted,marginBottom:3}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:19,color:T.text,letterSpacing:"-0.5px"}}>{project.name||projectName||"Project"}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>{project.type} · {project.subtype} · {project.finishLevel} Finish</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:1}}>{project.location} · {fmtN(project.estimatedGFA)} sqm · {project.floors} floor{project.floors>1?"s":""}</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:8,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"8px 12px"}}>{project.scopeSummary}</div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:240}}>
                 <div style={{background:`rgba(245,158,11,0.12)`,border:"1.5px solid rgba(245,158,11,0.35)",borderRadius:12,padding:"16px",textAlign:"center"}}>
-                  <div style={{fontSize:9,color:THEME.muted,marginBottom:4}}>ESTIMATED CONSTRUCTION COST</div>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:4}}>ESTIMATED CONSTRUCTION COST</div>
                   <div style={{fontSize:22,fontWeight:900,color:GOLD,fontFamily:"monospace",letterSpacing:"-0.5px"}}>₱{fmtR(summary.totalLow)}</div>
-                  <div style={{fontSize:14,color:THEME.muted,margin:"4px 0"}}>to</div>
+                  <div style={{fontSize:14,color:T.muted,margin:"4px 0"}}>to</div>
                   <div style={{fontSize:22,fontWeight:900,color:GOLD,fontFamily:"monospace",letterSpacing:"-0.5px"}}>₱{fmtR(summary.totalHigh)}</div>
-                  <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>Midpoint: <strong style={{color:THEME.text}}>₱{fmtR(summary.midpoint)}</strong></div>
+                  <div style={{fontSize:11,color:T.muted,marginTop:6}}>Midpoint: <strong style={{color:T.text}}>₱{fmtR(summary.midpoint)}</strong></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-                  <div style={{background:THEME.dim,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
-                    <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>COST / SQM</div>
-                    <div style={{fontSize:12,fontWeight:800,color:THEME.text,fontFamily:"monospace"}}>₱{fmtR(summary.costPerSqmLow)}–₱{fmtR(summary.costPerSqmHigh)}</div>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>COST / SQM</div>
+                    <div style={{fontSize:12,fontWeight:800,color:T.text,fontFamily:"monospace"}}>₱{fmtR(summary.costPerSqmLow)}–₱{fmtR(summary.costPerSqmHigh)}</div>
                   </div>
-                  <div style={{background:THEME.dim,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
-                    <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>GFA</div>
-                    <div style={{fontSize:12,fontWeight:800,color:THEME.text}}>{fmtN(project.estimatedGFA)} sqm</div>
+                  <div style={{background:T.dim,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>GFA</div>
+                    <div style={{fontSize:12,fontWeight:800,color:T.text}}>{fmtN(project.estimatedGFA)} sqm</div>
                   </div>
                 </div>
                 {inclProfFees && summary.grandTotalLow && (
                   <div style={{background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.25)",borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
-                    <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>GRAND TOTAL (incl. Prof. Fees)</div>
+                    <div style={{fontSize:9,color:T.muted,marginBottom:2}}>GRAND TOTAL (incl. Prof. Fees)</div>
                     <div style={{fontSize:14,fontWeight:800,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.grandTotalLow)} – ₱{fmtR(summary.grandTotalHigh)}</div>
                   </div>
                 )}
@@ -6641,9 +6641,9 @@ const exportDocument = () => {
             <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 14px",background:"rgba(6,150,215,0.07)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,flex:"0 0 auto",width:"100%",boxSizing:"border-box"}}>
               <span style={{fontSize:16,marginTop:2}}>📅</span>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:9,color:THEME.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:2}}>Rate References — {RATES_VERSION}</div>
+                <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:2}}>Rate References — {RATES_VERSION}</div>
                 {RATES_DETAIL.map((r,i) => (
-                  <div key={i} style={{fontSize:9,color:THEME.muted,lineHeight:1.7,display:"flex",gap:4,flexWrap:"wrap"}}>
+                  <div key={i} style={{fontSize:9,color:T.muted,lineHeight:1.7,display:"flex",gap:4,flexWrap:"wrap"}}>
                     <span style={{color:STR,fontWeight:600,flexShrink:0}}>· {r.source}</span>
                     <span style={{color:"rgba(148,163,184,0.6)"}}>— {r.scope} ({r.date})</span>
                   </div>
@@ -6664,26 +6664,26 @@ const exportDocument = () => {
                   <span style={{fontSize:16}}>🎯</span>
                   <div style={{flex:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                      <div style={{fontSize:9,color:THEME.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Estimate Confidence</div>
+                      <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>Estimate Confidence</div>
                       <div style={{fontSize:10,fontWeight:800,color:c.color}}>{c.label}</div>
                     </div>
-                    <div style={{background:THEME.border,borderRadius:99,height:6,overflow:"hidden",marginBottom:4}}>
+                    <div style={{background:T.border,borderRadius:99,height:6,overflow:"hidden",marginBottom:4}}>
                       <div style={{width:`${c.pct}%`,height:"100%",background:c.color,borderRadius:99,transition:"width 0.6s ease"}}/>
                     </div>
-                    <div style={{fontSize:9,color:THEME.muted,lineHeight:1.4}}>{c.note}</div>
+                    <div style={{fontSize:9,color:T.muted,lineHeight:1.4}}>{c.note}</div>
                   </div>
                 </div>
               );
             })()}
             {/* Cost/sqm benchmark */}
             {summary.costPerSqmMid && summary.marketBenchmarkLow && (
-              <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:10,flex:1,minWidth:200}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,flex:1,minWidth:200}}>
                 <span style={{fontSize:16}}>📈</span>
                 <div>
-                  <div style={{fontSize:9,color:THEME.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>vs Market Benchmark</div>
-                  <div style={{fontSize:11,fontWeight:700,color:THEME.text}}>Your estimate: <span style={{color:GOLD}}>₱{fmtR(summary.costPerSqmMid)}/sqm</span></div>
-                  <div style={{fontSize:10,color:THEME.muted}}>Market range: ₱{fmtR(summary.marketBenchmarkLow)}–₱{fmtR(summary.marketBenchmarkHigh)}/sqm</div>
-                  <div style={{fontSize:9,color:THEME.muted,marginTop:1}}>{summary.benchmarkSource}</div>
+                  <div style={{fontSize:9,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>vs Market Benchmark</div>
+                  <div style={{fontSize:11,fontWeight:700,color:T.text}}>Your estimate: <span style={{color:GOLD}}>₱{fmtR(summary.costPerSqmMid)}/sqm</span></div>
+                  <div style={{fontSize:10,color:T.muted}}>Market range: ₱{fmtR(summary.marketBenchmarkLow)}–₱{fmtR(summary.marketBenchmarkHigh)}/sqm</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>{summary.benchmarkSource}</div>
                 </div>
               </div>
             )}
@@ -6700,7 +6700,7 @@ const exportDocument = () => {
                 {k:"risks",    l:`⚠️ Risks (${warnings.length})`},
                 {k:"nextsteps",l:`✅ Next Steps (${nextSteps.length})`},
               ].map(t=>(
-                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?GOLD:THEME.border}`,background:activeTab===t.k?"rgba(245,158,11,0.12)":"transparent",color:activeTab===t.k?GOLD:THEME.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
+                <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?GOLD:T.border}`,background:activeTab===t.k?"rgba(245,158,11,0.12)":"transparent",color:activeTab===t.k?GOLD:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
               ))}
             </div>
             <button onClick={exportDocument} style={{background:`linear-gradient(135deg,${GOLD},#f97316)`,border:"none",color:"#000",fontWeight:700,padding:"8px 18px",borderRadius:9,cursor:"pointer",fontSize:11,fontWeight:800}}>📄 Export Client Document</button>
@@ -6712,14 +6712,14 @@ const exportDocument = () => {
               <Card>
                 <Label>Cost Breakdown</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:THEME.dim,borderRadius:8}}><span style={{fontSize:12,color:THEME.muted}}>Construction Subtotal</span><span style={{fontSize:12,fontWeight:700,color:THEME.text,fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)} – ₱{fmtR(summary.constructionCostHigh)}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(245,158,11,0.06)",borderRadius:8}}><span style={{fontSize:12,color:THEME.muted}}>Contingency ({summary.contingencyPct}%)</span><span style={{fontSize:12,fontWeight:700,color:GOLD,fontFamily:"monospace"}}>+₱{fmtR(summary.contingencyLow)} – ₱{fmtR(summary.contingencyHigh)}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:`rgba(245,158,11,0.12)`,border:`1.5px solid rgba(245,158,11,0.3)`,borderRadius:10}}><span style={{fontSize:13,fontWeight:800,color:THEME.text}}>Total Construction</span><span style={{fontSize:14,fontWeight:900,color:GOLD,fontFamily:"monospace"}}>₱{fmtR(summary.totalLow)} – ₱{fmtR(summary.totalHigh)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>Construction Subtotal</span><span style={{fontSize:12,fontWeight:700,color:T.text,fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)} – ₱{fmtR(summary.constructionCostHigh)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(245,158,11,0.06)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>Contingency ({summary.contingencyPct}%)</span><span style={{fontSize:12,fontWeight:700,color:GOLD,fontFamily:"monospace"}}>+₱{fmtR(summary.contingencyLow)} – ₱{fmtR(summary.contingencyHigh)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:`rgba(245,158,11,0.12)`,border:`1.5px solid rgba(245,158,11,0.3)`,borderRadius:10}}><span style={{fontSize:13,fontWeight:800,color:T.text}}>Total Construction</span><span style={{fontSize:14,fontWeight:900,color:GOLD,fontFamily:"monospace"}}>₱{fmtR(summary.totalLow)} – ₱{fmtR(summary.totalHigh)}</span></div>
                   {inclProfFees && summary.professionalFeesLow && <>
-                    <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(16,185,129,0.06)",borderRadius:8}}><span style={{fontSize:12,color:THEME.muted}}>Professional Fees ({summary.professionalFeesPct}%)</span><span style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.professionalFeesLow)} – ₱{fmtR(summary.professionalFeesHigh)}</span></div>
-                    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:"rgba(16,185,129,0.1)",border:"1.5px solid rgba(16,185,129,0.3)",borderRadius:10}}><span style={{fontSize:13,fontWeight:800,color:THEME.text}}>Grand Total</span><span style={{fontSize:14,fontWeight:900,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.grandTotalLow)} – ₱{fmtR(summary.grandTotalHigh)}</span></div>
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:"rgba(16,185,129,0.06)",borderRadius:8}}><span style={{fontSize:12,color:T.muted}}>Professional Fees ({summary.professionalFeesPct}%)</span><span style={{fontSize:12,fontWeight:700,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.professionalFeesLow)} – ₱{fmtR(summary.professionalFeesHigh)}</span></div>
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 14px",background:"rgba(16,185,129,0.1)",border:"1.5px solid rgba(16,185,129,0.3)",borderRadius:10}}><span style={{fontSize:13,fontWeight:800,color:T.text}}>Grand Total</span><span style={{fontSize:14,fontWeight:900,color:"#10b981",fontFamily:"monospace"}}>₱{fmtR(summary.grandTotalLow)} – ₱{fmtR(summary.grandTotalHigh)}</span></div>
                   </>}
-                  <div style={{fontSize:10,color:THEME.muted,padding:"6px 10px",background:THEME.dim,borderRadius:6,lineHeight:1.5}}>{summary.vatNote}</div>
+                  <div style={{fontSize:10,color:T.muted,padding:"6px 10px",background:T.dim,borderRadius:6,lineHeight:1.5}}>{summary.vatNote}</div>
                 </div>
               </Card>
               <Card>
@@ -6731,16 +6731,16 @@ const exportDocument = () => {
                     return (
                       <div key={t.id||i}>
                         <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <span style={{fontSize:11,color:THEME.text,fontWeight:600}}>{t.trade}</span>
+                          <span style={{fontSize:11,color:T.text,fontWeight:600}}>{t.trade}</span>
                           <span style={{fontSize:11,color:TRADE_COLORS[i%TRADE_COLORS.length],fontFamily:"monospace",fontWeight:700}}>₱{fmtR(t.totalHigh)}</span>
                         </div>
-                        <div style={{background:THEME.border,borderRadius:99,height:5,overflow:"hidden"}}>
+                        <div style={{background:T.border,borderRadius:99,height:5,overflow:"hidden"}}>
                           <div style={{width:`${pct}%`,height:"100%",background:TRADE_COLORS[i%TRADE_COLORS.length],borderRadius:99,transition:"width 0.5s ease"}}/>
                         </div>
                       </div>
                     );
                   })}
-                  {trades.length>8 && <div style={{fontSize:11,color:THEME.muted,textAlign:"center",marginTop:4}}>+{trades.length-8} more trades</div>}
+                  {trades.length>8 && <div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:4}}>+{trades.length-8} more trades</div>}
                 </div>
               </Card>
             </div>
@@ -6749,7 +6749,7 @@ const exportDocument = () => {
           {/* TRADES TAB */}
           {activeTab==="trades" && (
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <div style={{fontSize:11,color:THEME.muted,padding:"6px 10px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8}}>
+              <div style={{fontSize:11,color:T.muted,padding:"6px 10px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:8}}>
                 💡 <strong style={{color:STR}}>Know a better rate?</strong> Click <strong>🚩 Flag</strong> on any trade row to submit the actual rate you paid. Your input helps keep Buildify accurate for all Philippine engineers.
               </div>
               <Card style={{padding:0,overflow:"hidden"}}>
@@ -6757,19 +6757,19 @@ const exportDocument = () => {
                   <table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}>
                     <thead><tr style={{background:"rgba(245,158,11,0.1)"}}>
                       {["Trade","Scope","Qty","Unit","Rate Low","Rate High","Total Low","Total High","Flag Rate"].map(h=>(
-                        <th key={h} style={{padding:"9px 10px",textAlign:["Rate Low","Rate High","Total Low","Total High"].includes(h)?"right":"left",fontSize:10,color:THEME.muted,fontWeight:700,borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                        <th key={h} style={{padding:"9px 10px",textAlign:["Rate Low","Rate High","Total Low","Total High"].includes(h)?"right":"left",fontSize:10,color:T.muted,fontWeight:700,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                       ))}
                     </tr></thead>
                     <tbody>
                       {trades.map((t,i)=>(
-                        <tr key={t.id||i} style={{borderBottom:`1px solid ${THEME.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)",position:"relative"}}>
+                        <tr key={t.id||i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.01)",position:"relative"}}>
                           <td style={{padding:"9px 10px",fontSize:12,fontWeight:700,color:TRADE_COLORS[i%TRADE_COLORS.length]}}>{t.icon} {t.trade}</td>
-                          <td style={{padding:"9px 10px",fontSize:11,color:THEME.muted,maxWidth:180,lineHeight:1.4}}>{t.description}</td>
-                          <td style={{padding:"9px 10px",fontSize:11,color:THEME.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(t.qty)}</td>
-                          <td style={{padding:"9px 10px",fontSize:11,color:THEME.muted}}>{t.unit}</td>
-                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.text}}>₱{fmtR(t.rateLow)}</td>
-                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.text}}>₱{fmtR(t.rateHigh)}</td>
-                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:THEME.muted}}>₱{fmtR(t.totalLow)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,color:T.muted,maxWidth:180,lineHeight:1.4}}>{t.description}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,color:T.text,textAlign:"right",fontFamily:"monospace"}}>{fmtN(t.qty)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,color:T.muted}}>{t.unit}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateLow)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.text}}>₱{fmtR(t.rateHigh)}</td>
+                          <td style={{padding:"9px 10px",fontSize:11,textAlign:"right",fontFamily:"monospace",color:T.muted}}>₱{fmtR(t.totalLow)}</td>
                           <td style={{padding:"9px 10px",fontSize:12,textAlign:"right",fontFamily:"monospace",color:GOLD,fontWeight:700}}>₱{fmtR(t.totalHigh)}</td>
                           <td style={{padding:"9px 6px",textAlign:"center",position:"relative"}}>
                             {flagged[i] ? (
@@ -6781,24 +6781,24 @@ const exportDocument = () => {
                               </button>
                             )}
                             {flagOpen===i && (
-                              <div style={{position:"absolute",right:0,top:"110%",zIndex:99,background:THEME.card,border:`1.5px solid rgba(239,68,68,0.4)`,borderRadius:12,padding:14,minWidth:220,boxShadow:"0 8px 32px rgba(0,0,0,0.4)",textAlign:"left"}}>
+                              <div style={{position:"absolute",right:0,top:"110%",zIndex:99,background:T.card,border:`1.5px solid rgba(239,68,68,0.4)`,borderRadius:12,padding:14,minWidth:220,boxShadow:"0 8px 32px rgba(0,0,0,0.4)",textAlign:"left"}}>
                                 <div style={{fontSize:11,fontWeight:700,color:"#ef4444",marginBottom:8}}>🚩 Flag Rate for: {t.trade}</div>
-                                <div style={{fontSize:10,color:THEME.muted,marginBottom:4}}>AI rate: ₱{fmtR(t.rateLow)}–₱{fmtR(t.rateHigh)}/{t.unit}</div>
-                                <div style={{fontSize:10,color:THEME.muted,marginBottom:4}}>Your actual rate (₱/{t.unit}):</div>
+                                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>AI rate: ₱{fmtR(t.rateLow)}–₱{fmtR(t.rateHigh)}/{t.unit}</div>
+                                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Your actual rate (₱/{t.unit}):</div>
                                 <input value={flagRate} onChange={e=>setFlagRate(e.target.value)} placeholder="e.g. 14500"
-                                  style={{width:"100%",background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:7,padding:"6px 8px",color:THEME.text,fontSize:12,marginBottom:6,outline:"none"}}
-                                  onFocus={e=>e.target.style.borderColor="#ef4444"} onBlur={e=>e.target.style.borderColor=THEME.border}/>
-                                <div style={{fontSize:10,color:THEME.muted,marginBottom:4}}>Location / notes (optional):</div>
+                                  style={{width:"100%",background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text,fontSize:12,marginBottom:6,outline:"none"}}
+                                  onFocus={e=>e.target.style.borderColor="#ef4444"} onBlur={e=>e.target.style.borderColor=T.border}/>
+                                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Location / notes (optional):</div>
                                 <input value={flagNote} onChange={e=>setFlagNote(e.target.value)} placeholder="e.g. Cebu, Aug 2025, confirmed with supplier"
-                                  style={{width:"100%",background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:7,padding:"6px 8px",color:THEME.text,fontSize:12,marginBottom:8,outline:"none"}}
-                                  onFocus={e=>e.target.style.borderColor="#ef4444"} onBlur={e=>e.target.style.borderColor=THEME.border}/>
+                                  style={{width:"100%",background:T.dim,border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 8px",color:T.text,fontSize:12,marginBottom:8,outline:"none"}}
+                                  onFocus={e=>e.target.style.borderColor="#ef4444"} onBlur={e=>e.target.style.borderColor=T.border}/>
                                 <div style={{display:"flex",gap:6}}>
                                   <button onClick={()=>submitFlag(i,t)} disabled={!flagRate}
-                                    style={{flex:1,padding:"6px 0",borderRadius:7,border:"none",background:flagRate?"#ef4444":THEME.border,color:flagRate?"#fff":THEME.muted,fontWeight:700,fontSize:11,cursor:flagRate?"pointer":"default"}}>
+                                    style={{flex:1,padding:"6px 0",borderRadius:7,border:"none",background:flagRate?"#ef4444":T.border,color:flagRate?"#fff":T.muted,fontWeight:700,fontSize:11,cursor:flagRate?"pointer":"default"}}>
                                     Submit
                                   </button>
                                   <button onClick={()=>setFlagOpen(null)}
-                                    style={{padding:"6px 10px",borderRadius:7,border:`1px solid ${THEME.border}`,background:"transparent",color:THEME.muted,fontSize:11,cursor:"pointer"}}>
+                                    style={{padding:"6px 10px",borderRadius:7,border:`1px solid ${T.border}`,background:"transparent",color:T.muted,fontSize:11,cursor:"pointer"}}>
                                     Cancel
                                   </button>
                                 </div>
@@ -6809,8 +6809,8 @@ const exportDocument = () => {
                       ))}
                     </tbody>
                     <tfoot><tr style={{background:"rgba(245,158,11,0.1)",borderTop:`2px solid rgba(245,158,11,0.3)`}}>
-                      <td colSpan={6} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:THEME.text}}>CONSTRUCTION COST TOTAL</td>
-                      <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:THEME.muted,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)}</td>
+                      <td colSpan={6} style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.text}}>CONSTRUCTION COST TOTAL</td>
+                      <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:T.muted,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostLow)}</td>
                       <td style={{padding:"10px 10px",fontSize:13,fontWeight:800,color:GOLD,textAlign:"right",fontFamily:"monospace"}}>₱{fmtR(summary.constructionCostHigh)}</td>
                       <td/>
                     </tr></tfoot>
@@ -6827,18 +6827,18 @@ const exportDocument = () => {
                 <Label>Scope Included</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:12}}>
                   {(project.scopeIncluded||[]).map((s,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:THEME.dim,borderRadius:8}}>
+                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:T.dim,borderRadius:8}}>
                       <span style={{color:"#10b981",fontWeight:800,flexShrink:0}}>✓</span>
-                      <span style={{fontSize:12,color:THEME.text}}>{s}</span>
+                      <span style={{fontSize:12,color:T.text}}>{s}</span>
                     </div>
                   ))}
                 </div>
                 <Label style={{marginTop:16}}>Scope Excluded</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:10}}>
                   {(project.scopeExcluded||[]).map((s,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:THEME.dim,borderRadius:8}}>
+                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:T.dim,borderRadius:8}}>
                       <span style={{color:"#ef4444",fontWeight:800,flexShrink:0}}>✗</span>
-                      <span style={{fontSize:12,color:THEME.muted}}>{s}</span>
+                      <span style={{fontSize:12,color:T.muted}}>{s}</span>
                     </div>
                   ))}
                 </div>
@@ -6847,18 +6847,18 @@ const exportDocument = () => {
                 <Label>Key Assumptions</Label>
                 <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:12}}>
                   {(project.assumptions||[]).map((a,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:THEME.dim,borderRadius:8}}>
+                    <div key={i} style={{display:"flex",gap:8,padding:"7px 10px",background:T.dim,borderRadius:8}}>
                       <span style={{color:GOLD,fontWeight:800,flexShrink:0,fontSize:12}}>•</span>
-                      <span style={{fontSize:12,color:THEME.text,lineHeight:1.5}}>{a}</span>
+                      <span style={{fontSize:12,color:T.text,lineHeight:1.5}}>{a}</span>
                     </div>
                   ))}
                 </div>
                 <div style={{marginTop:14,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:9,padding:"10px 12px"}}>
                   <div style={{fontSize:11,color:GOLD,fontWeight:700,marginBottom:4}}>⚠️ Accuracy Note</div>
-                  <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>{project.accuracyNote}</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>{project.accuracyNote}</div>
                 </div>
                 <div style={{marginTop:8,background:"rgba(100,116,139,0.08)",border:"1px solid rgba(100,116,139,0.15)",borderRadius:9,padding:"10px 12px"}}>
-                  <div style={{fontSize:11,color:THEME.muted,lineHeight:1.6}}>{project.validityNote}</div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>{project.validityNote}</div>
                 </div>
               </Card>
             </div>
@@ -6868,15 +6868,15 @@ const exportDocument = () => {
           {activeTab==="ve" && (
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {veItems.length===0
-                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>💡</div><div style={{color:THEME.muted}}>No value engineering suggestions generated</div></Card>
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>💡</div><div style={{color:T.muted}}>No value engineering suggestions generated</div></Card>
                 : veItems.map((v,i)=>(
                   <div key={i} style={{background:"rgba(16,185,129,0.05)",border:"1.5px solid rgba(16,185,129,0.2)",borderRadius:12,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16}}>
                     <div style={{display:"flex",gap:12,alignItems:"flex-start",flex:1}}>
                       <span style={{fontSize:20,flexShrink:0}}>💡</span>
-                      <span style={{fontSize:13,color:THEME.text,lineHeight:1.6}}>{v.item}</span>
+                      <span style={{fontSize:13,color:T.text,lineHeight:1.6}}>{v.item}</span>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontSize:9,color:THEME.muted,marginBottom:2}}>POTENTIAL SAVING</div>
+                      <div style={{fontSize:9,color:T.muted,marginBottom:2}}>POTENTIAL SAVING</div>
                       <div style={{fontSize:14,fontWeight:800,color:"#10b981"}}>{v.potentialSaving}</div>
                     </div>
                   </div>
@@ -6889,9 +6889,9 @@ const exportDocument = () => {
           {activeTab==="risks" && (
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {warnings.length===0
-                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:THEME.muted}}>No market risk items flagged</div></Card>
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>✅</div><div style={{color:T.muted}}>No market risk items flagged</div></Card>
                 : warnings.map((w,i)=>{
-                    const lvlMap = { High:{c:"#ef4444",bg:"rgba(239,68,68,0.07)",border:"rgba(239,68,68,0.25)",icon:"🔴"}, Medium:{c:GOLD,bg:"rgba(245,158,11,0.07)",border:"rgba(245,158,11,0.25)",icon:"🟡"}, Low:{c:"#10b981",bg:"rgba(16,185,129,0.07)",border:"rgba(16,185,129,0.2)",icon:"🟢"} }[w.level]||{c:THEME.muted,bg:THEME.dim,border:THEME.border,icon:"⚪"};
+                    const lvlMap = { High:{c:"#ef4444",bg:"rgba(239,68,68,0.07)",border:"rgba(239,68,68,0.25)",icon:"🔴"}, Medium:{c:GOLD,bg:"rgba(245,158,11,0.07)",border:"rgba(245,158,11,0.25)",icon:"🟡"}, Low:{c:"#10b981",bg:"rgba(16,185,129,0.07)",border:"rgba(16,185,129,0.2)",icon:"🟢"} }[w.level]||{c:T.muted,bg:T.dim,border:T.border,icon:"⚪"};
                     return (
                       <div key={i} style={{background:lvlMap.bg,border:`1.5px solid ${lvlMap.border}`,borderRadius:12,padding:"14px 18px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:6}}>
@@ -6899,21 +6899,21 @@ const exportDocument = () => {
                             <span style={{fontSize:18,flexShrink:0}}>{lvlMap.icon}</span>
                             <div>
                               <div style={{fontSize:12,fontWeight:700,color:lvlMap.c,marginBottom:2}}>{w.item}</div>
-                              <div style={{fontSize:12,color:THEME.text,lineHeight:1.6}}>{w.warning}</div>
+                              <div style={{fontSize:12,color:T.text,lineHeight:1.6}}>{w.warning}</div>
                             </div>
                           </div>
                           <span style={{fontSize:10,padding:"3px 8px",borderRadius:99,background:lvlMap.bg,border:`1px solid ${lvlMap.border}`,color:lvlMap.c,fontWeight:800,flexShrink:0}}>{w.level} RISK</span>
                         </div>
                         {w.mitigation && (
-                          <div style={{marginTop:8,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>
-                            <strong style={{color:THEME.text}}>💡 Mitigation:</strong> {w.mitigation}
+                          <div style={{marginTop:8,padding:"8px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
+                            <strong style={{color:T.text}}>💡 Mitigation:</strong> {w.mitigation}
                           </div>
                         )}
                       </div>
                     );
                   })
               }
-              <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:9,fontSize:11,color:THEME.muted,lineHeight:1.6}}>
+              <div style={{padding:"10px 14px",background:"rgba(6,150,215,0.06)",border:"1px solid rgba(6,150,215,0.15)",borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.6}}>
                 📊 <strong style={{color:STR}}>Check current prices:</strong> PSA Construction Materials Wholesale Price Index (psa.gov.ph) · DPWH price lists (dpwh.gov.ph) · PhilGEPS awarded bids for real project benchmarks
               </div>
             </div>
@@ -6923,18 +6923,18 @@ const exportDocument = () => {
           {activeTab==="nextsteps" && (
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {nextSteps.length===0
-                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>📋</div><div style={{color:THEME.muted}}>No next steps generated</div></Card>
+                ? <Card style={{textAlign:"center",opacity:0.5,padding:40}}><div style={{fontSize:40,marginBottom:12}}>📋</div><div style={{color:T.muted}}>No next steps generated</div></Card>
                 : nextSteps.map((ns,i)=>{
-                    const prioMap = { Urgent:{c:"#ef4444",bg:"rgba(239,68,68,0.08)",border:"rgba(239,68,68,0.25)"}, High:{c:GOLD,bg:"rgba(245,158,11,0.08)",border:"rgba(245,158,11,0.2)"}, Medium:{c:STR,bg:"rgba(6,150,215,0.07)",border:"rgba(6,150,215,0.2)"}, Low:{c:THEME.muted,bg:THEME.dim,border:THEME.border} }[ns.priority]||{c:THEME.muted,bg:THEME.dim,border:THEME.border};
+                    const prioMap = { Urgent:{c:"#ef4444",bg:"rgba(239,68,68,0.08)",border:"rgba(239,68,68,0.25)"}, High:{c:GOLD,bg:"rgba(245,158,11,0.08)",border:"rgba(245,158,11,0.2)"}, Medium:{c:STR,bg:"rgba(6,150,215,0.07)",border:"rgba(6,150,215,0.2)"}, Low:{c:T.muted,bg:T.dim,border:T.border} }[ns.priority]||{c:T.muted,bg:T.dim,border:T.border};
                     return (
                       <div key={i} style={{background:prioMap.bg,border:`1.5px solid ${prioMap.border}`,borderRadius:12,padding:"14px 18px",display:"flex",gap:14,alignItems:"flex-start"}}>
                         <div style={{width:32,height:32,borderRadius:"50%",background:prioMap.c,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",flexShrink:0}}>{ns.step}</div>
                         <div style={{flex:1}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                            <div style={{fontSize:13,fontWeight:700,color:THEME.text}}>{ns.action}</div>
+                            <div style={{fontSize:13,fontWeight:700,color:T.text}}>{ns.action}</div>
                             {ns.priority && <span style={{fontSize:9,padding:"2px 7px",borderRadius:99,background:prioMap.bg,border:`1px solid ${prioMap.border}`,color:prioMap.c,fontWeight:800}}>{ns.priority}</span>}
                           </div>
-                          <div style={{fontSize:12,color:THEME.muted,lineHeight:1.6}}>{ns.detail}</div>
+                          <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>{ns.detail}</div>
                         </div>
                       </div>
                     );
@@ -6943,7 +6943,7 @@ const exportDocument = () => {
             </div>
           )}
 
-          <div style={{marginTop:12,padding:"9px 14px",background:THEME.dim,borderRadius:9,fontSize:11,color:THEME.muted,lineHeight:1.5}}>
+          <div style={{marginTop:12,padding:"9px 14px",background:T.dim,borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.5}}>
             ⚠️ Parametric pre-design estimate ±20–35%. Not a contract document or bill of quantities. For contract award, commission a full QS. · PH Engineering Suite
           </div>
         </div>
@@ -6964,8 +6964,8 @@ const exportDocument = () => {
           ].map(x=>(
             <Card key={x.t} style={{textAlign:"center",padding:18}}>
               <div style={{fontSize:24,marginBottom:7}}>{x.i}</div>
-              <div style={{fontWeight:700,fontSize:12,color:THEME.text,marginBottom:3}}>{x.t}</div>
-              <div style={{fontSize:10,color:THEME.muted,lineHeight:1.5}}>{x.d}</div>
+              <div style={{fontWeight:700,fontSize:12,color:T.text,marginBottom:3}}>{x.t}</div>
+              <div style={{fontSize:10,color:T.muted,lineHeight:1.5}}>{x.d}</div>
             </Card>
           ))}
         </div>
@@ -7317,12 +7317,12 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
     };
     return (
       <div>
-        <div style={{fontSize:10,color:THEME.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px",fontWeight:600}}>
+        <div style={{fontSize:10,color:T.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.3px",fontWeight:600}}>
           {label}{fp && <span style={{fontSize:8,background:"rgba(34,197,94,0.15)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)",padding:"0px 4px",borderRadius:3,fontWeight:700,marginLeft:5}}>PLANS</span>}
         </div>
         <input type={type} value={value??""} onChange={e=>handleChange(e.target.value)}
-          style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${fp?"rgba(34,197,94,0.25)":THEME.border}`,
-            borderRadius:6,padding:"5px 8px",color:THEME.text,fontSize:12,fontWeight:600,outline:"none",width:"100%"}}/>
+          style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${fp?"rgba(34,197,94,0.25)":T.border}`,
+            borderRadius:6,padding:"5px 8px",color:T.text,fontSize:12,fontWeight:600,outline:"none",width:"100%"}}/>
       </div>
     );
   };
@@ -7338,10 +7338,10 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
             <Icon name="structural" size={16} color="#fff"/>
           </div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:800,color:THEME.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+            <div style={{fontSize:13,fontWeight:800,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
               {bldg.name || "Structural Plans Loaded"}
             </div>
-            <div style={{fontSize:11,color:THEME.muted}}>
+            <div style={{fontSize:11,color:T.muted}}>
               {[bldg.floors&&`${bldg.floors}F`, sei.zone, mat.fc&&`f'c=${mat.fc}MPa`, mat.fy&&`fy=${mat.fy}MPa`].filter(Boolean).join(" · ")||"Ready for computation"}
             </div>
           </div>
@@ -7349,7 +7349,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
           {/* Action buttons */}
           <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
             <button onClick={()=>setExpanded(p=>!p)}
-              style={{padding:"6px 12px",background:"transparent",border:`1px solid ${THEME.border}`,color:THEME.muted,borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:600}}>
+              style={{padding:"6px 12px",background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:600}}>
               {expanded ? "▲ Less" : "▼ Edit Data"}
             </button>
             <button onClick={onRunAll} disabled={runState?.running}
@@ -7362,7 +7362,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                 : <><Icon name="loads" size={13} color="#fff"/> Run All</>}
             </button>
             <button onClick={onClear}
-              style={{padding:"8px 10px",background:"transparent",border:`1px solid ${THEME.border}`,color:THEME.muted,borderRadius:8,cursor:"pointer",fontSize:11}}>
+              style={{padding:"8px 10px",background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:8,cursor:"pointer",fontSize:11}}>
               ✕
             </button>
           </div>
@@ -7383,20 +7383,20 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                   background: effectiveComputed ? (effectiveComputed==="fail"?"rgba(239,68,68,0.08)":effectiveComputed==="unverifiable"?"rgba(245,158,11,0.08)":"rgba(34,197,94,0.08)") : effectiveOk ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
                   transition:"all 0.15s"}}>
                 <div style={{fontSize:14,fontWeight:900,marginBottom:2,
-                  color: effectiveComputed ? statusColor[effectiveComputed] : effectiveOk ? "#0696d7" : THEME.muted}}>
+                  color: effectiveComputed ? statusColor[effectiveComputed] : effectiveOk ? "#0696d7" : T.muted}}>
                   {effectiveComputed ? statusIcon[effectiveComputed] : effectiveOk ? "●" : "○"}
                 </div>
-                <div style={{fontSize:10,fontWeight:700,color:effectiveComputed?statusColor[effectiveComputed]:effectiveOk?THEME.text:THEME.muted,lineHeight:1.2}}>{r.label}</div>
+                <div style={{fontSize:10,fontWeight:700,color:effectiveComputed?statusColor[effectiveComputed]:effectiveOk?T.text:T.muted,lineHeight:1.2}}>{r.label}</div>
                 {effectiveComputed && (
                   <div style={{fontSize:9,color:statusColor[effectiveComputed],fontWeight:700,marginTop:1,textTransform:"uppercase"}}>
                     {effectiveComputed === "incomplete" ? "partial" : effectiveComputed === "nodata" ? "no data" : effectiveComputed}
                   </div>
                 )}
                 {!effectiveComputed && effectiveOk && r.detail && (
-                  <div style={{fontSize:9,color:THEME.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.detail}</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.detail}</div>
                 )}
                 {!effectiveComputed && !effectiveOk && (
-                  <div style={{fontSize:9,color:THEME.muted,marginTop:1}}>{r.noData || "no data"}</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:1}}>{r.noData || "no data"}</div>
                 )}
               </button>
             );
@@ -7405,8 +7405,8 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 
         {/* ── Run All result summary (shows after computation) ── */}
         {structuralResults && (
-          <div style={{display:"flex",gap:10,marginTop:10,padding:"8px 12px",background:THEME.dim,borderRadius:8,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{fontSize:11,color:THEME.muted,fontWeight:600}}>Computation result:</span>
+          <div style={{display:"flex",gap:10,marginTop:10,padding:"8px 12px",background:T.dim,borderRadius:8,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{fontSize:11,color:T.muted,fontWeight:600}}>Computation result:</span>
             {[
               {label:`${structuralResults.summary.pass} PASS`,   color:"#22c55e", bg:"rgba(34,197,94,0.1)"},
               {label:`${structuralResults.summary.fail} FAIL`,   color:"#ef4444", bg:"rgba(239,68,68,0.1)"},
@@ -7431,23 +7431,23 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 
         {/* ── Expandable data editor ── */}
         {expanded && (
-          <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${THEME.border}`}}>
+          <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${T.border}`}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
 
               {/* Building + Seismic */}
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{fontSize:10,fontWeight:800,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Building Info</div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Building Info</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <div style={{gridColumn:"1/-1"}}><Field label="Project Name" value={bldg.name} path="building.name" type="text" fp={!!bldg.name}/></div>
                   <Field label="Floors" value={bldg.floors} path="building.floors" fp={!!bldg.floors}/>
                   <Field label="Floor Height (m)" value={bldg.floorHeight} path="building.floorHeight" fp={!!bldg.floorHeight}/>
                 </div>
-                <div style={{fontSize:10,fontWeight:800,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:4}}>Materials</div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:4}}>Materials</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <Field label="f'c (MPa)" value={mat.fc} path="materials.fc" fp={!!mat.fc}/>
                   <Field label="fy (MPa)"  value={mat.fy} path="materials.fy" fp={!!mat.fy}/>
                 </div>
-                <div style={{fontSize:10,fontWeight:800,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:4}}>Floor Loads</div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:4}}>Floor Loads</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <Field label="DL (kPa)" value={lds.floorDL} path="loads.floorDL" fp={!!lds.floorDL}/>
                   <Field label="LL (kPa)" value={lds.floorLL} path="loads.floorLL" fp={!!lds.floorLL}/>
@@ -7456,7 +7456,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
 
               {/* Seismic */}
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{fontSize:10,fontWeight:800,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Seismic Parameters</div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Seismic Parameters</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <Field label="Zone" value={sei.zone} path="seismic.zone" type="text" fp={!!sei.zone}/>
                   <Field label="Soil Type" value={sei.soilTypeLabel} path="seismic.soilTypeLabel" type="text" fp={!!sei.soilTypeLabel}/>
@@ -7471,7 +7471,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
             {(beams.length+cols.length+ftgs.length+slbs.length) > 0 && (
               <div style={{marginTop:12}}>
                 <button onClick={()=>setShowMembers(p=>!p)}
-                  style={{background:"transparent",border:`1px solid ${THEME.border}`,color:THEME.muted,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>
+                  style={{background:"transparent",border:`1px solid ${T.border}`,color:T.muted,borderRadius:6,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600}}>
                   {showMembers?"▲":"▼"} Member Schedule ({beams.length+cols.length+ftgs.length+slbs.length} extracted)
                 </button>
                 {showMembers && (
@@ -7482,10 +7482,10 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                         {beams.map((bm,i)=>(
                           <div key={i} style={{display:"flex",gap:8,padding:"6px 10px",background:"rgba(6,150,215,0.05)",borderRadius:7,marginBottom:5,fontSize:11,flexWrap:"wrap"}}>
                             <span style={{fontWeight:700,color:"#0696d7",minWidth:28}}>{bm.id||`B${i+1}`}</span>
-                            {bm.width&&<span style={{color:THEME.muted}}>b={bm.width}</span>}
-                            {bm.depth&&<span style={{color:THEME.muted}}>d={bm.depth}</span>}
-                            {bm.Mu&&<span style={{color:THEME.muted}}>Mu={bm.Mu}</span>}
-                            {bm.Vu&&<span style={{color:THEME.muted}}>Vu={bm.Vu}</span>}
+                            {bm.width&&<span style={{color:T.muted}}>b={bm.width}</span>}
+                            {bm.depth&&<span style={{color:T.muted}}>d={bm.depth}</span>}
+                            {bm.Mu&&<span style={{color:T.muted}}>Mu={bm.Mu}</span>}
+                            {bm.Vu&&<span style={{color:T.muted}}>Vu={bm.Vu}</span>}
                           </div>
                         ))}
                       </div>
@@ -7496,9 +7496,9 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                         {cols.map((c,i)=>(
                           <div key={i} style={{display:"flex",gap:8,padding:"6px 10px",background:"rgba(245,158,11,0.05)",borderRadius:7,marginBottom:5,fontSize:11,flexWrap:"wrap"}}>
                             <span style={{fontWeight:700,color:"#f59e0b",minWidth:28}}>{c.id||`C${i+1}`}</span>
-                            {c.width&&<span style={{color:THEME.muted}}>b={c.width}</span>}
-                            {c.height&&<span style={{color:THEME.muted}}>h={c.height}</span>}
-                            {c.Pu&&<span style={{color:THEME.muted}}>Pu={c.Pu}</span>}
+                            {c.width&&<span style={{color:T.muted}}>b={c.width}</span>}
+                            {c.height&&<span style={{color:T.muted}}>h={c.height}</span>}
+                            {c.Pu&&<span style={{color:T.muted}}>Pu={c.Pu}</span>}
                           </div>
                         ))}
                       </div>
@@ -7509,8 +7509,8 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
                         {ftgs.map((f,i)=>(
                           <div key={i} style={{display:"flex",gap:8,padding:"6px 10px",background:"rgba(34,197,94,0.05)",borderRadius:7,marginBottom:5,fontSize:11,flexWrap:"wrap"}}>
                             <span style={{fontWeight:700,color:"#22c55e",minWidth:28}}>{f.id||`F${i+1}`}</span>
-                            {f.columnLoad&&<span style={{color:THEME.muted}}>P={f.columnLoad}</span>}
-                            {f.soilBearing&&<span style={{color:THEME.muted}}>qa={f.soilBearing}</span>}
+                            {f.columnLoad&&<span style={{color:T.muted}}>P={f.columnLoad}</span>}
+                            {f.soilBearing&&<span style={{color:T.muted}}>qa={f.soilBearing}</span>}
                           </div>
                         ))}
                       </div>
@@ -7520,7 +7520,7 @@ function StructuralIntelligencePanel({ data, onUpdate, onRunAll, onClear, runSta
               </div>
             )}
 
-            <div style={{marginTop:10,fontSize:11,color:THEME.muted,fontStyle:"italic"}}>
+            <div style={{marginTop:10,fontSize:11,color:T.muted,fontStyle:"italic"}}>
               All fields editable above. Green label = extracted from plans. Changes feed into all design calculators.
             </div>
           </div>
@@ -7781,8 +7781,8 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
     <div style={{background:"rgba(6,150,215,0.04)",border:"1.5px solid rgba(6,150,215,0.2)",borderRadius:14,padding:20,marginBottom:20,animation:"fadeIn 0.35s ease"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
-          <div style={{fontWeight:800,fontSize:15,color:THEME.text}}>Structural Computation Package</div>
-          <div style={{fontSize:11,color:THEME.muted,marginTop:2}}>NSCP 2015 · {new Date().toLocaleDateString("en-PH")} · {(data?.materials?.fc ? `f'c=${data.materials.fc}MPa · fy=${data.materials.fy}MPa` : "")}</div>
+          <div style={{fontWeight:800,fontSize:15,color:T.text}}>Structural Computation Package</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>NSCP 2015 · {new Date().toLocaleDateString("en-PH")} · {(data?.materials?.fc ? `f'c=${data.materials.fc}MPa · fy=${data.materials.fy}MPa` : "")}</div>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -7803,17 +7803,17 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
 
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {results.items.map((item,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:statusBg[item.status]||THEME.dim,borderRadius:9,border:`1px solid ${statusColor[item.status]||THEME.border}33`}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:statusColor[item.status]||THEME.muted,flexShrink:0}}/>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:statusBg[item.status]||T.dim,borderRadius:9,border:`1px solid ${statusColor[item.status]||T.border}33`}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:statusColor[item.status]||T.muted,flexShrink:0}}/>
             <div style={{width:80,flexShrink:0}}>
-              <span style={{fontSize:10,fontWeight:700,color:THEME.muted,textTransform:"uppercase"}}>{toolLabel[item.tool]||item.tool}</span>
+              <span style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase"}}>{toolLabel[item.tool]||item.tool}</span>
             </div>
             <div style={{width:70,flexShrink:0}}>
-              <span style={{fontSize:12,fontWeight:700,color:THEME.text,fontFamily:"monospace"}}>{item.id}</span>
+              <span style={{fontSize:12,fontWeight:700,color:T.text,fontFamily:"monospace"}}>{item.id}</span>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <span style={{fontSize:12,color:THEME.text,fontWeight:600}}>{item.value||"—"}</span>
-              {item.detail && <span style={{fontSize:11,color:THEME.muted,marginLeft:8}}>{item.detail}</span>}
+              <span style={{fontSize:12,color:T.text,fontWeight:600}}>{item.value||"—"}</span>
+              {item.detail && <span style={{fontSize:11,color:T.muted,marginLeft:8}}>{item.detail}</span>}
               {item.error  && <span style={{fontSize:11,color:"#f59e0b",marginLeft:8}}>⚠ {item.error}</span>}
             </div>
             <span style={{fontSize:11,fontWeight:800,color:statusColor[item.status],background:statusBg[item.status],padding:"3px 10px",borderRadius:5,flexShrink:0}}>{item.status}</span>
@@ -7825,7 +7825,7 @@ function StructuralComputationSummary({ results, data, onNavigate }) {
         ))}
       </div>
 
-      <div style={{marginTop:14,padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>
+      <div style={{marginTop:14,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
         ⚠️ All computations use simplified NSCP 2015 methods. Results are for preliminary design only. Full detailed analysis and stamping by a licensed PSCE is required before construction.
       </div>
     </div>
@@ -7845,9 +7845,9 @@ function RebarSchedule({ structuralData, structuralResults }) {
   if (!sd) {
     return (
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16,textAlign:"center"}}>
-        <Icon name="report" size={48} color={THEME.muted}/>
-        <div style={{fontSize:15,fontWeight:700,color:THEME.text}}>No Data Available</div>
-        <div style={{fontSize:13,color:THEME.muted,maxWidth:340,lineHeight:1.7}}>
+        <Icon name="report" size={48} color={T.muted}/>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Data Available</div>
+        <div style={{fontSize:13,color:T.muted,maxWidth:340,lineHeight:1.7}}>
           Upload structural plans in <strong style={{color:"#0696d7"}}>AI Plan Checker</strong> first, then click <strong style={{color:"#0696d7"}}>Run All</strong> to generate the reinforcement schedule.
         </div>
       </div>
@@ -7871,9 +7871,9 @@ function RebarSchedule({ structuralData, structuralResults }) {
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
           {tabs.map(t=>(
             <button key={t.key} onClick={()=>setView(t.key)}
-              style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${view===t.key?"#0696d7":THEME.border}`,
+              style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${view===t.key?"#0696d7":T.border}`,
                 background:view===t.key?"rgba(6,150,215,0.12)":"transparent",
-                color:view===t.key?"#0696d7":THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                color:view===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
               {t.label} ({t.count})
             </button>
           ))}
@@ -7885,73 +7885,73 @@ function RebarSchedule({ structuralData, structuralResults }) {
         {view==="beams" && (allBeams.length ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {allBeams.map((bm,i)=>(
-              <div key={i} style={{padding:"12px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:14,fontWeight:800,color:THEME.text}}>{bm.id}</span>
-                  <span style={{fontSize:11,color:THEME.muted}}>{bm.width}×{bm.depth}mm {bm.span?`· L=${bm.span}m`:""}</span>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{bm.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{bm.width}×{bm.depth}mm {bm.span?`· L=${bm.span}m`:""}</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>BOTTOM BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{bm.botBarCount?`${bm.botBarCount}-${bm.botBarDia}mmØ`:"—"}</div></div>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>TOP BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{bm.topBarCount?`${bm.topBarCount}-${bm.topBarDia}mmØ`:"—"}</div></div>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>STIRRUPS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{bm.stirrupDia?`${bm.stirrupDia}mmØ @ ${bm.stirrupSpacingRest||"?"}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>BOTTOM BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{bm.botBarCount?`${bm.botBarCount}-${bm.botBarDia}mmØ`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TOP BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{bm.topBarCount?`${bm.topBarCount}-${bm.topBarDia}mmØ`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>STIRRUPS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{bm.stirrupDia?`${bm.stirrupDia}mmØ @ ${bm.stirrupSpacingRest||"?"}mm`:"—"}</div></div>
                 </div>
               </div>
             ))}
           </div>
-        ) : <div style={{padding:20,textAlign:"center",color:THEME.muted}}>No beam data extracted from plans.</div>)}
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No beam data extracted from plans.</div>)}
 
         {view==="columns" && (allCols.length ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {allCols.map((col,i)=>(
-              <div key={i} style={{padding:"12px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:14,fontWeight:800,color:THEME.text}}>{col.id}</span>
-                  <span style={{fontSize:11,color:THEME.muted}}>{col.width}×{col.height}mm · {col.type||"tied"}</span>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{col.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{col.width}×{col.height}mm · {col.type||"tied"}</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>MAIN BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{col.mainBarCount?`${col.mainBarCount}-${col.mainBarDia}mmØ`:"—"}</div></div>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>TIES</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{col.tieDia?`${col.tieDia}mmØ @ ${col.tieSpacing||"?"}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>MAIN BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{col.mainBarCount?`${col.mainBarCount}-${col.mainBarDia}mmØ`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TIES</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{col.tieDia?`${col.tieDia}mmØ @ ${col.tieSpacing||"?"}mm`:"—"}</div></div>
                 </div>
               </div>
             ))}
           </div>
-        ) : <div style={{padding:20,textAlign:"center",color:THEME.muted}}>No column data extracted from plans.</div>)}
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No column data extracted from plans.</div>)}
 
         {view==="footings" && (allFtgs.length ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {allFtgs.map((ft,i)=>(
-              <div key={i} style={{padding:"12px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:14,fontWeight:800,color:THEME.text}}>{ft.id}</span>
-                  <span style={{fontSize:11,color:THEME.muted}}>{ft.type||"—"} · {ft.thickness?`t=${ft.thickness}mm`:""} {ft.soilBearing?`· SBC=${ft.soilBearing}kPa`:""}</span>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{ft.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{ft.type||"—"} · {ft.thickness?`t=${ft.thickness}mm`:""} {ft.soilBearing?`· SBC=${ft.soilBearing}kPa`:""}</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>BOTTOM BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{ft.botBarDia?`${ft.botBarDia}mmØ @ ${ft.botBarSpacing}mm`:"—"}</div></div>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>TOP BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{ft.topBarDia?`${ft.topBarDia}mmØ @ ${ft.topBarSpacing}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>BOTTOM BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{ft.botBarDia?`${ft.botBarDia}mmØ @ ${ft.botBarSpacing}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TOP BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{ft.topBarDia?`${ft.topBarDia}mmØ @ ${ft.topBarSpacing}mm`:"—"}</div></div>
                 </div>
               </div>
             ))}
           </div>
-        ) : <div style={{padding:20,textAlign:"center",color:THEME.muted}}>No footing data extracted from plans.</div>)}
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No footing data extracted from plans.</div>)}
 
         {view==="slabs" && (allSlabs.length ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {allSlabs.map((sl,i)=>(
-              <div key={i} style={{padding:"12px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
+              <div key={i} style={{padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <span style={{fontSize:14,fontWeight:800,color:THEME.text}}>{sl.id}</span>
-                  <span style={{fontSize:11,color:THEME.muted}}>{sl.type||"—"} · t={sl.thickness||"?"}mm {sl.span?`· L=${sl.span}m`:""}</span>
+                  <span style={{fontSize:14,fontWeight:800,color:T.text}}>{sl.id}</span>
+                  <span style={{fontSize:11,color:T.muted}}>{sl.type||"—"} · t={sl.thickness||"?"}mm {sl.span?`· L=${sl.span}m`:""}</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>MAIN BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{sl.mainBarDia?`${sl.mainBarDia}mmØ @ ${sl.mainBarSpacing}mm`:"—"}</div></div>
-                  <div style={{background:THEME.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:THEME.muted,fontWeight:700,marginBottom:3}}>TEMP BARS</div><div style={{fontSize:12,fontWeight:700,color:THEME.text}}>{sl.tempBarDia?`${sl.tempBarDia}mmØ @ ${sl.tempBarSpacing}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>MAIN BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{sl.mainBarDia?`${sl.mainBarDia}mmØ @ ${sl.mainBarSpacing}mm`:"—"}</div></div>
+                  <div style={{background:T.dim,borderRadius:6,padding:"8px 10px"}}><div style={{fontSize:9,color:T.muted,fontWeight:700,marginBottom:3}}>TEMP BARS</div><div style={{fontSize:12,fontWeight:700,color:T.text}}>{sl.tempBarDia?`${sl.tempBarDia}mmØ @ ${sl.tempBarSpacing}mm`:"—"}</div></div>
                 </div>
               </div>
             ))}
           </div>
-        ) : <div style={{padding:20,textAlign:"center",color:THEME.muted}}>No slab data extracted from plans.</div>)}
+        ) : <div style={{padding:20,textAlign:"center",color:T.muted}}>No slab data extracted from plans.</div>)}
 
-        <div style={{marginTop:16,padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>
+        <div style={{marginTop:16,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
           ⚠️ Reinforcement schedule extracted by AI from structural plans. All bar sizes, counts, and spacings must be verified against the original drawings by a licensed PSCE.
         </div>
       </div>
@@ -7963,9 +7963,9 @@ function RebarSchedule({ structuralData, structuralResults }) {
   if (!res || !res.memberData) {
     return (
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,gap:16,textAlign:"center"}}>
-        <Icon name="report" size={48} color={THEME.muted}/>
-        <div style={{fontSize:15,fontWeight:700,color:THEME.text}}>No Computation Results</div>
-        <div style={{fontSize:13,color:THEME.muted,maxWidth:340,lineHeight:1.7}}>
+        <Icon name="report" size={48} color={T.muted}/>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>No Computation Results</div>
+        <div style={{fontSize:13,color:T.muted,maxWidth:340,lineHeight:1.7}}>
           Run <strong style={{color:"#0696d7"}}>Run All</strong> in the AI Plan Checker first to generate rebar schedule data.
         </div>
       </div>
@@ -8168,8 +8168,8 @@ function RebarSchedule({ structuralData, structuralResults }) {
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:12}}>
         <div>
-          <div style={{fontSize:18,fontWeight:900,color:THEME.text,letterSpacing:"-0.5px"}}>Rebar Schedule</div>
-          <div style={{fontSize:12,color:THEME.muted,marginTop:2}}>
+          <div style={{fontSize:18,fontWeight:900,color:T.text,letterSpacing:"-0.5px"}}>Rebar Schedule</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:2}}>
             NSCP 2015 · f'c = {fc} MPa · fy = {fy} MPa · {sd.building?.name || "Project"}
           </div>
         </div>
@@ -8185,12 +8185,12 @@ function RebarSchedule({ structuralData, structuralResults }) {
       </div>
 
       {/* Tabs */}
-      <div style={{display:"flex",gap:6,marginBottom:20,borderBottom:`1px solid ${THEME.border}`,paddingBottom:12}}>
+      <div style={{display:"flex",gap:6,marginBottom:20,borderBottom:`1px solid ${T.border}`,paddingBottom:12}}>
         {TABS.map(t=>(
           <button key={t.key} onClick={()=>setView(t.key)}
-            style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${view===t.key?"#0696d7":THEME.border}`,
+            style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${view===t.key?"#0696d7":T.border}`,
               background:view===t.key?"rgba(6,150,215,0.12)":"transparent",
-              color:view===t.key?"#0696d7":THEME.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
+              color:view===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
             {t.label} <span style={{fontSize:10,marginLeft:4,opacity:0.7}}>({t.count})</span>
           </button>
         ))}
@@ -8199,30 +8199,30 @@ function RebarSchedule({ structuralData, structuralResults }) {
       {/* ── BEAMS ── */}
       {view==="beams" && (
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 406 — Singly Reinforced Beams</div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 406 — Singly Reinforced Beams</div>
           {beamRows.length === 0 ? (
-            <div style={{padding:40,textAlign:"center",color:THEME.muted}}>No beam data. Run computations first.</div>
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No beam data. Run computations first.</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {beamRows.map((bm,i)=>(
-                <div key={i} style={{background:THEME.card,border:`1px solid ${bm.status==="PASS"?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"}`,borderRadius:12,padding:16}}>
+                <div key={i} style={{background:T.card,border:`1px solid ${bm.status==="PASS"?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"}`,borderRadius:12,padding:16}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
-                    <div style={{fontWeight:900,fontSize:16,color:THEME.text,minWidth:40}}>{bm.id}</div>
-                    <span style={{fontSize:11,fontWeight:700,background:THEME.dim,color:THEME.muted,padding:"3px 8px",borderRadius:4}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{bm.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>
                       {bm.b} × {bm.d} mm
                     </span>
-                    {bm.span && <span style={{fontSize:11,color:THEME.muted}}>L = {bm.span}m</span>}
+                    {bm.span && <span style={{fontSize:11,color:T.muted}}>L = {bm.span}m</span>}
                     <span style={{fontSize:11,fontWeight:800,padding:"3px 10px",borderRadius:5,
                       background:bm.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
                       color:bm.status==="PASS"?"#22c55e":"#ef4444"}}>{bm.status}</span>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
                     {/* Bottom bars */}
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Bottom (Tension) Bars</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Bottom (Tension) Bars</div>
                       <BarTag dia={bm.mainBar.bar.dia} n={bm.mainBar.n}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
-                        As req: <strong style={{color:THEME.text}}>{bm.As_req.toFixed(0)}</strong> mm²<br/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        As req: <strong style={{color:T.text}}>{bm.As_req.toFixed(0)}</strong> mm²<br/>
                         As prov: <strong style={{color:"#0696d7"}}>{bm.mainBar.As_prov.toFixed(0)}</strong> mm²
                         {bm.mainBar.As_prov >= bm.As_req
                           ? <span style={{color:"#22c55e",marginLeft:4}}>✓ OK</span>
@@ -8230,26 +8230,26 @@ function RebarSchedule({ structuralData, structuralResults }) {
                       </div>
                     </div>
                     {/* Top bars */}
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Top (Compression) Bars</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Top (Compression) Bars</div>
                       <BarTag dia={bm.topBar.bar.dia} n={bm.topBar.n}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>Min. 1/3 of bottom steel<br/>per NSCP Sec. 412</div>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>Min. 1/3 of bottom steel<br/>per NSCP Sec. 412</div>
                     </div>
                     {/* Stirrups */}
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Stirrups (Shear)</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Stirrups (Shear)</div>
                       <BarTag dia={bm.stirrup.dia} label={bm.stirrup.spacing}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
                         Vc = {bm.Vc.toFixed(1)} kN · Vs = {bm.Vs_req.toFixed(1)} kN<br/>
                         {bm.status_shear}
                         {bm.stirrup.note && <div style={{color:"#f59e0b"}}>{bm.stirrup.note}</div>}
                       </div>
                     </div>
                     {/* Section summary */}
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Design Values</div>
-                      <div style={{fontSize:11,color:THEME.muted,lineHeight:1.8}}>
-                        ρ req: <strong style={{color:THEME.text}}>{(bm.rho_req*100).toFixed(4)}%</strong><br/>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Design Values</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
+                        ρ req: <strong style={{color:T.text}}>{(bm.rho_req*100).toFixed(4)}%</strong><br/>
                         ρ min: {(bm.rho_min*100).toFixed(4)}%<br/>
                         ρ max: {(bm.rho_max*100).toFixed(4)}%<br/>
                         Flexure: <strong style={{color:bm.status_flex==="PASS"?"#22c55e":"#ef4444"}}>{bm.status_flex}</strong>
@@ -8266,44 +8266,44 @@ function RebarSchedule({ structuralData, structuralResults }) {
       {/* ── COLUMNS ── */}
       {view==="columns" && (
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 410 — RC Columns</div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 410 — RC Columns</div>
           {colRows.length === 0 ? (
-            <div style={{padding:40,textAlign:"center",color:THEME.muted}}>No column data. Run computations first.</div>
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No column data. Run computations first.</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {colRows.map((col,i)=>(
-                <div key={i} style={{background:THEME.card,border:`1px solid ${col.status==="PASS"?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"}`,borderRadius:12,padding:16}}>
+                <div key={i} style={{background:T.card,border:`1px solid ${col.status==="PASS"?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"}`,borderRadius:12,padding:16}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
-                    <div style={{fontWeight:900,fontSize:16,color:THEME.text,minWidth:40}}>{col.id}</div>
-                    <span style={{fontSize:11,fontWeight:700,background:THEME.dim,color:THEME.muted,padding:"3px 8px",borderRadius:4}}>{col.b}×{col.h} mm</span>
-                    <span style={{fontSize:11,color:THEME.muted}}>{col.type==="spiral"?"Spiral":"Tied"}</span>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{col.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>{col.b}×{col.h} mm</span>
+                    <span style={{fontSize:11,color:T.muted}}>{col.type==="spiral"?"Spiral":"Tied"}</span>
                     <span style={{fontSize:11,fontWeight:800,padding:"3px 10px",borderRadius:5,
                       background:col.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
                       color:col.status==="PASS"?"#22c55e":"#ef4444"}}>{col.status}</span>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Longitudinal Bars</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Longitudinal Bars</div>
                       <BarTag dia={col.mainBar.bar.dia} n={col.mainBar.n}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
-                        Ast req: <strong style={{color:THEME.text}}>{col.Ast_req.toFixed(0)}</strong> mm²<br/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        Ast req: <strong style={{color:T.text}}>{col.Ast_req.toFixed(0)}</strong> mm²<br/>
                         Ast prov: <strong style={{color:"#0696d7"}}>{col.mainBar.As_prov.toFixed(0)}</strong> mm²
                         {col.mainBar.As_prov >= col.Ast_req
                           ? <span style={{color:"#22c55e",marginLeft:4}}>✓</span>
                           : <span style={{color:"#ef4444",marginLeft:4}}>✗</span>}
                       </div>
                     </div>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Lateral Ties</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Lateral Ties</div>
                       <BarTag dia={col.tieBar.dia} label={col.tieSpacing}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
                         s ≤ min(16db, 48t, b_min)<br/>= min({16*col.mainBar.bar.dia}, {48*col.tieBar.dia}, {Math.min(col.b,col.h)}) = {col.tieSpacing}mm
                       </div>
                     </div>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Capacity</div>
-                      <div style={{fontSize:11,color:THEME.muted,lineHeight:1.8}}>
-                        ρ: <strong style={{color:THEME.text}}>{(col.rho_req*100).toFixed(2)}%</strong> (min 1%, max 8%)<br/>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Capacity</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
+                        ρ: <strong style={{color:T.text}}>{(col.rho_req*100).toFixed(2)}%</strong> (min 1%, max 8%)<br/>
                         φPn: <strong style={{color:"#0696d7"}}>{col.phiPn.toFixed(0)} kN</strong><br/>
                         Pu: {col.Pu} kN · φ = {col.phi}
                       </div>
@@ -8319,32 +8319,32 @@ function RebarSchedule({ structuralData, structuralResults }) {
       {/* ── FOOTINGS ── */}
       {view==="footings" && (
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 415 — Isolated Square Footings · ρ_min = 0.0018</div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 415 — Isolated Square Footings · ρ_min = 0.0018</div>
           {ftRows.length === 0 ? (
-            <div style={{padding:40,textAlign:"center",color:THEME.muted}}>No footing data. Run computations first.</div>
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No footing data. Run computations first.</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {ftRows.map((ft,i)=>(
-                <div key={i} style={{background:THEME.card,border:"1px solid rgba(34,197,94,0.25)",borderRadius:12,padding:16}}>
+                <div key={i} style={{background:T.card,border:"1px solid rgba(34,197,94,0.25)",borderRadius:12,padding:16}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
-                    <div style={{fontWeight:900,fontSize:16,color:THEME.text,minWidth:40}}>{ft.id}</div>
-                    <span style={{fontSize:11,fontWeight:700,background:THEME.dim,color:THEME.muted,padding:"3px 8px",borderRadius:4}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{ft.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>
                       {ft.B.toFixed(2)}m × {ft.B.toFixed(2)}m × d={ft.d.toFixed(0)}mm
                     </span>
-                    <span style={{fontSize:11,color:THEME.muted}}>qa = {ft.qa} kPa</span>
+                    <span style={{fontSize:11,color:T.muted}}>qa = {ft.qa} kPa</span>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Bottom Reinf. (Both Directions)</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Bottom Reinf. (Both Directions)</div>
                       <BarTag dia={ft.bar.bar.dia} label={ft.bar.spacing}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
-                        As req: <strong style={{color:THEME.text}}>{(ft.As/ft.B).toFixed(0)}</strong> mm²/m<br/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        As req: <strong style={{color:T.text}}>{(ft.As/ft.B).toFixed(0)}</strong> mm²/m<br/>
                         As prov: <strong style={{color:"#0696d7"}}>{ft.bar.As_prov.toFixed(0)}</strong> mm²/m
                       </div>
                     </div>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Design Values</div>
-                      <div style={{fontSize:11,color:THEME.muted,lineHeight:1.8}}>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Design Values</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
                         qnet: {ft.qnet.toFixed(1)} kPa · qu: {ft.qu.toFixed(2)} kPa<br/>
                         Mu: {ft.Mu_ft.toFixed(1)} kN·m · ρ: {(ft.rho_use*100).toFixed(4)}%
                       </div>
@@ -8360,38 +8360,38 @@ function RebarSchedule({ structuralData, structuralResults }) {
       {/* ── SLABS ── */}
       {view==="slabs" && (
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 409 — One-Way Slabs · ρ_temp = 0.0018</div>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>NSCP 2015 Sec. 409 — One-Way Slabs · ρ_temp = 0.0018</div>
           {slabRows.length === 0 ? (
-            <div style={{padding:40,textAlign:"center",color:THEME.muted}}>No slab data. Run computations first.</div>
+            <div style={{padding:40,textAlign:"center",color:T.muted}}>No slab data. Run computations first.</div>
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {slabRows.map((sl,i)=>(
-                <div key={i} style={{background:THEME.card,border:"1px solid rgba(34,197,94,0.25)",borderRadius:12,padding:16}}>
+                <div key={i} style={{background:T.card,border:"1px solid rgba(34,197,94,0.25)",borderRadius:12,padding:16}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
-                    <div style={{fontWeight:900,fontSize:16,color:THEME.text,minWidth:40}}>{sl.id}</div>
-                    <span style={{fontSize:11,fontWeight:700,background:THEME.dim,color:THEME.muted,padding:"3px 8px",borderRadius:4}}>
+                    <div style={{fontWeight:900,fontSize:16,color:T.text,minWidth:40}}>{sl.id}</div>
+                    <span style={{fontSize:11,fontWeight:700,background:T.dim,color:T.muted,padding:"3px 8px",borderRadius:4}}>
                       h={sl.h}mm · d={sl.d}mm · L={sl.L}m
                     </span>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Main Bars (Along Span)</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Main Bars (Along Span)</div>
                       <BarTag dia={sl.bar.bar.dia} label={sl.bar.spacing}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
-                        As req: <strong style={{color:THEME.text}}>{sl.As.toFixed(0)}</strong> mm²/m<br/>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
+                        As req: <strong style={{color:T.text}}>{sl.As.toFixed(0)}</strong> mm²/m<br/>
                         As prov: <strong style={{color:"#0696d7"}}>{sl.bar.As_prov.toFixed(0)}</strong> mm²/m
                       </div>
                     </div>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Temp. & Shrinkage Bars</div>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Temp. & Shrinkage Bars</div>
                       <BarTag dia={sl.tempBar.bar.dia} label={sl.tempBar.spacing}/>
-                      <div style={{fontSize:11,color:THEME.muted,marginTop:6}}>
+                      <div style={{fontSize:11,color:T.muted,marginTop:6}}>
                         Perpendicular to span<br/>ρ_temp = 0.0018
                       </div>
                     </div>
-                    <div style={{background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>
-                      <div style={{fontSize:10,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Loading</div>
-                      <div style={{fontSize:11,color:THEME.muted,lineHeight:1.8}}>
+                    <div style={{background:T.dim,borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{fontSize:10,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Loading</div>
+                      <div style={{fontSize:11,color:T.muted,lineHeight:1.8}}>
                         DL: {sl.wDL} kPa · LL: {sl.wLL} kPa<br/>
                         wu: {sl.wu.toFixed(2)} kPa · Mu: {sl.Mu.toFixed(1)} kN·m/m
                       </div>
@@ -8405,7 +8405,7 @@ function RebarSchedule({ structuralData, structuralResults }) {
       )}
 
       {/* Disclaimer */}
-      <div style={{marginTop:20,padding:"10px 16px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>
+      <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>
         ⚠️ Bar sizes selected per NSCP 2015 / ASTM A615 / PNS 49 standard PH deformed bars. Verify development lengths (Sec. 412), lap splices, hooks, and seismic detailing (Sec. 421) per full design. All schedules must be stamped by a licensed PSCE before construction.
       </div>
     </div>
@@ -8557,7 +8557,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
       );
     }
     if (hasDat) return <span style={{width:7,height:7,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 4px #22c55e",marginLeft:4}}/>;
-    return <span style={{width:7,height:7,borderRadius:"50%",background:THEME.muted,display:"inline-block",opacity:0.3,marginLeft:4}}/>;
+    return <span style={{width:7,height:7,borderRadius:"50%",background:T.muted,display:"inline-block",opacity:0.3,marginLeft:4}}/>;
   };
 
   const handleNewReview = () => {
@@ -8574,16 +8574,16 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
   return (
     <div>
       {/* ── 3 Main Tabs ── */}
-      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${THEME.border}`,alignItems:"center"}}>
+      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${T.border}`,alignItems:"center"}}>
         <div style={{display:"flex",gap:8,flex:1,flexWrap:"wrap"}}>
           {MAIN_TABS.map(t=>(
             <button key={t.key} onClick={()=>{ setTab(t.key); setSubTool(null); }}
               style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
-                border:`1.5px solid ${tab===t.key?"#0696d7":THEME.border}`,
+                border:`1.5px solid ${tab===t.key?"#0696d7":T.border}`,
                 background:tab===t.key?"rgba(6,150,215,0.12)":"transparent",
-                color:tab===t.key?"#0696d7":THEME.muted,
+                color:tab===t.key?"#0696d7":T.muted,
                 cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
-              <Icon name={t.icon||"report"} size={15} color={tab===t.key?"#0696d7":THEME.muted}/>
+              <Icon name={t.icon||"report"} size={15} color={tab===t.key?"#0696d7":T.muted}/>
               <span>{t.label}</span>
               {t.badge && <span style={{fontSize:9,background:"rgba(245,158,11,0.2)",color:"#f59e0b",padding:"1px 5px",borderRadius:4,fontWeight:800}}>{t.badge}</span>}
             </button>
@@ -8650,18 +8650,18 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
           {subTool !== null && (
             <div>
               {/* Compact breadcrumb + analysis snapshot */}
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"10px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`,flexWrap:"wrap"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"10px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`,flexWrap:"wrap"}}>
                 <button onClick={()=>setSubTool(null)}
-                  style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:"transparent",border:`1px solid ${THEME.border}`,borderRadius:7,color:"#0696d7",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+                  style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,color:"#0696d7",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
                   ← Plan Analysis
                 </button>
-                <div style={{width:1,height:20,background:THEME.border}}/>
+                <div style={{width:1,height:20,background:T.border}}/>
                 {(() => { const t = SUB_TOOLS.find(t=>t.key===subTool); return t ? (
                   <>
                     <Icon name={t.icon} size={15} color="#0696d7"/>
                     <div>
-                      <div style={{fontSize:13,fontWeight:800,color:THEME.text}}>{t.label}</div>
-                      <div style={{fontSize:11,color:THEME.muted}}>{t.code}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:T.text}}>{t.label}</div>
+                      <div style={{fontSize:11,color:T.muted}}>{t.code}</div>
                     </div>
                   </>
                 ) : null; })()}
@@ -8674,8 +8674,8 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
                 {/* Mini analysis status if available */}
                 {checkerResult && (
                   <div style={{marginLeft:"auto",display:"flex",gap:12,alignItems:"center"}}>
-                    <span style={{fontSize:11,color:THEME.muted}}>
-                      {checkerResult.summary?.projectName && <strong style={{color:THEME.text}}>{checkerResult.summary.projectName}</strong>}
+                    <span style={{fontSize:11,color:T.muted}}>
+                      {checkerResult.summary?.projectName && <strong style={{color:T.text}}>{checkerResult.summary.projectName}</strong>}
                     </span>
                     {checkerResult.summary?.criticalCount > 0 && <span style={{fontSize:11,fontWeight:700,color:"#ef4444"}}>⚑ {checkerResult.summary.criticalCount} Critical</span>}
                     {checkerResult.summary?.warningCount  > 0 && <span style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>⚠ {checkerResult.summary.warningCount} Warnings</span>}
@@ -8688,10 +8688,10 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
                 {SUB_TOOLS.map(t=>(
                   <button key={t.key} onClick={()=>setSubTool(t.key)}
                     style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
-                      border:`1.5px solid ${subTool===t.key?"#0696d7":THEME.border}`,
+                      border:`1.5px solid ${subTool===t.key?"#0696d7":T.border}`,
                       background:subTool===t.key?"rgba(6,150,215,0.12)":"transparent",
-                      color:subTool===t.key?"#0696d7":THEME.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>
-                    <Icon name={t.icon} size={12} color={subTool===t.key?"#0696d7":THEME.muted}/>
+                      color:subTool===t.key?"#0696d7":T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>
+                    <Icon name={t.icon} size={12} color={subTool===t.key?"#0696d7":T.muted}/>
                     <span>{t.label}</span>
                     <SubToolStatus toolKey={t.key}/>
                   </button>
@@ -8710,8 +8710,8 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
 
           {/* Design calc launcher — visible on Plan Analysis view only, after analysis */}
           {subTool===null && checkerResult && (
-            <div style={{marginTop:16,padding:"12px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
-              <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Design Calculator</div>
+            <div style={{marginTop:16,padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Design Calculator</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {SUB_TOOLS.map(t=>{
                   const hd = hasData(t.key);
@@ -8719,9 +8719,9 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
                   const isIncomplete = hd && items && items.some(i=>i.status==="INCOMPLETE"||i.status==="NO DATA");
                   const isPass = items && items.length > 0 && items.every(i=>i.status==="PASS"||i.status==="COMPUTED");
                   const isFail = items && items.some(i=>i.status==="FAIL");
-                  const borderColor = isFail ? "rgba(239,68,68,0.35)" : isIncomplete ? "rgba(245,158,11,0.35)" : hd ? "rgba(34,197,94,0.35)" : THEME.border;
+                  const borderColor = isFail ? "rgba(239,68,68,0.35)" : isIncomplete ? "rgba(245,158,11,0.35)" : hd ? "rgba(34,197,94,0.35)" : T.border;
                   const bgColor = isFail ? "rgba(239,68,68,0.06)" : isIncomplete ? "rgba(245,158,11,0.06)" : hd ? "rgba(34,197,94,0.06)" : "transparent";
-                  const txtColor = isFail ? "#ef4444" : isIncomplete ? "#f59e0b" : hd ? "#22c55e" : THEME.muted;
+                  const txtColor = isFail ? "#ef4444" : isIncomplete ? "#f59e0b" : hd ? "#22c55e" : T.muted;
                   return (
                     <button key={t.key} onClick={()=>setSubTool(t.key)}
                       style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:8,
@@ -8747,15 +8747,15 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
 // Sub-tool breadcrumb header
 function SubToolHeader({ tool, onBack, hasData }) {
   return (
-    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"10px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",background:"transparent",border:`1px solid ${THEME.border}`,borderRadius:7,color:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:600,transition:"all 0.15s"}}>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,padding:"10px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600,transition:"all 0.15s"}}>
         ← Plan Analysis
       </button>
-      <div style={{width:1,height:20,background:THEME.border}}/>
+      <div style={{width:1,height:20,background:T.border}}/>
       <Icon name={tool.icon} size={16} color="#0696d7"/>
       <div>
-        <div style={{fontSize:14,fontWeight:800,color:THEME.text}}>{tool.label}</div>
-        <div style={{fontSize:11,color:THEME.muted}}>{tool.code}</div>
+        <div style={{fontSize:14,fontWeight:800,color:T.text}}>{tool.label}</div>
+        <div style={{fontSize:11,color:T.muted}}>{tool.code}</div>
       </div>
       {hasData && (
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#22c55e",fontWeight:700}}>
@@ -8991,44 +8991,44 @@ Return only valid JSON — no markdown, no preamble.`});
   return (
     <div>
       <NoKeyBanner/>
-      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>ref.current?.click()} style={{border:`2px dashed ${drag?SC:THEME.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(16,185,129,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
+      <div onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);addFiles(e.dataTransfer.files)}} onClick={()=>ref.current?.click()} style={{border:`2px dashed ${drag?SC:T.border}`,borderRadius:16,padding:"40px 24px",textAlign:"center",cursor:"pointer",background:drag?"rgba(16,185,129,0.05)":"rgba(255,255,255,0.01)",transition:"all 0.2s",marginBottom:20}}>
         <input ref={ref} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e=>addFiles(e.target.files)} style={{display:"none"}}/>
         <div style={{fontSize:40,marginBottom:12}}>🚿</div>
-        <div style={{fontWeight:700,fontSize:16,color:THEME.text,marginBottom:6}}>Drop plumbing/sanitary plans here</div>
-        <div style={{color:THEME.muted,fontSize:13,marginBottom:16}}>PDF drawings · JPG / PNG images</div>
+        <div style={{fontWeight:700,fontSize:16,color:T.text,marginBottom:6}}>Drop plumbing/sanitary plans here</div>
+        <div style={{color:T.muted,fontSize:13,marginBottom:16}}>PDF drawings · JPG / PNG images</div>
         <div style={{display:"inline-block",background:`linear-gradient(135deg,${SC},#059669)`,color:"#fff",fontWeight:700,padding:"9px 22px",borderRadius:10,fontSize:14}}>Choose Files</div>
       </div>
-      {files.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=><div key={fo.id} style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:THEME.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:THEME.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>)}</div>}
+      {files.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>{files.map(fo=><div key={fo.id} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",gap:8}}><span>{fo.type.startsWith("image")?"🖼️":"📄"}</span><div style={{fontSize:12,color:T.text,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fo.name}</div><button onClick={()=>setFiles(p=>p.filter(f=>f.id!==fo.id))} style={{background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:12}}>✕</button></div>)}</div>}
       {files.length>0&&<button onClick={run} disabled={busy} style={{width:"100%",background:busy?`rgba(16,185,129,0.2)`:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:busy?"#666":"#fff",fontWeight:700,fontSize:15,padding:"14px",borderRadius:12,cursor:busy?"not-allowed":"pointer",marginBottom:20,transition:"all 0.2s"}}>{busy?(busyMsg||"⚙️ Analyzing…"):`🚿 Run Plumbing Compliance Check (${files.length} file${files.length>1?"s":""})`}</button>}
-      {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:THEME.danger,fontSize:14}}>⚠️ {error}</div>}
+      {error&&<div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",marginBottom:20,color:T.danger,fontSize:14}}>⚠️ {error}</div>}
       {result&&(
         <div style={{animation:"fadeIn 0.35s ease"}}>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
               <div>
-                <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>PROJECT</div>
-                <div style={{fontWeight:800,fontSize:18,color:THEME.text}}>{result.summary.projectName}</div>
-                <div style={{fontSize:13,color:THEME.muted,marginTop:2}}>{result.summary.buildingType}</div>
+                <div style={{fontSize:11,color:T.muted,marginBottom:4}}>PROJECT</div>
+                <div style={{fontWeight:800,fontSize:18,color:T.text}}>{result.summary.projectName}</div>
+                <div style={{fontSize:13,color:T.muted,marginTop:2}}>{result.summary.buildingType}</div>
                 <div style={{marginTop:12,display:"flex",gap:24}}>
-                  <div><div style={{fontSize:26,fontWeight:800,color:"#dc2626"}}>{result.summary.criticalCount}</div><div style={{fontSize:11,color:THEME.muted}}>CRITICAL</div></div>
-                  <div><div style={{fontSize:26,fontWeight:800,color:"#d97706"}}>{result.summary.warningCount}</div><div style={{fontSize:11,color:THEME.muted}}>WARNINGS</div></div>
-                  <div><div style={{fontSize:26,fontWeight:800,color:SC}}>{result.summary.infoCount}</div><div style={{fontSize:11,color:THEME.muted}}>INFO</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#dc2626"}}>{result.summary.criticalCount}</div><div style={{fontSize:11,color:T.muted}}>CRITICAL</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:"#d97706"}}>{result.summary.warningCount}</div><div style={{fontSize:11,color:T.muted}}>WARNINGS</div></div>
+                  <div><div style={{fontSize:26,fontWeight:800,color:SC}}>{result.summary.infoCount}</div><div style={{fontSize:11,color:T.muted}}>INFO</div></div>
                 </div>
               </div>
               <div style={{background:`${STATUS_COL[result.summary.overallStatus]}14`,border:`2px solid ${STATUS_COL[result.summary.overallStatus]}44`,borderRadius:12,padding:"10px 18px",textAlign:"center"}}>
-                <div style={{fontSize:10,color:THEME.muted,marginBottom:4}}>OVERALL STATUS</div>
+                <div style={{fontSize:10,color:T.muted,marginBottom:4}}>OVERALL STATUS</div>
                 <div style={{fontSize:13,fontWeight:800,color:STATUS_COL[result.summary.overallStatus]}}>{result.summary.overallStatus}</div>
               </div>
             </div>
-            <div style={{marginTop:12,fontSize:13,color:THEME.muted,lineHeight:1.6,background:THEME.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.analysisNotes}</div>
+            <div style={{marginTop:12,fontSize:13,color:T.muted,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"10px 14px"}}>{result.summary.analysisNotes}</div>
           </Card>
           {findings.length>0&&(
             <div>
               <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {["all","CRITICAL","WARNING","INFO"].map(t=>{const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;const active=tab===t;return <button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${active?SC:THEME.border}`,background:active?`rgba(16,185,129,0.12)`:"transparent",color:active?SC:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="all"?"All":t} ({cnt})</button>;})}
+                  {["all","CRITICAL","WARNING","INFO"].map(t=>{const cnt=t==="all"?findings.length:findings.filter(f=>f.severity===t).length;const active=tab===t;return <button key={t} onClick={()=>setTab(t)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${active?SC:T.border}`,background:active?`rgba(16,185,129,0.12)`:"transparent",color:active?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="all"?"All":t} ({cnt})</button>;})}
                 </div>
-                <button onClick={toggleAll} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${THEME.border}`,background:"transparent",color:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>{allChecked?"☑ Deselect All":"☐ Select All"}</button>
+                <button onClick={toggleAll} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>{allChecked?"☑ Deselect All":"☐ Select All"}</button>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
                 {filtered.map(f=>{
@@ -9036,9 +9036,9 @@ Return only valid JSON — no markdown, no preamble.`});
                   const bg={CRITICAL:"rgba(220,38,38,0.06)",WARNING:"rgba(217,119,6,0.06)",INFO:"rgba(16,185,129,0.06)"}[f.severity]||"rgba(16,185,129,0.06)";
                   const isOpen=open[f.id];const isChecked=!!checked[f.id];
                   return (
-                    <div key={f.id} style={{background:isChecked?bg:"rgba(255,255,255,0.01)",border:`1.5px solid ${isChecked?col:THEME.border}`,borderRadius:12,overflow:"hidden",transition:"all 0.15s"}}>
+                    <div key={f.id} style={{background:isChecked?bg:"rgba(255,255,255,0.01)",border:`1.5px solid ${isChecked?col:T.border}`,borderRadius:12,overflow:"hidden",transition:"all 0.15s"}}>
                       <div style={{padding:"13px 18px",display:"flex",alignItems:"flex-start",gap:12}}>
-                        <div onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))} style={{width:20,height:20,borderRadius:5,border:`2px solid ${isChecked?col:THEME.muted}`,background:isChecked?col:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>{isChecked&&<span style={{color:"#fff",fontSize:12,fontWeight:800,lineHeight:1}}>✓</span>}</div>
+                        <div onClick={()=>setChecked(p=>({...p,[f.id]:!p[f.id]}))} style={{width:20,height:20,borderRadius:5,border:`2px solid ${isChecked?col:T.muted}`,background:isChecked?col:"transparent",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>{isChecked&&<span style={{color:"#fff",fontSize:12,fontWeight:800,lineHeight:1}}>✓</span>}</div>
                         <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>
                           <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:4,alignItems:"center"}}>
                             <span style={{background:col,color:"#fff",fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4}}>{f.severity}</span>
@@ -9047,23 +9047,23 @@ Return only valid JSON — no markdown, no preamble.`});
                               color:f.confidence==="HIGH"?"#16a34a":f.confidence==="LOW"?"#ef4444":"#ca8a04",
                               border:`1px solid ${f.confidence==="HIGH"?"rgba(22,163,74,0.3)":f.confidence==="LOW"?"rgba(239,68,68,0.3)":"rgba(234,179,8,0.3)"}`
                             }}>{f.confidence==="HIGH"?"● HIGH CONFIDENCE":f.confidence==="LOW"?"◌ LOW CONFIDENCE":"◑ MEDIUM CONF."}</span>}
-                            <span style={{fontSize:11,color:THEME.muted,fontFamily:"monospace"}}>{f.npcReference}</span>
-                            <span style={{fontSize:11,color:THEME.muted,background:"rgba(255,255,255,0.04)",padding:"1px 8px",borderRadius:4}}>{f.category}</span>
+                            <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{f.npcReference}</span>
+                            <span style={{fontSize:11,color:T.muted,background:"rgba(255,255,255,0.04)",padding:"1px 8px",borderRadius:4}}>{f.category}</span>
                           </div>
-                          <div style={{fontWeight:700,fontSize:14,color:THEME.text}}>{f.title}</div>
+                          <div style={{fontWeight:700,fontSize:14,color:T.text}}>{f.title}</div>
                         </div>
-                        <span style={{color:THEME.muted,fontSize:12,marginTop:2,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
+                        <span style={{color:T.muted,fontSize:12,marginTop:2,cursor:"pointer"}} onClick={()=>setOpen(p=>({...p,[f.id]:!p[f.id]}))}>{isOpen?"▲":"▼"}</span>
                       </div>
-                      {isOpen&&<div style={{padding:"0 18px 16px 50px",borderTop:`1px solid ${col}33`}}><div style={{paddingTop:12,display:"flex",flexDirection:"column",gap:10}}><div><Label>Finding</Label><div style={{fontSize:13,color:THEME.muted,lineHeight:1.6}}>{f.description}</div></div><div><Label>Recommendation</Label><div style={{fontSize:13,color:THEME.success,lineHeight:1.6}}>✓ {f.recommendation}</div></div>{f.codeBasis&&<div style={{background:"rgba(0,0,0,0.2)",borderLeft:`3px solid ${col}`,padding:"10px 14px",borderRadius:"0 8px 8px 0",fontSize:12,color:THEME.muted,fontStyle:"italic",lineHeight:1.5}}>{f.codeBasis}</div>}</div></div>}
+                      {isOpen&&<div style={{padding:"0 18px 16px 50px",borderTop:`1px solid ${col}33`}}><div style={{paddingTop:12,display:"flex",flexDirection:"column",gap:10}}><div><Label>Finding</Label><div style={{fontSize:13,color:T.muted,lineHeight:1.6}}>{f.description}</div></div><div><Label>Recommendation</Label><div style={{fontSize:13,color:T.success,lineHeight:1.6}}>✓ {f.recommendation}</div></div>{f.codeBasis&&<div style={{background:"rgba(0,0,0,0.2)",borderLeft:`3px solid ${col}`,padding:"10px 14px",borderRadius:"0 8px 8px 0",fontSize:12,color:T.muted,fontStyle:"italic",lineHeight:1.5}}>{f.codeBasis}</div>}</div></div>}
                     </div>
                   );
                 })}
               </div>
               {checkedCount>0&&(
                 <div style={{background:"rgba(16,185,129,0.08)",border:`1.5px solid rgba(16,185,129,0.25)`,borderRadius:12,padding:"16px 20px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
-                  <div><div style={{fontWeight:700,fontSize:14,color:SC}}>{checkedCount} item{checkedCount>1?"s":""} selected</div><div style={{fontSize:12,color:THEME.muted,marginTop:2}}>AI generates drafting instructions per NPC 2000</div></div>
+                  <div><div style={{fontWeight:700,fontSize:14,color:SC}}>{checkedCount} item{checkedCount>1?"s":""} selected</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>AI generates drafting instructions per NPC 2000</div></div>
                   <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}><Label>Rev No.</Label><input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{width:60,background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:8,padding:"6px 10px",color:THEME.text,fontSize:14,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><Label>Rev No.</Label><input type="number" value={revNum} min={1} max={99} onChange={e=>setRevNum(+e.target.value)} style={{width:60,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"6px 10px",color:T.text,fontSize:14,fontWeight:700,outline:"none",textAlign:"center"}}/></div>
                     <button onClick={generateCorrections} disabled={correcting} style={{background:correcting?`rgba(16,185,129,0.3)`:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:correcting?"#666":"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:correcting?"not-allowed":"pointer",fontSize:13}}>{correcting?"⚙️ Generating…":"🤖 Generate Corrections"}</button>
                   </div>
                 </div>
@@ -9071,20 +9071,20 @@ Return only valid JSON — no markdown, no preamble.`});
               {corrections&&(
                 <div style={{background:"rgba(16,185,129,0.05)",border:`1.5px solid rgba(16,185,129,0.25)`,borderRadius:12,padding:20,marginBottom:16}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-                    <div><div style={{fontWeight:800,fontSize:15,color:THEME.success}}>✅ Corrections Ready — Rev {revNum}</div><div style={{fontSize:12,color:THEME.muted,marginTop:2}}>{corrections.length} instruction{corrections.length>1?"s":""} ready</div></div>
+                    <div><div style={{fontWeight:800,fontSize:15,color:T.success}}>✅ Corrections Ready — Rev {revNum}</div><div style={{fontSize:12,color:T.muted,marginTop:2}}>{corrections.length} instruction{corrections.length>1?"s":""} ready</div></div>
                     <button onClick={()=>{const w=window.open("","_blank");const date=new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});const rows=corrections.map((c,i)=>`<tr><td style="padding:8px;border:1px solid #e5e7eb;text-align:center;font-weight:700">REV-${String(i+1).padStart(2,"0")}</td><td style="padding:8px;border:1px solid #e5e7eb;color:${{CRITICAL:"#dc2626",WARNING:"#d97706",INFO:"#059669"}[c.severity]};font-weight:700">${c.severity}</td><td style="padding:8px;border:1px solid #e5e7eb;font-weight:600">${c.title}</td><td style="padding:8px;border:1px solid #e5e7eb;font-size:12px">${c.description}</td><td style="padding:8px;border:1px solid #e5e7eb;background:#fefce8">${c.correctedValues||c.recommendation}</td><td style="padding:8px;border:1px solid #e5e7eb;background:#f0fdf4;color:#15803d">${c.draftingInstruction||""}</td><td style="padding:8px;border:1px solid #e5e7eb;font-size:11px">${c.npcReference}</td></tr>`).join("");w.document.write(`<!DOCTYPE html><html><head><title>Plumbing Revision Rev ${revNum}</title><style>body{font-family:Arial,sans-serif;margin:40px;color:#111;font-size:13px}table{border-collapse:collapse;width:100%}th{background:#065f46;color:#fff;padding:9px 8px;text-align:left;font-size:11px}h1{color:#065f46}@media print{button{display:none}}</style></head><body><h1>🚿 Plumbing Revision Report — Rev ${revNum}</h1><p style="color:#6b7280">NPC 2000 · PD 856 · ${date} · Jon Ureta</p><table><tr><th>Rev No.</th><th>Severity</th><th>Issue</th><th>Finding</th><th>Corrected Value</th><th>Drafting Instruction</th><th>NPC Ref.</th></tr>${rows}</table><p style="margin-top:24px;font-size:11px;color:#9ca3af">AI-generated. Verify with licensed Sanitary Engineer before implementation.</p></body></html>`);w.document.close();setTimeout(()=>w.print(),400);}} style={{background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:"pointer",fontSize:13}}>📄 Download Revision PDF</button>
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {corrections.map((c,i)=>(
-                      <div key={c.id||i} style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:10,padding:16}}>
+                      <div key={c.id||i} style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:16}}>
                         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
                           <span style={{background:"#064e3b",color:SC,fontSize:11,fontWeight:800,padding:"2px 10px",borderRadius:4}}>REV-{String(i+1).padStart(2,"0")}</span>
-                          <span style={{fontSize:12,fontWeight:700,color:THEME.text}}>{c.title}</span>
-                          <span style={{fontSize:11,color:THEME.muted,fontFamily:"monospace"}}>{c.npcReference}</span>
+                          <span style={{fontSize:12,fontWeight:700,color:T.text}}>{c.title}</span>
+                          <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{c.npcReference}</span>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                          <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:THEME.accent,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📐 Corrected Value</div><div style={{fontSize:13,color:THEME.text,lineHeight:1.6}}>{c.correctedValues||c.recommendation}</div></div>
-                          <div style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:THEME.success,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>✏️ Drafting Instruction</div><div style={{fontSize:13,color:THEME.text,lineHeight:1.6}}>{c.draftingInstruction||"Apply correction as indicated"}</div></div>
+                          <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📐 Corrected Value</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.correctedValues||c.recommendation}</div></div>
+                          <div style={{background:"rgba(16,185,129,0.07)",border:"1px solid rgba(16,185,129,0.2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,fontWeight:700,color:T.success,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>✏️ Drafting Instruction</div><div style={{fontSize:13,color:T.text,lineHeight:1.6}}>{c.draftingInstruction||"Apply correction as indicated"}</div></div>
                         </div>
                       </div>
                     ))}
@@ -9093,13 +9093,13 @@ Return only valid JSON — no markdown, no preamble.`});
               )}
             </div>
           )}
-          <div style={{marginTop:20,padding:"10px 16px",background:THEME.dim,borderRadius:10,fontSize:12,color:THEME.muted,lineHeight:1.5}}>⚠️ AI-generated. Plans must be signed by a licensed Sanitary Engineer before LGU/DOH submission.</div>
+          <div style={{marginTop:20,padding:"10px 16px",background:T.dim,borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.5}}>⚠️ AI-generated. Plans must be signed by a licensed Sanitary Engineer before LGU/DOH submission.</div>
         </div>
       )}
       {!files.length&&!result&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginTop:4}}>
           {[{i:"🏠",t:"Residential",d:"Water supply, drainage, septic"},{i:"🏢",t:"Commercial",d:"Fixture units, grease traps"},{i:"🏥",t:"Institutional",d:"Hospital, school plumbing"},{i:"🌊",t:"Storm Drainage",d:"NPC Sec. 11 compliance"}].map(x=>(
-            <Card key={x.t} style={{textAlign:"center",padding:18}}><div style={{fontSize:28,marginBottom:8}}>{x.i}</div><div style={{fontWeight:700,fontSize:13,color:THEME.text,marginBottom:4}}>{x.t}</div><div style={{fontSize:11,color:THEME.muted,lineHeight:1.5}}>{x.d}</div></Card>
+            <Card key={x.t} style={{textAlign:"center",padding:18}}><div style={{fontSize:28,marginBottom:8}}>{x.i}</div><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{x.t}</div><div style={{fontSize:11,color:T.muted,lineHeight:1.5}}>{x.d}</div></Card>
           ))}
         </div>
       )}
@@ -9129,41 +9129,41 @@ function FixtureUnitCalc() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
           <Label>Building Type</Label>
           <div style={{display:"flex",gap:8}}>
-            {["private","public"].map(t=><button key={t} onClick={()=>setBldgType(t)} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${bldgType===t?SC:THEME.border}`,background:bldgType===t?`rgba(16,185,129,0.12)`:"transparent",color:bldgType===t?SC:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="private"?"🏠 Private":"🏢 Public"}</button>)}
+            {["private","public"].map(t=><button key={t} onClick={()=>setBldgType(t)} style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${bldgType===t?SC:T.border}`,background:bldgType===t?`rgba(16,185,129,0.12)`:"transparent",color:bldgType===t?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t==="private"?"🏠 Private":"🏢 Public"}</button>)}
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8}}><div style={{fontSize:11,fontWeight:700,color:THEME.muted}}>FIXTURE</div><div style={{fontSize:11,fontWeight:700,color:THEME.muted,textAlign:"center",width:70}}>QTY</div><div style={{width:36}}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8}}><div style={{fontSize:11,fontWeight:700,color:T.muted}}>FIXTURE</div><div style={{fontSize:11,fontWeight:700,color:T.muted,textAlign:"center",width:70}}>QTY</div><div style={{width:36}}/></div>
           {rows.map(r=>(
             <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:8,alignItems:"center"}}>
               <Select value={r.fixture} onChange={e=>updateRow(r.id,"fixture",e.target.value)}>{FIXTURES.map(f=><option key={f.name} value={f.name}>{f.name}</option>)}</Select>
-              <input type="number" value={r.qty} min={1} onChange={e=>updateRow(r.id,"qty",+e.target.value)} style={{width:70,background:"#0f1117",border:`1.5px solid ${THEME.border}`,borderRadius:10,padding:"10px 8px",color:THEME.text,fontSize:14,outline:"none",textAlign:"center"}}/>
-              <button onClick={()=>removeRow(r.id)} style={{width:36,height:36,borderRadius:8,background:"rgba(239,68,68,0.12)",border:"none",color:THEME.danger,cursor:"pointer",fontSize:14}}>✕</button>
+              <input type="number" value={r.qty} min={1} onChange={e=>updateRow(r.id,"qty",+e.target.value)} style={{width:70,background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:10,padding:"10px 8px",color:T.text,fontSize:14,outline:"none",textAlign:"center"}}/>
+              <button onClick={()=>removeRow(r.id)} style={{width:36,height:36,borderRadius:8,background:"rgba(239,68,68,0.12)",border:"none",color:T.danger,cursor:"pointer",fontSize:14}}>✕</button>
             </div>
           ))}
         </div>
         <div style={{display:"flex",gap:10}}>
-          <button onClick={addRow} style={{flex:1,background:THEME.dim,border:`1.5px dashed ${THEME.border}`,color:THEME.muted,fontWeight:700,padding:"10px",borderRadius:10,cursor:"pointer",fontSize:13}}>+ Add Fixture</button>
+          <button onClick={addRow} style={{flex:1,background:T.dim,border:`1.5px dashed ${T.border}`,color:T.muted,fontWeight:700,padding:"10px",borderRadius:10,cursor:"pointer",fontSize:13}}>+ Add Fixture</button>
           <button onClick={calc} style={{flex:2,background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,padding:"10px 20px",borderRadius:10,cursor:"pointer",fontSize:13}}>🚰 Calculate Fixture Units</button>
         </div>
       </Card>
       {result&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
           <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>TOTAL DRAINAGE FIXTURE UNITS</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>TOTAL DRAINAGE FIXTURE UNITS</div>
             <div style={{fontSize:40,fontWeight:900,color:SC}}>{result.totalDFU} <span style={{fontSize:16,fontWeight:400}}>DFU</span></div>
-            <div style={{marginTop:8,fontSize:13,color:THEME.muted}}>Min drain pipe: <strong style={{color:THEME.text}}>{result.drainPipe.dia}mm</strong></div>
+            <div style={{marginTop:8,fontSize:13,color:T.muted}}>Min drain pipe: <strong style={{color:T.text}}>{result.drainPipe.dia}mm</strong></div>
           </Card>
           <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>WATER SUPPLY FIXTURE UNITS</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>WATER SUPPLY FIXTURE UNITS</div>
             <div style={{fontSize:40,fontWeight:900,color:SC}}>{result.totalWSFU.toFixed(1)} <span style={{fontSize:16,fontWeight:400}}>WSFU</span></div>
-            <div style={{marginTop:8,fontSize:13,color:THEME.muted}}>{result.gpm.toFixed(1)} GPM → <strong style={{color:THEME.text}}>{result.supplyDia}mm supply</strong></div>
+            <div style={{marginTop:8,fontSize:13,color:T.muted}}>{result.gpm.toFixed(1)} GPM → <strong style={{color:T.text}}>{result.supplyDia}mm supply</strong></div>
           </Card>
           <Card style={{gridColumn:"1/-1"}}>
             <Label>Fixture Breakdown (NPC 2000 Table 4-1)</Label>
             <table style={{width:"100%",borderCollapse:"collapse",marginTop:8}}>
-              <thead><tr style={{background:THEME.dim}}>{["Fixture","Qty","DFU ea","Total DFU","WSFU ea","Total WSFU"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,color:THEME.muted,fontWeight:700}}>{h}</th>)}</tr></thead>
-              <tbody>{result.detail.map((r,i)=><tr key={r.id} style={{borderTop:`1px solid ${THEME.border}`,background:i%2===0?"transparent":THEME.dim}}><td style={{padding:"8px 10px",fontSize:13,color:THEME.text}}>{r.fixture}</td><td style={{padding:"8px 10px",fontSize:13,color:THEME.text,textAlign:"center"}}>{r.qty}</td><td style={{padding:"8px 10px",fontSize:13,color:THEME.muted,textAlign:"center"}}>{r.fx.dfu}</td><td style={{padding:"8px 10px",fontSize:13,fontWeight:700,color:SC,textAlign:"center"}}>{r.dfu}</td><td style={{padding:"8px 10px",fontSize:13,color:THEME.muted,textAlign:"center"}}>{bldgType==="private"?r.fx.wsfu_priv:r.fx.wsfu_pub}</td><td style={{padding:"8px 10px",fontSize:13,fontWeight:700,color:SC,textAlign:"center"}}>{r.wsfu.toFixed(1)}</td></tr>)}</tbody>
+              <thead><tr style={{background:T.dim}}>{["Fixture","Qty","DFU ea","Total DFU","WSFU ea","Total WSFU"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:11,color:T.muted,fontWeight:700}}>{h}</th>)}</tr></thead>
+              <tbody>{result.detail.map((r,i)=><tr key={r.id} style={{borderTop:`1px solid ${T.border}`,background:i%2===0?"transparent":T.dim}}><td style={{padding:"8px 10px",fontSize:13,color:T.text}}>{r.fixture}</td><td style={{padding:"8px 10px",fontSize:13,color:T.text,textAlign:"center"}}>{r.qty}</td><td style={{padding:"8px 10px",fontSize:13,color:T.muted,textAlign:"center"}}>{r.fx.dfu}</td><td style={{padding:"8px 10px",fontSize:13,fontWeight:700,color:SC,textAlign:"center"}}>{r.dfu}</td><td style={{padding:"8px 10px",fontSize:13,color:T.muted,textAlign:"center"}}>{bldgType==="private"?r.fx.wsfu_priv:r.fx.wsfu_pub}</td><td style={{padding:"8px 10px",fontSize:13,fontWeight:700,color:SC,textAlign:"center"}}>{r.wsfu.toFixed(1)}</td></tr>)}</tbody>
             </table>
           </Card>
         </div>
@@ -9198,7 +9198,7 @@ function PipeSizing() {
       <Card>
         <Label>Pipe System Type</Label>
         <div style={{display:"flex",gap:8,marginBottom:16}}>
-          {[{k:"drain",l:"🚽 Drainage / DWV"},{k:"supply",l:"💧 Water Supply"}].map(t=><button key={t.k} onClick={()=>setPipeType(t.k)} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${pipeType===t.k?SC:THEME.border}`,background:pipeType===t.k?`rgba(16,185,129,0.12)`:"transparent",color:pipeType===t.k?SC:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t.l}</button>)}
+          {[{k:"drain",l:"🚽 Drainage / DWV"},{k:"supply",l:"💧 Water Supply"}].map(t=><button key={t.k} onClick={()=>setPipeType(t.k)} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${pipeType===t.k?SC:T.border}`,background:pipeType===t.k?`rgba(16,185,129,0.12)`:"transparent",color:pipeType===t.k?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>{t.l}</button>)}
         </div>
         {pipeType==="drain"?(
           <><Label>Total DFU</Label><Input type="number" value={dfu} onChange={e=>setDfu(+e.target.value)} style={{marginBottom:16}}/><Label>Drain Slope</Label><Select value={slope} onChange={e=>setSlope(+e.target.value)} style={{marginBottom:16}}><option value={0.01}>1% (1:100)</option><option value={0.02}>2% (1:50) recommended</option><option value={0.04}>4% (1:25)</option><option value={0.0625}>6.25% (1:16)</option></Select></>
@@ -9210,17 +9210,17 @@ function PipeSizing() {
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>RECOMMENDED PIPE DIAMETER</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>RECOMMENDED PIPE DIAMETER</div>
             <div style={{fontSize:48,fontWeight:900,color:SC}}>{result.type==="drain"?result.rec.dia:result.dia} <span style={{fontSize:18,fontWeight:400}}>mm</span></div>
-            {result.type==="drain"&&<div style={{fontSize:13,color:THEME.muted,marginTop:4}}>Velocity: {result.vel.toFixed(2)} m/s — {result.status}</div>}
-            {result.type==="supply"&&<div style={{fontSize:13,color:THEME.muted,marginTop:4}}>{result.gpm.toFixed(1)} GPM · {result.lps.toFixed(2)} L/s</div>}
+            {result.type==="drain"&&<div style={{fontSize:13,color:T.muted,marginTop:4}}>Velocity: {result.vel.toFixed(2)} m/s — {result.status}</div>}
+            {result.type==="supply"&&<div style={{fontSize:13,color:T.muted,marginTop:4}}>{result.gpm.toFixed(1)} GPM · {result.lps.toFixed(2)} L/s</div>}
           </Card>
-          {result.type==="drain"&&[{l:"DFU load",v:`${result.dfu}`},{l:"Min pipe dia",v:`${result.rec.dia}mm`,h:true},{l:"Flow velocity",v:`${result.vel.toFixed(2)} m/s`},{l:"Status",v:result.status,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:THEME.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:THEME.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:THEME.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
-          {result.type==="supply"&&[{l:"WSFU",v:`${result.wsfu}`},{l:"Flow",v:`${result.gpm.toFixed(1)} GPM`,h:true},{l:"Flow L/s",v:`${result.lps.toFixed(2)} L/s`},{l:"Supply pipe",v:`${result.dia}mm`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:THEME.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:THEME.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:THEME.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>NPC 2000 Sec. 4 · Manning n=0.013 · Hunter method for supply</div>
+          {result.type==="drain"&&[{l:"DFU load",v:`${result.dfu}`},{l:"Min pipe dia",v:`${result.rec.dia}mm`,h:true},{l:"Flow velocity",v:`${result.vel.toFixed(2)} m/s`},{l:"Status",v:result.status,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          {result.type==="supply"&&[{l:"WSFU",v:`${result.wsfu}`},{l:"Flow",v:`${result.gpm.toFixed(1)} GPM`,h:true},{l:"Flow L/s",v:`${result.lps.toFixed(2)} L/s`},{l:"Supply pipe",v:`${result.dia}mm`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NPC 2000 Sec. 4 · Manning n=0.013 · Hunter method for supply</div>
         </div>
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>📏</div><div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Enter parameters and click<br/>Size the Pipe</div></Card>
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>📏</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter parameters and click<br/>Size the Pipe</div></Card>
       )}
     </div>
   );
@@ -9263,19 +9263,19 @@ function SepticTankSizing() {
           <option value={3}>3 days — Industrial</option>
         </Select>
         <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>🪣 Size Septic Tank</button>
-        <div style={{marginTop:12,padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted}}>Per PD 856 Sanitation Code · NPC 2000 Sec. 13</div>
+        <div style={{marginTop:12,padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted}}>Per PD 856 Sanitation Code · NPC 2000 Sec. 13</div>
       </Card>
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>SEPTIC TANK SIZE</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>SEPTIC TANK SIZE</div>
             <div style={{fontSize:26,fontWeight:900,color:SC}}>{result.length.toFixed(2)}m × {result.width.toFixed(2)}m × {result.total_depth.toFixed(2)}m</div>
-            <div style={{fontSize:13,color:THEME.muted,marginTop:4}}>L × W × D</div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>L × W × D</div>
           </Card>
-          {[{l:"Wastewater flow",v:`${result.flow_lpd.toFixed(0)} L/day`},{l:"Liquid capacity",v:`${result.liq_vol.toFixed(0)} L`,h:true},{l:"Total volume",v:`${result.total_vol.toFixed(0)} L`,h:true},{l:"Tank length",v:`${result.length.toFixed(2)} m`},{l:"Tank width",v:`${result.width.toFixed(2)} m`},{l:"Liquid depth",v:`${result.liquid_depth.toFixed(2)} m`},{l:"Freeboard",v:"0.30 m"},{l:"Total depth",v:`${result.total_depth.toFixed(2)} m`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:THEME.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:THEME.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:THEME.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          {[{l:"Wastewater flow",v:`${result.flow_lpd.toFixed(0)} L/day`},{l:"Liquid capacity",v:`${result.liq_vol.toFixed(0)} L`,h:true},{l:"Total volume",v:`${result.total_vol.toFixed(0)} L`,h:true},{l:"Tank length",v:`${result.length.toFixed(2)} m`},{l:"Tank width",v:`${result.width.toFixed(2)} m`},{l:"Liquid depth",v:`${result.liquid_depth.toFixed(2)} m`},{l:"Freeboard",v:"0.30 m"},{l:"Total depth",v:`${result.total_depth.toFixed(2)} m`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
         </div>
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>🪣</div><div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Enter parameters and click<br/>Size Septic Tank</div></Card>
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>🪣</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter parameters and click<br/>Size Septic Tank</div></Card>
       )}
     </div>
   );
@@ -9313,14 +9313,14 @@ function WaterDemandCalc() {
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>AVERAGE DAILY DEMAND</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>AVERAGE DAILY DEMAND</div>
             <div style={{fontSize:36,fontWeight:900,color:SC}}>{result.avg_lpd.toFixed(0)} <span style={{fontSize:16,fontWeight:400}}>L/day</span></div>
           </Card>
-          {[{l:"Total occupants",v:`${result.count}`},{l:"Average daily demand",v:`${result.avg_lpd.toFixed(0)} L/day`,h:true},{l:"Average flow",v:`${result.avg_lps.toFixed(3)} L/s`},{l:"Peak demand",v:`${result.peak_lps.toFixed(3)} L/s`,h:true},{l:"Ground storage (12hr)",v:`${result.storage_L.toFixed(0)} L`,h:true},{l:"Roof tank (6hr)",v:`${result.roof_L.toFixed(0)} L`},{l:"Pressure zones",v:`${Math.ceil(floors/5)}`}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:THEME.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:THEME.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:THEME.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>NPC 2000 Sec. 6 · LWUA standards · 1 pressure zone per 5 floors</div>
+          {[{l:"Total occupants",v:`${result.count}`},{l:"Average daily demand",v:`${result.avg_lpd.toFixed(0)} L/day`,h:true},{l:"Average flow",v:`${result.avg_lps.toFixed(3)} L/s`},{l:"Peak demand",v:`${result.peak_lps.toFixed(3)} L/s`,h:true},{l:"Ground storage (12hr)",v:`${result.storage_L.toFixed(0)} L`,h:true},{l:"Roof tank (6hr)",v:`${result.roof_L.toFixed(0)} L`},{l:"Pressure zones",v:`${Math.ceil(floors/5)}`}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>NPC 2000 Sec. 6 · LWUA standards · 1 pressure zone per 5 floors</div>
         </div>
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>💧</div><div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Enter building data<br/>and click Calculate</div></Card>
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>💧</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter building data<br/>and click Calculate</div></Card>
       )}
     </div>
   );
@@ -9352,22 +9352,22 @@ function PressureLoss() {
         <Select value={dia} onChange={e=>setDia(+e.target.value)} style={{marginBottom:16}}>{[13,19,25,32,38,50,63,75,100,150,200].map(d=><option key={d} value={d}>{d}mm</option>)}</Select>
         <Label>Pipe Length (m)</Label><Input type="number" value={len} onChange={e=>setLen(+e.target.value)} style={{marginBottom:16}}/>
         <Label>Sum of Minor Loss Coefficients K</Label><Input type="number" value={fitK} onChange={e=>setFitK(+e.target.value)} step="0.5" style={{marginBottom:8}}/>
-        <div style={{fontSize:11,color:THEME.muted,marginBottom:16}}>Elbow=1.5 · Tee=2.0 · Gate valve=0.2 · Check valve=3.0</div>
+        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>Elbow=1.5 · Tee=2.0 · Gate valve=0.2 · Check valve=3.0</div>
         <Label>Elevation Change (m, + upward)</Label><Input type="number" value={elev} onChange={e=>setElev(+e.target.value)} step="0.5" style={{marginBottom:20}}/>
         <button onClick={calc} style={{width:"100%",background:`linear-gradient(135deg,${SC},#059669)`,border:"none",color:"#fff",fontWeight:700,fontSize:15,padding:"13px",borderRadius:12,cursor:"pointer"}}>⬆️ Calculate Pressure Loss</button>
       </Card>
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card style={{background:result.status==="GOOD VELOCITY"?"rgba(16,185,129,0.06)":"rgba(245,158,11,0.06)",border:`1.5px solid ${result.status==="GOOD VELOCITY"?"rgba(16,185,129,0.3)":"rgba(245,158,11,0.3)"}`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>TOTAL HEAD LOSS</div>
-            <div style={{fontSize:42,fontWeight:900,color:result.status==="GOOD VELOCITY"?SC:THEME.warn}}>{result.htotal.toFixed(2)} <span style={{fontSize:18,fontWeight:400}}>m</span></div>
-            <div style={{fontSize:13,color:THEME.muted,marginTop:4}}>{result.V.toFixed(2)} m/s — {result.status}</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>TOTAL HEAD LOSS</div>
+            <div style={{fontSize:42,fontWeight:900,color:result.status==="GOOD VELOCITY"?SC:T.warn}}>{result.htotal.toFixed(2)} <span style={{fontSize:18,fontWeight:400}}>m</span></div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>{result.V.toFixed(2)} m/s — {result.status}</div>
           </Card>
-          {[{l:"Flow velocity",v:`${result.V.toFixed(3)} m/s`,h:true},{l:"Reynolds number",v:result.Re.toFixed(0)},{l:"Friction factor",v:result.f.toFixed(5)},{l:"Friction loss hf",v:`${result.hf.toFixed(3)} m`},{l:"Minor losses hm",v:`${result.hm.toFixed(3)} m`},{l:"Elevation he",v:`${result.he.toFixed(2)} m`},{l:"Total head loss",v:`${result.htotal.toFixed(3)} m`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:THEME.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:THEME.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:THEME.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>Darcy-Weisbach · Blasius friction factor · NPC 2000 Sec. 6</div>
+          {[{l:"Flow velocity",v:`${result.V.toFixed(3)} m/s`,h:true},{l:"Reynolds number",v:result.Re.toFixed(0)},{l:"Friction factor",v:result.f.toFixed(5)},{l:"Friction loss hf",v:`${result.hf.toFixed(3)} m`},{l:"Minor losses hm",v:`${result.hm.toFixed(3)} m`},{l:"Elevation he",v:`${result.he.toFixed(2)} m`},{l:"Total head loss",v:`${result.htotal.toFixed(3)} m`,h:true}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>Darcy-Weisbach · Blasius friction factor · NPC 2000 Sec. 6</div>
         </div>
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>⬆️</div><div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Enter pipe parameters<br/>and click Calculate</div></Card>
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>⬆️</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter pipe parameters<br/>and click Calculate</div></Card>
       )}
     </div>
   );
@@ -9399,7 +9399,7 @@ function StormDrainage() {
         <Label>Surface / Runoff Coefficient C</Label>
         <Select value={runoff} onChange={e=>setRunoff(+e.target.value)} style={{marginBottom:16}}>{Object.entries(RUNOFF).map(([k,v])=><option key={k} value={v}>{k}</option>)}</Select>
         <Label>Rainfall Intensity (mm/hr)</Label><Input type="number" value={intensity} onChange={e=>setIntensity(+e.target.value)} style={{marginBottom:8}}/>
-        <div style={{fontSize:11,color:THEME.muted,marginBottom:16}}>Metro Manila ≈ 100mm/hr · Visayas/Mindanao ≈ 80-120mm/hr</div>
+        <div style={{fontSize:11,color:T.muted,marginBottom:16}}>Metro Manila ≈ 100mm/hr · Visayas/Mindanao ≈ 80-120mm/hr</div>
         <Label>Storm Drain Slope (m/m)</Label>
         <Select value={slope} onChange={e=>setSlope(+e.target.value)} style={{marginBottom:20}}>
           <option value={0.003}>0.3% minimum</option><option value={0.005}>0.5% recommended</option><option value={0.01}>1.0%</option><option value={0.02}>2.0%</option>
@@ -9409,15 +9409,15 @@ function StormDrainage() {
       {result?(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card style={{background:"rgba(16,185,129,0.06)",border:`1.5px solid rgba(16,185,129,0.3)`}}>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:4}}>STORM DRAIN SIZE</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:4}}>STORM DRAIN SIZE</div>
             <div style={{fontSize:48,fontWeight:900,color:SC}}>{result.dia_mm} <span style={{fontSize:18,fontWeight:400}}>mm dia.</span></div>
-            <div style={{fontSize:13,color:THEME.muted,marginTop:4}}>Capacity: {result.Qcap.toFixed(1)} L/s @ {result.V.toFixed(2)} m/s</div>
+            <div style={{fontSize:13,color:T.muted,marginTop:4}}>Capacity: {result.Qcap.toFixed(1)} L/s @ {result.V.toFixed(2)} m/s</div>
           </Card>
-          {[{l:"Design flow Q",v:`${result.Q_lps.toFixed(2)} L/s`,h:true},{l:"Required pipe dia.",v:`${result.dia_mm}mm`,h:true},{l:"Pipe capacity",v:`${result.Qcap.toFixed(1)} L/s`},{l:"Flow velocity",v:`${result.V.toFixed(2)} m/s`}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:THEME.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:THEME.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:THEME.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
-          <div style={{padding:"10px 14px",background:THEME.dim,borderRadius:8,fontSize:11,color:THEME.muted,lineHeight:1.6}}>Rational Method Q=CiA · Manning n=0.013 · NPC 2000 Sec. 11</div>
+          {[{l:"Design flow Q",v:`${result.Q_lps.toFixed(2)} L/s`,h:true},{l:"Required pipe dia.",v:`${result.dia_mm}mm`,h:true},{l:"Pipe capacity",v:`${result.Qcap.toFixed(1)} L/s`},{l:"Flow velocity",v:`${result.V.toFixed(2)} m/s`}].map(r=><div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 14px",background:r.h?`rgba(16,185,129,0.08)`:T.dim,borderRadius:8,border:r.h?`1px solid rgba(16,185,129,0.2)`:"none"}}><span style={{fontSize:13,color:T.muted}}>{r.l}</span><span style={{fontSize:14,fontWeight:700,color:r.h?SC:T.text,fontFamily:"monospace"}}>{r.v}</span></div>)}
+          <div style={{padding:"10px 14px",background:T.dim,borderRadius:8,fontSize:11,color:T.muted,lineHeight:1.6}}>Rational Method Q=CiA · Manning n=0.013 · NPC 2000 Sec. 11</div>
         </div>
       ):(
-        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>🌊</div><div style={{fontSize:14,color:THEME.muted,textAlign:"center"}}>Enter catchment data<br/>and click Size Storm Drain</div></Card>
+        <Card style={{display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,opacity:0.5}}><div style={{fontSize:48}}>🌊</div><div style={{fontSize:14,color:T.muted,textAlign:"center"}}>Enter catchment data<br/>and click Size Storm Drain</div></Card>
       )}
     </div>
   );
@@ -9513,12 +9513,12 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
   const minLoad = Math.min(...Object.values(phaseLoad));
   const imbalance = maxLoad > 0 ? ((maxLoad - minLoad) / maxLoad * 100) : 0;
 
-  const thS = { padding:"8px 10px", color:THEME.muted, fontWeight:700, fontSize:10,
-    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${THEME.border}`,
-    whiteSpace:"nowrap", background:THEME.dim };
-  const tdS = { padding:"6px 8px", borderBottom:`1px solid ${THEME.border}`, verticalAlign:"middle" };
-  const inS = { background:"#0a0f1a", border:`1px solid ${THEME.border}`, borderRadius:7,
-    padding:"5px 8px", color:THEME.text, fontSize:12, outline:"none", width:"100%" };
+  const thS = { padding:"8px 10px", color:T.muted, fontWeight:700, fontSize:10,
+    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}`,
+    whiteSpace:"nowrap", background:T.dim };
+  const tdS = { padding:"6px 8px", borderBottom:`1px solid ${T.border}`, verticalAlign:"middle" };
+  const inS = { background:"#0a0f1a", border:`1px solid ${T.border}`, borderRadius:7,
+    padding:"5px 8px", color:T.text, fontSize:12, outline:"none", width:"100%" };
 
   const exportSchedule = () => {
     const circRows = circuits.map(c=>`
@@ -9574,8 +9574,8 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
   return (
     <div>
       <VerifyHintBanner hint={verifyHint}/>
-      <p style={{color:THEME.muted,fontSize:13,margin:"0 0 20px"}}>
-        Build a complete panel schedule per <strong style={{color:THEME.text}}>PEC 2017 Art. 2.20</strong>. VA auto-calculates amps. Export a print-ready schedule.
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}>
+        Build a complete panel schedule per <strong style={{color:T.text}}>PEC 2017 Art. 2.20</strong>. VA auto-calculates amps. Export a print-ready schedule.
       </p>
 
       {/* Panel info */}
@@ -9609,18 +9609,18 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
         <Stat label="Demand Load"     value={(demandVA/1000).toFixed(2)+" kVA"} sub="PEC Art. 2.20"/>
         <Stat label="Design Current"  value={fmtA(totalAmps)+" A"} sub={`at ${panelVolt}V`}/>
         <Stat label="Required Main"   value={requiredMain+" A"} sub="125% × demand" accent={requiredMain > mainBreaker}/>
-        <div style={{background:imbalance>10?THEME.dim:"rgba(34,197,94,0.07)",border:`1.5px solid ${imbalance>10?THEME.border:"rgba(34,197,94,0.2)"}`,borderRadius:12,padding:"16px 18px"}}>
+        <div style={{background:imbalance>10?T.dim:"rgba(34,197,94,0.07)",border:`1.5px solid ${imbalance>10?T.border:"rgba(34,197,94,0.2)"}`,borderRadius:12,padding:"16px 18px"}}>
           <Label>Phase Imbalance</Label>
-          <div style={{fontSize:22,fontWeight:800,color:imbalance>10?THEME.warn:THEME.success}}>{imbalance.toFixed(1)}%</div>
-          <div style={{fontSize:11,color:THEME.muted}}>{imbalance>10?"⚠️ Rebalance loads":"✓ Balanced"}</div>
+          <div style={{fontSize:22,fontWeight:800,color:imbalance>10?T.warn:T.success}}>{imbalance.toFixed(1)}%</div>
+          <div style={{fontSize:11,color:T.muted}}>{imbalance>10?"⚠️ Rebalance loads":"✓ Balanced"}</div>
         </div>
         {panelPhase==="3" && (
-          <div style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:12,padding:"16px 18px"}}>
+          <div style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 18px"}}>
             <Label>Phase Loads (VA)</Label>
             {Object.entries(phaseLoad).map(([ph,va])=>(
               <div key={ph} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginTop:4}}>
-                <span style={{color:THEME.muted,fontWeight:700}}>Phase {ph}</span>
-                <span style={{fontFamily:"monospace",color:THEME.text}}>{(+va||0).toLocaleString()}</span>
+                <span style={{color:T.muted,fontWeight:700}}>Phase {ph}</span>
+                <span style={{fontFamily:"monospace",color:T.text}}>{(+va||0).toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -9629,12 +9629,12 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
 
       {/* Warnings */}
       {requiredMain > mainBreaker && (
-        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:THEME.danger}}>
+        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:T.danger}}>
           ⚠️ <strong>Main breaker undersized.</strong> Demand load requires at least {requiredMain}A main — current setting is {mainBreaker}A.
         </div>
       )}
       {requiredMain > busRating && (
-        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:THEME.danger}}>
+        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:T.danger}}>
           ⚠️ <strong>Bus rating exceeded.</strong> Demand current ({fmtA(totalAmps)}A) exceeds bus rating ({busRating}A).
         </div>
       )}
@@ -9643,11 +9643,11 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <Label>Circuit Schedule ({circuits.length} circuits)</Label>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={addRow} style={{padding:"6px 14px",borderRadius:8,border:`1.5px dashed ${THEME.border}`,background:"transparent",color:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Circuit</button>
+          <button onClick={addRow} style={{padding:"6px 14px",borderRadius:8,border:`1.5px dashed ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Circuit</button>
           <button onClick={exportSchedule} style={{padding:"6px 14px",borderRadius:8,border:"none",background:`linear-gradient(135deg,${ACCENT},#e85520)`,color:"#fff",cursor:"pointer",fontSize:12,fontWeight:700}}>📄 Export Schedule</button>
         </div>
       </div>
-      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${THEME.border}`,overflow:"hidden"}}>
+      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead>
             <tr>
@@ -9686,7 +9686,7 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
                     onChange={e=>updVA(c.id,e.target.value)}
                     placeholder="VA" style={{...inS,textAlign:"right"}}/>
                 </td>
-                <td style={{...tdS,width:70,fontFamily:"monospace",textAlign:"right",color:THEME.accent}}>
+                <td style={{...tdS,width:70,fontFamily:"monospace",textAlign:"right",color:T.accent}}>
                   {fmtA(+c.amps||0)}
                 </td>
                 <td style={{...tdS,width:80}}>
@@ -9695,7 +9695,7 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
                   </Select>
                 </td>
                 <td style={{...tdS,width:90,textAlign:"center"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:THEME.muted,background:THEME.dim,padding:"2px 8px",borderRadius:5}}>
+                  <span style={{fontSize:11,fontWeight:700,color:T.muted,background:T.dim,padding:"2px 8px",borderRadius:5}}>
                     #{recWire(c.breaker)} AWG
                   </span>
                 </td>
@@ -9704,22 +9704,22 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange, verify
                     placeholder="Notes…" style={{...inS,fontSize:11}}/>
                 </td>
                 <td style={{...tdS,width:36,textAlign:"center"}}>
-                  <button onClick={()=>remRow(c.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:THEME.danger,width:26,height:26,borderRadius:6,cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
+                  <button onClick={()=>remRow(c.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:T.danger,width:26,height:26,borderRadius:6,cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr style={{background:THEME.dim,borderTop:`2px solid ${THEME.border}`}}>
-              <td colSpan={5} style={{padding:"9px 10px",fontWeight:800,color:THEME.muted,fontSize:11}}>TOTAL CONNECTED</td>
+            <tr style={{background:T.dim,borderTop:`2px solid ${T.border}`}}>
+              <td colSpan={5} style={{padding:"9px 10px",fontWeight:800,color:T.muted,fontSize:11}}>TOTAL CONNECTED</td>
               <td style={{padding:"9px 10px",fontWeight:800,color:ACCENT,fontSize:13,fontFamily:"monospace",textAlign:"right"}}>{totalVA.toLocaleString()} VA</td>
-              <td style={{padding:"9px 10px",fontFamily:"monospace",color:THEME.text,textAlign:"right"}}>{fmtA(totalVA/panelVolt)}</td>
+              <td style={{padding:"9px 10px",fontFamily:"monospace",color:T.text,textAlign:"right"}}>{fmtA(totalVA/panelVolt)}</td>
               <td colSpan={4}/>
             </tr>
           </tfoot>
         </table>
       </div>
-      <div style={{marginTop:12,fontSize:11,color:THEME.muted}}>
+      <div style={{marginTop:12,fontSize:11,color:T.muted}}>
         💡 Wire size is auto-recommended per breaker rating. Verify insulation type and derating factors for final design.
       </div>
     </div>
@@ -9824,14 +9824,14 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
   const rec = recConduit();
   const ok  = fillPct <= fillLimit;
 
-  const thS = { padding:"9px 12px", color:THEME.muted, fontWeight:700, fontSize:11,
-    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${THEME.border}`, background:THEME.dim };
-  const tdS = { padding:"8px 10px", borderBottom:`1px solid ${THEME.border}`, verticalAlign:"middle" };
+  const thS = { padding:"9px 12px", color:T.muted, fontWeight:700, fontSize:11,
+    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}`, background:T.dim };
+  const tdS = { padding:"8px 10px", borderBottom:`1px solid ${T.border}`, verticalAlign:"middle" };
 
   return (
     <div>
-      <p style={{color:THEME.muted,fontSize:13,margin:"0 0 20px"}}>
-        Check conductor fill per <strong style={{color:THEME.text}}>PEC 2017 Art. 3.50</strong>: max 40% for 3+ wires, 31% for 2 wires, 53% for 1 wire.
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}>
+        Check conductor fill per <strong style={{color:T.text}}>PEC 2017 Art. 3.50</strong>: max 40% for 3+ wires, 31% for 2 wires, 53% for 1 wire.
       </p>
 
       {/* Conduit selection */}
@@ -9855,39 +9855,39 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
           <Label>Conduit Fill</Label>
           <ComplianceGauge pct={fillPct} limit={fillLimit} label={`PEC limit: ${fillLimit}% (${totalWires} wire${totalWires!==1?"s":""})`}/>
           <div style={{marginTop:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <div style={{background:THEME.dim,borderRadius:9,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:THEME.muted,marginBottom:2}}>Wire Area Used</div>
-              <div style={{fontSize:17,fontWeight:800,color:THEME.text}}>{totalWireArea.toFixed(1)} mm²</div>
+            <div style={{background:T.dim,borderRadius:9,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:2}}>Wire Area Used</div>
+              <div style={{fontSize:17,fontWeight:800,color:T.text}}>{totalWireArea.toFixed(1)} mm²</div>
             </div>
-            <div style={{background:THEME.dim,borderRadius:9,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:THEME.muted,marginBottom:2}}>Conduit Area</div>
-              <div style={{fontSize:17,fontWeight:800,color:THEME.text}}>{conduitArea.toFixed(1)} mm²</div>
+            <div style={{background:T.dim,borderRadius:9,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:2}}>Conduit Area</div>
+              <div style={{fontSize:17,fontWeight:800,color:T.text}}>{conduitArea.toFixed(1)} mm²</div>
             </div>
           </div>
         </Card>
 
         {/* Stats */}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <Stat label="Fill Percentage" value={fillPct.toFixed(2)+"%"} sub={`Limit: ${fillLimit}%`} color={ok?THEME.success:THEME.danger}/>
+          <Stat label="Fill Percentage" value={fillPct.toFixed(2)+"%"} sub={`Limit: ${fillLimit}%`} color={ok?T.success:T.danger}/>
           <Stat label="Total Conductors" value={totalWires+" wires"} sub="Current-carrying"/>
           {rec ? (
             <div style={{background:ok?"rgba(34,197,94,0.07)":"rgba(245,158,11,0.07)",
               border:`1.5px solid ${ok?"rgba(34,197,94,0.2)":"rgba(245,158,11,0.2)"}`,
               borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:11,color:THEME.muted,marginBottom:4,fontWeight:700}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:4,fontWeight:700}}>
                 {ok ? "✓ CURRENT CONDUIT IS ADEQUATE" : "MINIMUM CONDUIT REQUIRED"}
               </div>
-              <div style={{fontSize:18,fontWeight:800,color:ok?THEME.success:THEME.warn}}>
+              <div style={{fontSize:18,fontWeight:800,color:ok?T.success:T.warn}}>
                 {rec.label}
               </div>
-              <div style={{fontSize:11,color:THEME.muted,marginTop:2}}>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>
                 {rec.pct.toFixed(1)}% fill with {conduitType}
               </div>
             </div>
           ) : (
             <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:13,fontWeight:700,color:THEME.danger}}>✗ Exceeds all available sizes</div>
-              <div style={{fontSize:11,color:THEME.muted,marginTop:4}}>Split conductors into multiple conduits.</div>
+              <div style={{fontSize:13,fontWeight:700,color:T.danger}}>✗ Exceeds all available sizes</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:4}}>Split conductors into multiple conduits.</div>
             </div>
           )}
         </div>
@@ -9896,9 +9896,9 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
       {/* Conductor table */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <Label>Conductors in Conduit</Label>
-        <button onClick={addConductor} style={{padding:"5px 12px",borderRadius:7,border:`1.5px dashed ${THEME.border}`,background:"transparent",color:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Conductor</button>
+        <button onClick={addConductor} style={{padding:"5px 12px",borderRadius:7,border:`1.5px dashed ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontSize:12,fontWeight:600}}>+ Add Conductor</button>
       </div>
-      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${THEME.border}`,overflow:"hidden",marginBottom:20}}>
+      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:20}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
             <tr>{["Wire Size (AWG)","Insulation","Qty","Area/Wire (mm²)","Total Area (mm²)",""].map(h=>(
@@ -9927,19 +9927,19 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
                   <td style={tdS}>
                     <Input type="number" value={c.qty} min={1} onChange={e=>updC(c.id,"qty",+e.target.value)} style={{width:70}}/>
                   </td>
-                  <td style={{...tdS,fontFamily:"monospace",color:THEME.muted,textAlign:"right"}}>{area.toFixed(2)}</td>
+                  <td style={{...tdS,fontFamily:"monospace",color:T.muted,textAlign:"right"}}>{area.toFixed(2)}</td>
                   <td style={{...tdS,fontFamily:"monospace",color:ACCENT,fontWeight:700,textAlign:"right"}}>{total.toFixed(2)}</td>
                   <td style={{...tdS,width:36,textAlign:"center"}}>
-                    <button onClick={()=>remConductor(c.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:THEME.danger,width:26,height:26,borderRadius:6,cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
+                    <button onClick={()=>remConductor(c.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.2)",color:T.danger,width:26,height:26,borderRadius:6,cursor:"pointer",fontSize:14,lineHeight:1}}>×</button>
                   </td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot>
-            <tr style={{background:THEME.dim,borderTop:`2px solid ${THEME.border}`}}>
-              <td colSpan={3} style={{padding:"9px 12px",fontWeight:800,color:THEME.muted,fontSize:11}}>TOTAL</td>
-              <td style={{padding:"9px 12px",fontFamily:"monospace",color:THEME.muted,textAlign:"right"}}>{(totalWireArea/Math.max(1,totalWires)).toFixed(2)} avg</td>
+            <tr style={{background:T.dim,borderTop:`2px solid ${T.border}`}}>
+              <td colSpan={3} style={{padding:"9px 12px",fontWeight:800,color:T.muted,fontSize:11}}>TOTAL</td>
+              <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted,textAlign:"right"}}>{(totalWireArea/Math.max(1,totalWires)).toFixed(2)} avg</td>
               <td style={{padding:"9px 12px",fontFamily:"monospace",color:ACCENT,fontWeight:800,textAlign:"right"}}>{totalWireArea.toFixed(2)} mm²</td>
               <td/>
             </tr>
@@ -9952,9 +9952,9 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
       <div style={{overflowX:"auto",marginTop:8}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
-            <tr style={{background:THEME.dim}}>
+            <tr style={{background:T.dim}}>
               {["Trade Size","Internal Area (mm²)","Wire Area (mm²)","Fill %","Status"].map(h=>(
-                <th key={h} style={{padding:"9px 12px",color:THEME.muted,fontWeight:700,fontSize:11,textTransform:"uppercase",textAlign:"left",borderBottom:`1px solid ${THEME.border}`}}>{h}</th>
+                <th key={h} style={{padding:"9px 12px",color:T.muted,fontWeight:700,fontSize:11,textTransform:"uppercase",textAlign:"left",borderBottom:`1px solid ${T.border}`}}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -9964,14 +9964,14 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
               const isCurrent = sz === conduitSize;
               const fits = pct <= fillLimit;
               return (
-                <tr key={sz} style={{background:isCurrent?"rgba(255,107,43,0.06)":"transparent",borderBottom:`1px solid ${THEME.border}`,cursor:"pointer"}}
+                <tr key={sz} style={{background:isCurrent?"rgba(255,107,43,0.06)":"transparent",borderBottom:`1px solid ${T.border}`,cursor:"pointer"}}
                   onClick={()=>setConduitSize(sz)}>
-                  <td style={{padding:"9px 12px",fontWeight:isCurrent?800:400,color:isCurrent?ACCENT:THEME.text}}>{isCurrent?"▶ ":""}{data.label}</td>
-                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:THEME.muted}}>{data.area.toFixed(1)}</td>
-                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:THEME.muted}}>{totalWireArea.toFixed(1)}</td>
-                  <td style={{padding:"9px 12px",fontWeight:700,color:fits?THEME.success:THEME.danger,fontFamily:"monospace"}}>{pct.toFixed(1)}%</td>
+                  <td style={{padding:"9px 12px",fontWeight:isCurrent?800:400,color:isCurrent?ACCENT:T.text}}>{isCurrent?"▶ ":""}{data.label}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{data.area.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{totalWireArea.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",fontWeight:700,color:fits?T.success:T.danger,fontFamily:"monospace"}}>{pct.toFixed(1)}%</td>
                   <td style={{padding:"9px 12px"}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:20,background:fits?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",color:fits?THEME.success:THEME.danger}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:20,background:fits?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",color:fits?T.success:T.danger}}>
                       {fits?"✓ FITS":"✗ OVERFILLED"}
                     </span>
                   </td>
@@ -10105,8 +10105,8 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
 
   return (
     <div>
-      <p style={{color:THEME.muted,fontSize:13,margin:"0 0 20px"}}>
-        Apply temperature and conduit fill derating to conductor ampacity per <strong style={{color:THEME.text}}>PEC 2017 Table 3.10 & 3.13</strong>.
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}>
+        Apply temperature and conduit fill derating to conductor ampacity per <strong style={{color:T.text}}>PEC 2017 Table 3.10 & 3.13</strong>.
       </p>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:14,marginBottom:24}}>
@@ -10139,25 +10139,25 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
         <Card style={{padding:22}}>
           <Label>Derated Ampacity Result</Label>
           <div style={{marginTop:12,display:"flex",alignItems:"flex-end",gap:8}}>
-            <div style={{fontSize:48,fontWeight:900,color:ok?THEME.success:THEME.danger,lineHeight:1,fontFamily:"monospace"}}>
+            <div style={{fontSize:48,fontWeight:900,color:ok?T.success:T.danger,lineHeight:1,fontFamily:"monospace"}}>
               {deratedAmp.toFixed(1)}
             </div>
-            <div style={{fontSize:18,color:THEME.muted,paddingBottom:6}}>A</div>
+            <div style={{fontSize:18,color:T.muted,paddingBottom:6}}>A</div>
           </div>
-          <div style={{marginTop:6,fontSize:12,color:THEME.muted}}>Derated ampacity for #{wireSize} AWG {material}</div>
+          <div style={{marginTop:6,fontSize:12,color:T.muted}}>Derated ampacity for #{wireSize} AWG {material}</div>
 
           {/* Utilization bar */}
           <div style={{marginTop:16}}>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:THEME.muted,marginBottom:4}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.muted,marginBottom:4}}>
               <span>Load Utilization</span>
-              <span style={{fontWeight:700,color:ok?THEME.success:THEME.danger}}>{utilPct.toFixed(1)}%</span>
+              <span style={{fontWeight:700,color:ok?T.success:T.danger}}>{utilPct.toFixed(1)}%</span>
             </div>
-            <div style={{background:THEME.border,borderRadius:99,height:10,overflow:"hidden"}}>
+            <div style={{background:T.border,borderRadius:99,height:10,overflow:"hidden"}}>
               <div style={{width:`${Math.min(utilPct,100)}%`,height:"100%",
                 background:`linear-gradient(90deg,${ok?"#22c55e":"#ef4444"},${ok?"#16a34a":"#dc2626"})`,
                 borderRadius:99,transition:"width 0.5s ease"}}/>
             </div>
-            <div style={{marginTop:8,fontSize:12,fontWeight:700,color:ok?THEME.success:THEME.danger,padding:"6px 12px",borderRadius:8,background:ok?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)",border:`1px solid ${ok?"rgba(34,197,94,0.2)":"rgba(239,68,68,0.2)"}`}}>
+            <div style={{marginTop:8,fontSize:12,fontWeight:700,color:ok?T.success:T.danger,padding:"6px 12px",borderRadius:8,background:ok?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)",border:`1px solid ${ok?"rgba(34,197,94,0.2)":"rgba(239,68,68,0.2)"}`}}>
               {ok ? `✓ Wire adequate — ${(deratedAmp-loadCurrent).toFixed(1)}A margin` : `✗ Insufficient — ${(loadCurrent-deratedAmp).toFixed(1)}A short`}
             </div>
           </div>
@@ -10166,21 +10166,21 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
         {/* Derating breakdown */}
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <Stat label="Base Ampacity"          value={baseAmp.toFixed(1)+" A"}    sub={`${insulation.replace("_"," ")} in conduit`}/>
-          <Stat label="Temp. Correction Factor" value={"× "+tempFactor.toFixed(2)} sub={`Ambient ${ambient}°C`} color={tempFactor<1?THEME.warn:THEME.success}/>
-          <Stat label="Conduit Fill Factor"     value={"× "+fillFactor.toFixed(2)} sub={`${numWires} conductor${numWires!==1?"s":""} in conduit`} color={fillFactor<1?THEME.warn:THEME.success}/>
-          <div style={{background:THEME.dim,border:`1.5px solid ${THEME.border}`,borderRadius:12,padding:"14px 16px"}}>
+          <Stat label="Temp. Correction Factor" value={"× "+tempFactor.toFixed(2)} sub={`Ambient ${ambient}°C`} color={tempFactor<1?T.warn:T.success}/>
+          <Stat label="Conduit Fill Factor"     value={"× "+fillFactor.toFixed(2)} sub={`${numWires} conductor${numWires!==1?"s":""} in conduit`} color={fillFactor<1?T.warn:T.success}/>
+          <div style={{background:T.dim,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"14px 16px"}}>
             <Label>Formula</Label>
-            <div style={{fontSize:12,color:THEME.muted,fontFamily:"monospace",lineHeight:1.8,marginTop:6}}>
-              Derated = Base × THEME.F. × C.F.<br/>
+            <div style={{fontSize:12,color:T.muted,fontFamily:"monospace",lineHeight:1.8,marginTop:6}}>
+              Derated = Base × T.F. × C.F.<br/>
               = {baseAmp.toFixed(1)} × {tempFactor.toFixed(2)} × {fillFactor.toFixed(2)}<br/>
-              = <strong style={{color:ok?THEME.success:THEME.danger}}>{deratedAmp.toFixed(1)} A</strong>
+              = <strong style={{color:ok?T.success:T.danger}}>{deratedAmp.toFixed(1)} A</strong>
             </div>
           </div>
           {!ok && rec && (
             <div style={{background:"rgba(245,158,11,0.08)",border:"1.5px solid rgba(245,158,11,0.3)",borderRadius:12,padding:"14px 16px"}}>
-              <div style={{fontSize:11,color:THEME.warn,fontWeight:700,marginBottom:4}}>MINIMUM WIRE SIZE REQUIRED</div>
-              <div style={{fontSize:20,fontWeight:800,color:THEME.warn}}>#{rec.size} AWG</div>
-              <div style={{fontSize:11,color:THEME.muted,marginTop:2}}>Derated ampacity: {rec.derated.toFixed(1)}A</div>
+              <div style={{fontSize:11,color:T.warn,fontWeight:700,marginBottom:4}}>MINIMUM WIRE SIZE REQUIRED</div>
+              <div style={{fontSize:20,fontWeight:800,color:T.warn}}>#{rec.size} AWG</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>Derated ampacity: {rec.derated.toFixed(1)}A</div>
             </div>
           )}
         </div>
@@ -10191,9 +10191,9 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
       <div style={{overflowX:"auto",marginTop:10}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
-            <tr style={{background:THEME.dim}}>
+            <tr style={{background:T.dim}}>
               {["Wire Size","Base Ampacity","Temp Factor","Fill Factor","Derated Ampacity","Adequate for Load",""].map(h=>(
-                <th key={h} style={{padding:"9px 12px",color:THEME.muted,fontWeight:700,fontSize:11,textTransform:"uppercase",textAlign:"left",borderBottom:`1px solid ${THEME.border}`}}>{h}</th>
+                <th key={h} style={{padding:"9px 12px",color:T.muted,fontWeight:700,fontSize:11,textTransform:"uppercase",textAlign:"left",borderBottom:`1px solid ${T.border}`}}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -10201,19 +10201,19 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
             {tableRows.map(({sz,base,derated,isCurrent})=>{
               const adequate = derated >= loadCurrent;
               return (
-                <tr key={sz} style={{background:isCurrent?"rgba(255,107,43,0.06)":"transparent",borderBottom:`1px solid ${THEME.border}`,cursor:"pointer"}}
+                <tr key={sz} style={{background:isCurrent?"rgba(255,107,43,0.06)":"transparent",borderBottom:`1px solid ${T.border}`,cursor:"pointer"}}
                   onClick={()=>setWireSize(sz)}>
-                  <td style={{padding:"9px 12px",fontWeight:isCurrent?800:400,color:isCurrent?ACCENT:THEME.text}}>
+                  <td style={{padding:"9px 12px",fontWeight:isCurrent?800:400,color:isCurrent?ACCENT:T.text}}>
                     {isCurrent?"▶ ":""}{sz} AWG{sz>=250?" kcmil":""}
                   </td>
-                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:THEME.muted}}>{base.toFixed(1)} A</td>
-                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:THEME.muted}}>{tempFactor.toFixed(2)}</td>
-                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:THEME.muted}}>{fillFactor.toFixed(2)}</td>
-                  <td style={{padding:"9px 12px",fontFamily:"monospace",fontWeight:700,color:adequate?THEME.success:THEME.danger}}>{derated.toFixed(1)} A</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{base.toFixed(1)} A</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{tempFactor.toFixed(2)}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",color:T.muted}}>{fillFactor.toFixed(2)}</td>
+                  <td style={{padding:"9px 12px",fontFamily:"monospace",fontWeight:700,color:adequate?T.success:T.danger}}>{derated.toFixed(1)} A</td>
                   <td style={{padding:"9px 12px"}}>
                     <span style={{fontSize:11,fontWeight:700,padding:"2px 10px",borderRadius:20,
                       background:adequate?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
-                      color:adequate?THEME.success:THEME.danger}}>
+                      color:adequate?T.success:T.danger}}>
                       {adequate?"✓ YES":"✗ NO"}
                     </span>
                   </td>
@@ -10224,7 +10224,7 @@ function AmpacityDerating({ electricalData, calcState, onStateChange }) {
           </tbody>
         </table>
       </div>
-      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:10,fontSize:12,color:THEME.muted}}>
+      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(59,130,246,0.07)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:10,fontSize:12,color:T.muted}}>
         ⚠️ Derating factors per PEC 2017. Aluminum values use 84% of copper ampacity. Always verify with licensed PEE before final design.
       </div>
     </div>
@@ -10252,12 +10252,12 @@ function Branch80Checker({ electricalData, calcState, onStateChange, verifyHint 
   return(
     <div>
       <VerifyHintBanner hint={verifyHint}/>
-      <p style={{color:THEME.muted,fontSize:13,margin:"0 0 16px"}}>
-        Per <strong style={{color:THEME.text}}>PEC 2017 Art. 2.20.3.2</strong>, continuous loads must not exceed 80% of breaker rating.
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 16px"}}>
+        Per <strong style={{color:T.text}}>PEC 2017 Art. 2.20.3.2</strong>, continuous loads must not exceed 80% of breaker rating.
         Toggle "Continuous" for loads energised ≥3 hours.
       </p>
       {circuits.length===0&&(
-        <div style={{padding:"32px",textAlign:"center",color:THEME.muted,fontSize:13,background:THEME.dim,borderRadius:12}}>
+        <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:13,background:T.dim,borderRadius:12}}>
           Upload plans and run AI extraction to populate circuits, or add from Panel Schedule.
         </div>
       )}
@@ -10265,9 +10265,9 @@ function Branch80Checker({ electricalData, calcState, onStateChange, verifyHint 
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead>
-              <tr style={{background:THEME.dim}}>
+              <tr style={{background:T.dim}}>
                 {["Circuit","VA","Breaker (A)","Load A","80% Limit","Utilisation","Continuous","Status"].map(h=>(
-                  <th key={h} style={{padding:"9px 12px",color:THEME.muted,fontWeight:700,fontSize:11,textAlign:"left",borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                  <th key={h} style={{padding:"9px 12px",color:T.muted,fontWeight:700,fontSize:11,textAlign:"left",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -10278,12 +10278,12 @@ function Branch80Checker({ electricalData, calcState, onStateChange, verifyHint 
                 const pass=loadA<=limit;
                 const barCol=pct>100?"#ef4444":pct>80?"#f59e0b":"#22c55e";
                 return(
-                  <tr key={circ.id} style={{borderBottom:`1px solid ${THEME.border}`,background:pass?"transparent":"rgba(239,68,68,0.04)"}}>
-                    <td style={{padding:"8px 12px",fontWeight:600,color:THEME.text}}>{circ.desc||`Circuit ${circ.id}`}</td>
-                    <td style={{padding:"8px 12px",color:THEME.muted,fontFamily:"monospace"}}>{va.toLocaleString()}</td>
-                    <td style={{padding:"8px 12px",color:THEME.muted,fontFamily:"monospace"}}>{bkr}</td>
-                    <td style={{padding:"8px 12px",color:THEME.text,fontFamily:"monospace",fontWeight:600}}>{loadA.toFixed(1)}</td>
-                    <td style={{padding:"8px 12px",color:THEME.muted,fontFamily:"monospace"}}>{limit.toFixed(1)}</td>
+                  <tr key={circ.id} style={{borderBottom:`1px solid ${T.border}`,background:pass?"transparent":"rgba(239,68,68,0.04)"}}>
+                    <td style={{padding:"8px 12px",fontWeight:600,color:T.text}}>{circ.desc||`Circuit ${circ.id}`}</td>
+                    <td style={{padding:"8px 12px",color:T.muted,fontFamily:"monospace"}}>{va.toLocaleString()}</td>
+                    <td style={{padding:"8px 12px",color:T.muted,fontFamily:"monospace"}}>{bkr}</td>
+                    <td style={{padding:"8px 12px",color:T.text,fontFamily:"monospace",fontWeight:600}}>{loadA.toFixed(1)}</td>
+                    <td style={{padding:"8px 12px",color:T.muted,fontFamily:"monospace"}}>{limit.toFixed(1)}</td>
                     <td style={{padding:"8px 12px",minWidth:100}}>
                       <div style={{height:6,background:"rgba(255,255,255,0.08)",borderRadius:3,overflow:"hidden",marginBottom:3}}>
                         <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:barCol,borderRadius:3,transition:"width 0.3s"}}/>
@@ -10292,7 +10292,7 @@ function Branch80Checker({ electricalData, calcState, onStateChange, verifyHint 
                     </td>
                     <td style={{padding:"8px 12px",textAlign:"center"}}>
                       <input type="checkbox" checked={!!circ.continuous} onChange={e=>toggle(circ.id,"continuous",e.target.checked)}
-                        style={{accentColor:THEME.accent,width:15,height:15,cursor:"pointer"}}/>
+                        style={{accentColor:T.accent,width:15,height:15,cursor:"pointer"}}/>
                     </td>
                     <td style={{padding:"8px 12px"}}>
                       {pass
@@ -10352,17 +10352,17 @@ function MultiCircuitVDTable({ electricalData, calcState, onStateChange, verifyH
   return(
     <div>
       <VerifyHintBanner hint={verifyHint}/>
-      <p style={{color:THEME.muted,fontSize:13,margin:"0 0 16px"}}>
-        <strong style={{color:THEME.text}}>PEC 2017 Art. 2.30</strong> — max 3% branch, 5% total. Run lengths estimated from floor tag (F1=15m, F2=25m…) — edit inline.
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 16px"}}>
+        <strong style={{color:T.text}}>PEC 2017 Art. 2.30</strong> — max 3% branch, 5% total. Run lengths estimated from floor tag (F1=15m, F2=25m…) — edit inline.
       </p>
-      {rows.length===0&&<div style={{padding:"32px",textAlign:"center",color:THEME.muted,fontSize:13,background:THEME.dim,borderRadius:12}}>Upload plans with a panel schedule to populate all circuits.</div>}
+      {rows.length===0&&<div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:13,background:T.dim,borderRadius:12}}>Upload plans with a panel schedule to populate all circuits.</div>}
       {rows.length>0&&(
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead>
-              <tr style={{background:THEME.dim}}>
+              <tr style={{background:T.dim}}>
                 {["Circuit","VA","Wire","Run (m)","VD (V)","VD%","Min Wire","Status"].map(h=>(
-                  <th key={h} style={{padding:"9px 12px",color:THEME.muted,fontWeight:700,fontSize:11,textAlign:"left",borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                  <th key={h} style={{padding:"9px 12px",color:T.muted,fontWeight:700,fontSize:11,textAlign:"left",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -10371,30 +10371,30 @@ function MultiCircuitVDTable({ electricalData, calcState, onStateChange, verifyH
                 const {vd,pct,minWire,pass}=calcVD(row);
                 const barCol=pct>5?"#ef4444":pct>3?"#f59e0b":"#22c55e";
                 return(
-                  <tr key={row.id} style={{borderBottom:`1px solid ${THEME.border}`,background:pass?"transparent":"rgba(239,68,68,0.04)"}}>
-                    <td style={{padding:"6px 12px",fontWeight:600,color:THEME.text,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.desc}</td>
+                  <tr key={row.id} style={{borderBottom:`1px solid ${T.border}`,background:pass?"transparent":"rgba(239,68,68,0.04)"}}>
+                    <td style={{padding:"6px 12px",fontWeight:600,color:T.text,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.desc}</td>
                     <td style={{padding:"4px 8px"}}>
                       <input type="number" value={row.va} onChange={e=>setField(row.id,"va",e.target.value)}
-                        style={{width:70,background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:6,padding:"4px 8px",color:THEME.text,fontSize:12,fontFamily:"monospace"}}/>
+                        style={{width:70,background:T.dim,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",color:T.text,fontSize:12,fontFamily:"monospace"}}/>
                     </td>
                     <td style={{padding:"4px 8px"}}>
                       <select value={row.wire} onChange={e=>setField(row.id,"wire",e.target.value)}
-                        style={{background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:6,padding:"4px 6px",color:THEME.text,fontSize:12}}>
+                        style={{background:T.dim,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 6px",color:T.text,fontSize:12}}>
                         {AWG_SIZES.map(s=><option key={s} value={s}>#{s}</option>)}
                       </select>
                     </td>
                     <td style={{padding:"4px 8px"}}>
                       <input type="number" value={row.length} onChange={e=>setField(row.id,"length",e.target.value)}
-                        style={{width:60,background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:6,padding:"4px 8px",color:THEME.text,fontSize:12,fontFamily:"monospace"}}/>
+                        style={{width:60,background:T.dim,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 8px",color:T.text,fontSize:12,fontFamily:"monospace"}}/>
                     </td>
-                    <td style={{padding:"6px 12px",color:THEME.text,fontFamily:"monospace"}}>{vd.toFixed(3)}</td>
+                    <td style={{padding:"6px 12px",color:T.text,fontFamily:"monospace"}}>{vd.toFixed(3)}</td>
                     <td style={{padding:"6px 12px",minWidth:90}}>
                       <div style={{height:5,background:"rgba(255,255,255,0.08)",borderRadius:3,overflow:"hidden",marginBottom:3}}>
                         <div style={{height:"100%",width:`${Math.min(pct/5*100,100)}%`,background:barCol,borderRadius:3}}/>
                       </div>
                       <span style={{fontSize:11,color:barCol,fontWeight:700}}>{pct.toFixed(2)}%</span>
                     </td>
-                    <td style={{padding:"6px 12px",color:THEME.muted,fontFamily:"monospace",fontSize:11}}>{pass?"—":`#${minWire}`}</td>
+                    <td style={{padding:"6px 12px",color:T.muted,fontFamily:"monospace",fontSize:11}}>{pass?"—":`#${minWire}`}</td>
                     <td style={{padding:"6px 12px"}}>
                       {pass
                         ? <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(34,197,94,0.12)",color:"#22c55e",border:"1px solid rgba(34,197,94,0.25)"}}>✓ OK</span>
@@ -10436,15 +10436,15 @@ function GECCalculator({ electricalData, calcState, onStateChange }) {
 
   return(
     <div>
-      <p style={{color:THEME.muted,fontSize:13,margin:"0 0 20px"}}><strong style={{color:THEME.text}}>PEC 2017 Table 2.50.12</strong> — Grounding electrode conductor (GEC) sizing based on service conductor.</p>
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 20px"}}><strong style={{color:T.text}}>PEC 2017 Table 2.50.12</strong> — Grounding electrode conductor (GEC) sizing based on service conductor.</p>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14,marginBottom:24}}>
         <div><Label>Main Breaker (AT)</Label>
           <input type="number" value={mainBkr} onChange={e=>setMainBkr(+e.target.value)}
-            style={{width:"100%",background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:8,padding:"8px 12px",color:THEME.text,fontSize:14,fontFamily:"monospace"}}/>
+            style={{width:"100%",background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 12px",color:T.text,fontSize:14,fontFamily:"monospace"}}/>
         </div>
         <div><Label>Service Conductor Size</Label>
           <select value={svcWire} onChange={e=>setSvcWire(e.target.value)}
-            style={{width:"100%",background:THEME.dim,border:`1px solid ${THEME.border}`,borderRadius:8,padding:"8px 12px",color:THEME.text,fontSize:14}}>
+            style={{width:"100%",background:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 12px",color:T.text,fontSize:14}}>
             {AWG_LIST.map(s=><option key={s} value={s}>#{s} AWG ({WIRE_DATA[s]?.ampacity||"?"}A)</option>)}
           </select>
         </div>
@@ -10455,14 +10455,14 @@ function GECCalculator({ electricalData, calcState, onStateChange }) {
           {label:"EGC (Equipment Grounding Conductor)", val:egc?`#${egc} AWG Cu`:"See table",ref:`Based on ${egcAt}A OCPD`,col:"#0696d7"},
           {label:"Neutral / Grounded Conductor",        val:neutral?`#${neutral} AWG Cu`:"See table",ref:"Min = GEC size",col:"#8b5cf6"},
         ].map(r=>(
-          <div key={r.label} style={{background:THEME.dim,border:`1px solid ${r.col}30`,borderRadius:12,padding:"16px 18px"}}>
-            <div style={{fontSize:11,color:THEME.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>{r.label}</div>
+          <div key={r.label} style={{background:T.dim,border:`1px solid ${r.col}30`,borderRadius:12,padding:"16px 18px"}}>
+            <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>{r.label}</div>
             <div style={{fontSize:28,fontWeight:900,color:r.col,fontFamily:"monospace",marginBottom:4}}>{r.val}</div>
-            <div style={{fontSize:11,color:THEME.muted}}>{r.ref}</div>
+            <div style={{fontSize:11,color:T.muted}}>{r.ref}</div>
           </div>
         ))}
       </div>
-      <div style={{marginTop:20,padding:"14px 18px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,fontSize:12,color:THEME.muted,lineHeight:1.7}}>
+      <div style={{marginTop:20,padding:"14px 18px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,fontSize:12,color:T.muted,lineHeight:1.7}}>
         <strong style={{color:"#f59e0b"}}>⚠ Ground Rod Requirements (PEC Art. 2.50):</strong> Minimum 2 ground rods, 2.4m long, spaced ≥1.8m apart. Resistance to earth ≤25Ω each. Use copper-clad steel rods (≥16mm dia).
       </div>
     </div>
@@ -10487,7 +10487,7 @@ function CalcResultRow({ item, T, CALC_LABELS }) {
     return (
       <>
         <tr style={{borderBottom:"none"}}>
-          <td style={{padding:"10px 14px 4px",fontWeight:600,color:THEME.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
+          <td style={{padding:"10px 14px 4px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
           <td style={{padding:"10px 14px 4px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
           <td colSpan={2} style={{padding:"10px 14px 4px"}}>
             <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,
@@ -10496,7 +10496,7 @@ function CalcResultRow({ item, T, CALC_LABELS }) {
             </span>
           </td>
         </tr>
-        <tr style={{borderBottom:`1px solid ${THEME.border}`}}>
+        <tr style={{borderBottom:`1px solid ${T.border}`}}>
           <td colSpan={4} style={{padding:"0 14px 12px"}}>
             <div style={{background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.3)",
               borderRadius:8,padding:"10px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
@@ -10513,10 +10513,10 @@ function CalcResultRow({ item, T, CALC_LABELS }) {
   }
 
   return (
-    <tr style={{borderBottom:`1px solid ${THEME.border}`}}>
-      <td style={{padding:"10px 14px",fontWeight:600,color:THEME.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
+    <tr style={{borderBottom:`1px solid ${T.border}`}}>
+      <td style={{padding:"10px 14px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
       <td style={{padding:"10px 14px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
-      <td style={{padding:"10px 14px",color:THEME.muted,fontSize:11}}>{item.detail}</td>
+      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>{item.detail}</td>
       <td style={{padding:"10px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,
@@ -10533,7 +10533,7 @@ function CalcResultRow({ item, T, CALC_LABELS }) {
           )}
         </div>
         {whyOpen&&(
-          <div style={{marginTop:6,fontSize:11,color:THEME.muted,lineHeight:1.6,
+          <div style={{marginTop:6,fontSize:11,color:T.muted,lineHeight:1.6,
             background:`${col}08`,border:`1px solid ${col}25`,borderRadius:7,
             padding:"8px 10px",maxWidth:260}}>
             {item.status==="FAIL"
@@ -10721,9 +10721,9 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
 
   if (noData) {
     return (
-      <div style={{padding:"48px 24px",textAlign:"center",color:THEME.muted}}>
+      <div style={{padding:"48px 24px",textAlign:"center",color:T.muted}}>
         <div style={{fontSize:40,marginBottom:12}}>📋</div>
-        <div style={{fontSize:16,fontWeight:700,color:THEME.text,marginBottom:8}}>No review data yet</div>
+        <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>No review data yet</div>
         <div style={{fontSize:13}}>Upload plans, run AI extraction, and click <strong style={{color:ACCENT}}>Run All Checks</strong> to generate your Review Summary Sheet.</div>
       </div>
     );
@@ -10737,8 +10737,8 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
       {/* Sheet header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24,flexWrap:"wrap",gap:12}}>
         <div>
-          <div style={{fontSize:18,fontWeight:900,color:THEME.text}}>📋 Review Summary Sheet</div>
-          <div style={{fontSize:11,color:THEME.muted,marginTop:2}}>
+          <div style={{fontSize:18,fontWeight:900,color:T.text}}>📋 Review Summary Sheet</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>
             {summary.projectName||sys.projectName||"Electrical Project"} · {new Date().toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
           </div>
         </div>
@@ -10775,9 +10775,9 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
           {l:"Circuits",        v:panel.circuits?.length||"—"},
           {l:"Bus Rating",      v:panel.busRating?`${panel.busRating}A`:"—"},
         ].map(b=>(
-          <div key={b.l} style={{background:THEME.dim,borderRadius:10,padding:"12px 14px",border:`1px solid ${THEME.border}`}}>
-            <div style={{fontSize:10,color:THEME.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>{b.l}</div>
-            <div style={{fontSize:16,fontWeight:800,color:THEME.text,fontFamily:"monospace"}}>{b.v}</div>
+          <div key={b.l} style={{background:T.dim,borderRadius:10,padding:"12px 14px",border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:10,color:T.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>{b.l}</div>
+            <div style={{fontSize:16,fontWeight:800,color:T.text,fontFamily:"monospace"}}>{b.v}</div>
           </div>
         ))}
       </div>
@@ -10797,9 +10797,9 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
                 <div style={{background:`${box.c}12`,border:`1px solid ${box.c}40`,borderRadius:9,padding:"8px 14px",minWidth:108,textAlign:"center"}}>
                   <div style={{fontSize:10,color:box.c,fontWeight:700,marginBottom:3}}>{box.l}</div>
                   <div style={{fontSize:16,fontWeight:900,color:box.c,fontFamily:"monospace"}}>{box.v}</div>
-                  <div style={{fontSize:10,color:THEME.muted,marginTop:2}}>{box.s}</div>
+                  <div style={{fontSize:10,color:T.muted,marginTop:2}}>{box.s}</div>
                 </div>
-                {i<arr.length-1&&<div style={{fontSize:16,color:THEME.muted,padding:"0 4px"}}>→</div>}
+                {i<arr.length-1&&<div style={{fontSize:16,color:T.muted,padding:"0 4px"}}>→</div>}
               </React.Fragment>
             ))}
           </div>
@@ -10809,13 +10809,13 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
       {/* Calculator results table */}
       {calcItems.length>0&&(
         <div style={{marginBottom:20}}>
-          <div style={{fontSize:12,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:10}}>Calculator Results</div>
-          <div style={{background:THEME.card,borderRadius:12,border:`1px solid ${THEME.border}`,overflow:"hidden"}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:10}}>Calculator Results</div>
+          <div style={{background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead>
-                <tr style={{background:THEME.dim}}>
+                <tr style={{background:T.dim}}>
                   {["Check","Result","Detail","Status"].map(h=>(
-                    <th key={h} style={{padding:"10px 14px",color:THEME.muted,fontWeight:700,fontSize:11,textAlign:"left",borderBottom:`1px solid ${THEME.border}`}}>{h}</th>
+                    <th key={h} style={{padding:"10px 14px",color:T.muted,fontWeight:700,fontSize:11,textAlign:"left",borderBottom:`1px solid ${T.border}`}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -10832,15 +10832,15 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
       {/* Findings summary */}
       {findings.length>0&&(
         <div style={{marginBottom:20}}>
-          <div style={{fontSize:12,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:10}}>AI Findings ({findings.length})</div>
+          <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:10}}>AI Findings ({findings.length})</div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {[...criticals,...warnings,...infos].map(f=>{
               const col={CRITICAL:"#ef4444",WARNING:"#f59e0b",INFO:"#0696d7"}[f.severity]||"#0696d7";
               return(
-                <div key={f.id} style={{background:THEME.card,border:`1px solid ${col}25`,borderRadius:10,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div key={f.id} style={{background:T.card,border:`1px solid ${col}25`,borderRadius:10,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
                   <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4,background:`${col}15`,color:col,border:`1px solid ${col}30`,flexShrink:0,marginTop:2}}>{f.severity}</span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:13,color:THEME.text,marginBottom:3}}>{f.title}</div>
+                    <div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:3}}>{f.title}</div>
                     <div style={{fontSize:11,color:"#22c55e"}}>✓ {f.recommendation}</div>
                     <div style={{fontSize:10,color:"rgba(255,107,43,0.6)",marginTop:3,fontWeight:600}}>{f.pecReference} · {f.category}</div>
                   </div>
@@ -10854,21 +10854,21 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
       {/* PEE sign-off checklist */}
       <div style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontSize:12,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.6px"}}>PEE Sign-Off Checklist</div>
+          <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.6px"}}>PEE Sign-Off Checklist</div>
           <span style={{fontSize:11,fontWeight:700,color:signedCount===SIGNOFF.length?"#22c55e":ACCENT}}>{signedCount}/{SIGNOFF.length} items confirmed</span>
         </div>
-        <div style={{background:THEME.card,borderRadius:12,border:`1px solid ${THEME.border}`,overflow:"hidden"}}>
+        <div style={{background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
           {SIGNOFF.map((s,i)=>(
-            <div key={s.key} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:i<SIGNOFF.length-1?`1px solid ${THEME.border}`:"none",
+            <div key={s.key} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderBottom:i<SIGNOFF.length-1?`1px solid ${T.border}`:"none",
               background:signoff[s.key]?"rgba(34,197,94,0.04)":"transparent",transition:"background 0.15s"}}>
               <div onClick={()=>setSignoff(p=>({...p,[s.key]:!p[s.key]}))}
-                style={{width:20,height:20,borderRadius:5,border:`2px solid ${signoff[s.key]?"#22c55e":THEME.muted}`,
+                style={{width:20,height:20,borderRadius:5,border:`2px solid ${signoff[s.key]?"#22c55e":T.muted}`,
                   background:signoff[s.key]?"#22c55e":"transparent",cursor:"pointer",flexShrink:0,
                   display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
                 {signoff[s.key]&&<span style={{color:"#fff",fontSize:12,fontWeight:800}}>✓</span>}
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:signoff[s.key]?600:400,color:signoff[s.key]?THEME.text:THEME.muted,transition:"all 0.15s"}}>{s.label}</div>
+                <div style={{fontSize:13,fontWeight:signoff[s.key]?600:400,color:signoff[s.key]?T.text:T.muted,transition:"all 0.15s"}}>{s.label}</div>
               </div>
               <span style={{fontSize:10,color:"rgba(255,107,43,0.5)",fontWeight:600,flexShrink:0}}>{s.ref}</span>
             </div>
@@ -10882,7 +10882,7 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
       </div>
 
       {/* Disclaimer */}
-      <div style={{padding:"12px 16px",background:THEME.dim,borderRadius:10,fontSize:11,color:THEME.muted,lineHeight:1.6,borderLeft:`3px solid rgba(255,107,43,0.4)`}}>
+      <div style={{padding:"12px 16px",background:T.dim,borderRadius:10,fontSize:11,color:T.muted,lineHeight:1.6,borderLeft:`3px solid rgba(255,107,43,0.4)`}}>
         ⚠️ This is an AI-generated reference document. It must be independently reviewed, signed, and sealed by a duly licensed Professional Electrical Engineer (PEE) before submission to MERALCO, LGU, or any regulatory body.
       </div>
     </div>
@@ -11128,14 +11128,17 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
 
   const getResult = (key) => elecResults?.items.find(i => i.tool === key);
   const statusCfg = {
-    PASS:     { bg:"rgba(34,197,94,0.12)",  color:"#22c55e", border:"rgba(34,197,94,0.3)",  label:"✓ PASS"     },
-    FAIL:     { bg:"rgba(239,68,68,0.12)",  color:"#ef4444", border:"rgba(239,68,68,0.3)",  label:"✗ FAIL"     },
-    WARNING:  { bg:"rgba(245,158,11,0.12)", color:"#f59e0b", border:"rgba(245,158,11,0.3)", label:"⚠ WARNING"  },
-    COMPUTED: { bg:"rgba(6,150,215,0.12)",  color:"#0696d7", border:"rgba(6,150,215,0.3)",  label:"✓ COMPUTED" },
+    PASS:       { bg:"rgba(34,197,94,0.12)",   color:"#22c55e", border:"rgba(34,197,94,0.3)",   label:"✓ PASS"      },
+    FAIL:       { bg:"rgba(239,68,68,0.12)",   color:"#ef4444", border:"rgba(239,68,68,0.3)",   label:"✗ FAIL"      },
+    WARNING:    { bg:"rgba(245,158,11,0.12)",  color:"#f59e0b", border:"rgba(245,158,11,0.3)",  label:"⚠ WARNING"   },
+    COMPUTED:   { bg:"rgba(6,150,215,0.12)",   color:"#0696d7", border:"rgba(6,150,215,0.3)",   label:"✓ COMPUTED"  },
+    "NO INPUT": { bg:"rgba(100,116,139,0.1)",  color:"#94a3b8", border:"rgba(100,116,139,0.2)", label:"⊘ NO INPUT"  },
+    "NO DATA":  { bg:"rgba(100,116,139,0.1)",  color:"#94a3b8", border:"rgba(100,116,139,0.2)", label:"⊘ NO DATA"   },
+    ERROR:      { bg:"rgba(245,158,11,0.08)",  color:"#f59e0b", border:"rgba(245,158,11,0.25)", label:"⚠ ERROR"     },
   };
 
   return (
-    <div style={{marginBottom:16,background:THEME.card,border:`1.5px solid rgba(255,107,43,0.25)`,borderRadius:14,overflow:"hidden"}}>
+    <div style={{marginBottom:16,background:T.card,border:`1.5px solid rgba(255,107,43,0.25)`,borderRadius:14,overflow:"hidden"}}>
 
       {/* ── Header ── */}
       <div style={{padding:"14px 18px",background:"linear-gradient(135deg,rgba(255,107,43,0.07),rgba(255,107,43,0.03))",
@@ -11145,8 +11148,8 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
           <Icon name="electrical" size={17} color="#fff"/>
         </div>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontWeight:800,fontSize:14,color:THEME.text}}>{sys.projectName||"Electrical Project"}</div>
-          <div style={{fontSize:11,color:THEME.muted,marginTop:1}}>
+          <div style={{fontWeight:800,fontSize:14,color:T.text}}>{sys.projectName||"Electrical Project"}</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:1}}>
             {[sys.voltage&&`${sys.voltage}V`, sys.phases===3?"3φ":"1φ", sys.occupancy].filter(Boolean).join(" · ")}
           </div>
         </div>
@@ -11168,22 +11171,22 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
               : `▶ Run All Checks (${readyCount}/${READINESS.length})`}
           </button>
           <button onClick={onClear} title="Clear extracted data"
-            style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${THEME.border}`,background:"transparent",
-              color:THEME.muted,cursor:"pointer",fontSize:13}}>✕</button>
+            style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",
+              color:T.muted,cursor:"pointer",fontSize:13}}>✕</button>
         </div>
       </div>
 
       {/* ── Calculator status grid — ALWAYS VISIBLE ── */}
       <div style={{padding:"14px 18px"}}>
-        <div style={{fontSize:11,fontWeight:700,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12}}>
           Calculator Status — {readyCount} of {READINESS.length} populated from plans
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
           {READINESS.map(r => {
             const result = getResult(r.key);
             const hasSt  = !!result;
-            const stCfg  = hasSt ? statusCfg[result.status] : null;
-            const cardBorder = hasSt ? stCfg.border : r.ok ? "rgba(34,197,94,0.3)" : THEME.border;
+            const stCfg  = hasSt ? (statusCfg[result.status] ?? statusCfg.WARNING) : null;
+            const cardBorder = hasSt ? stCfg.border : r.ok ? "rgba(34,197,94,0.3)" : T.border;
             const cardBg     = hasSt ? stCfg.bg     : r.ok ? "rgba(34,197,94,0.04)" : "transparent";
             return (
               <button key={r.key} onClick={()=>onNavigate(r.key)}
@@ -11195,8 +11198,8 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
                 {/* Tool name row */}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:7}}>
-                    <Icon name={r.icon} size={13} color={hasSt?stCfg.color:r.ok?"#22c55e":THEME.muted}/>
-                    <span style={{fontWeight:800,fontSize:12,color:THEME.text}}>{r.label}</span>
+                    <Icon name={r.icon} size={13} color={hasSt?stCfg.color:r.ok?"#22c55e":T.muted}/>
+                    <span style={{fontWeight:800,fontSize:12,color:T.text}}>{r.label}</span>
                   </div>
                   {/* Status badge */}
                   {hasSt ? (
@@ -11211,7 +11214,7 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
                     </span>
                   ) : (
                     <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6,
-                      background:"rgba(100,116,139,0.1)",color:THEME.muted,border:`1px solid ${THEME.border}`}}>
+                      background:"rgba(100,116,139,0.1)",color:T.muted,border:`1px solid ${T.border}`}}>
                       ⊘ NO DATA
                     </span>
                   )}
@@ -11219,13 +11222,13 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
 
                 {/* Result value (after run) */}
                 {result?.value && (
-                  <div style={{fontSize:22,fontWeight:900,color:stCfg?.color||THEME.text,fontFamily:"monospace",lineHeight:1,marginBottom:4}}>
+                  <div style={{fontSize:22,fontWeight:900,color:stCfg?.color||T.text,fontFamily:"monospace",lineHeight:1,marginBottom:4}}>
                     {result.value}
                   </div>
                 )}
 
                 {/* Detail or missing reason */}
-                <div style={{fontSize:11,color:r.ok?THEME.muted:"#ef444480",lineHeight:1.4}}>
+                <div style={{fontSize:11,color:r.ok?T.muted:"#ef444480",lineHeight:1.4}}>
                   {result?.detail || (r.ok ? r.detail : `⚠ ${r.missing}`)}
                 </div>
 
@@ -11250,12 +11253,12 @@ function VerifyHintBanner({ hint }) {
   const col=SC[hint.severity]||"#0696d7";
   return(
     <div style={{background:`${col}0f`,border:`1.5px solid ${col}30`,borderRadius:12,padding:"12px 16px",marginBottom:18,position:"relative"}}>
-      <button onClick={()=>setGone(true)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:THEME.muted,cursor:"pointer",fontSize:14}}>✕</button>
+      <button onClick={()=>setGone(true)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14}}>✕</button>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
         <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:4,background:col,color:"#fff"}}>{hint.severity}</span>
-        <span style={{fontSize:12,fontWeight:700,color:THEME.text}}>Verifying Finding #{hint.findingId}: {hint.title}</span>
+        <span style={{fontSize:12,fontWeight:700,color:T.text}}>Verifying Finding #{hint.findingId}: {hint.title}</span>
       </div>
-      <div style={{fontSize:12,color:THEME.muted,lineHeight:1.6,marginBottom:hint.recommendation?4:0}}>{hint.description}</div>
+      <div style={{fontSize:12,color:T.muted,lineHeight:1.6,marginBottom:hint.recommendation?4:0}}>{hint.description}</div>
       {hint.recommendation&&<div style={{fontSize:12,color:"#22c55e",lineHeight:1.6}}>✓ {hint.recommendation}</div>}
       <div style={{fontSize:10,color:`${col}80`,marginTop:4,fontWeight:600}}>{hint.pecRef} · Values pre-filled where extracted from finding</div>
     </div>
@@ -11382,7 +11385,7 @@ function ElecCode({ apiKey, sessionTick=0 }) {
       return <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:7,background:cfg[0],color:cfg[1],border:`1px solid ${cfg[2]}`}}>{cfg[3]}</span>;
     }
     if (hasDat) return <span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 4px #22c55e",marginLeft:3}}/>;
-    return <span style={{width:6,height:6,borderRadius:"50%",background:THEME.muted,display:"inline-block",opacity:0.3,marginLeft:3}}/>;
+    return <span style={{width:6,height:6,borderRadius:"50%",background:T.muted,display:"inline-block",opacity:0.3,marginLeft:3}}/>;
   };
 
   return (
@@ -11394,8 +11397,8 @@ function ElecCode({ apiKey, sessionTick=0 }) {
           <Icon name="electrical" size={20} color="#fff"/>
         </div>
         <div style={{flex:1}}>
-          <div style={{fontWeight:900,fontSize:20,color:THEME.text,letterSpacing:"-0.5px"}}>Electrical</div>
-          <div style={{fontSize:11,color:THEME.muted,marginTop:1}}>PEC 2017 · RA 9514 (FSIC) · Philippine Green Building Code</div>
+          <div style={{fontWeight:900,fontSize:20,color:T.text,letterSpacing:"-0.5px"}}>Electrical</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:1}}>PEC 2017 · RA 9514 (FSIC) · Philippine Green Building Code</div>
         </div>
         {checkerResult && (
           <button onClick={()=>{
@@ -11412,7 +11415,7 @@ function ElecCode({ apiKey, sessionTick=0 }) {
       </div>
 
       {/* Main tabs */}
-      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${THEME.border}`}}>
+      <div style={{display:"flex",gap:8,marginBottom:24,paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
         {[
           { key:"checker", icon:"checker",    label:"AI Plan Checker" },
           { key:"tools",   icon:"electrical", label:"Calculators" },
@@ -11442,10 +11445,10 @@ function ElecCode({ apiKey, sessionTick=0 }) {
                 }
               }}
               style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
-                border:`1.5px solid ${active?ACCENT:THEME.border}`,
+                border:`1.5px solid ${active?ACCENT:T.border}`,
                 background:active?ACCENT_DIM:"transparent",
-                color:active?ACCENT:THEME.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
-              <Icon name={t.icon} size={14} color={active?ACCENT:THEME.muted}/>
+                color:active?ACCENT:T.muted,cursor:"pointer",fontSize:13,fontWeight:700,transition:"all 0.15s"}}>
+              <Icon name={t.icon} size={14} color={active?ACCENT:T.muted}/>
               {t.label}
               {t.badge&&<span style={{fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:5,
                 background:`${bc}15`,color:bc,border:`1px solid ${bc}30`,marginLeft:2}}>{t.badge}</span>}
@@ -11504,16 +11507,16 @@ function ElecCode({ apiKey, sessionTick=0 }) {
             />
           </Card>
           {checkerResult && (
-            <div style={{marginTop:16,padding:"12px 16px",background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`}}>
-              <div style={{fontSize:11,fontWeight:700,color:THEME.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Calculator</div>
+            <div style={{marginTop:16,padding:"12px 16px",background:T.card,borderRadius:10,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:"0.5px"}}>Open Calculator</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {CALC_TOOLS.map(t => (
                   <button key={t.key} onClick={()=>{ setMainTab("tools"); setCalcTool(t.key); }}
                     style={{display:"flex",alignItems:"center",gap:5,padding:"7px 13px",borderRadius:8,
-                      border:`1.5px solid ${hasData(t.key)?"rgba(34,197,94,0.35)":THEME.border}`,
+                      border:`1.5px solid ${hasData(t.key)?"rgba(34,197,94,0.35)":T.border}`,
                       background:hasData(t.key)?"rgba(34,197,94,0.06)":"transparent",
-                      color:hasData(t.key)?"#22c55e":THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
-                    <Icon name={t.icon} size={13} color={hasData(t.key)?"#22c55e":THEME.muted}/>
+                      color:hasData(t.key)?"#22c55e":T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}>
+                    <Icon name={t.icon} size={13} color={hasData(t.key)?"#22c55e":T.muted}/>
                     {t.label}
                     {hasData(t.key) && <span style={{fontSize:9,background:"rgba(34,197,94,0.15)",color:"#22c55e",padding:"1px 4px",borderRadius:3,fontWeight:800}}>DATA</span>}
                   </button>
@@ -11529,17 +11532,17 @@ function ElecCode({ apiKey, sessionTick=0 }) {
         <div>
           {electricalData && (
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,padding:"10px 16px",
-              background:THEME.card,borderRadius:10,border:`1px solid ${THEME.border}`,flexWrap:"wrap"}}>
+              background:T.card,borderRadius:10,border:`1px solid ${T.border}`,flexWrap:"wrap"}}>
               <button onClick={()=>{ setMainTab("checker"); }}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",background:"transparent",
-                  border:`1px solid ${THEME.border}`,borderRadius:7,color:ACCENT,cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
+                  border:`1px solid ${T.border}`,borderRadius:7,color:ACCENT,cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>
                 ← Plan Analysis
               </button>
-              <div style={{width:1,height:20,background:THEME.border}}/>
+              <div style={{width:1,height:20,background:T.border}}/>
               <Icon name="electrical" size={14} color={ACCENT}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:800,color:THEME.text}}>{electricalData.system?.projectName||"Electrical Project"}</div>
-                <div style={{fontSize:11,color:THEME.muted}}>{electricalData.system?.voltage}V · {electricalData.system?.occupancy}</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.text}}>{electricalData.system?.projectName||"Electrical Project"}</div>
+                <div style={{fontSize:11,color:T.muted}}>{electricalData.system?.voltage}V · {electricalData.system?.occupancy}</div>
               </div>
               {elecResults && (
                 <div style={{display:"flex",gap:8}}>
@@ -11552,18 +11555,18 @@ function ElecCode({ apiKey, sessionTick=0 }) {
 
           {!calcTool && (
             <div>
-              <div style={{fontSize:12,color:THEME.muted,marginBottom:16,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Select a Calculator</div>
+              <div style={{fontSize:12,color:T.muted,marginBottom:16,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px"}}>Select a Calculator</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
                 {CALC_TOOLS.map(t => {
                   const populated = hasData(t.key);
                   const st = getCalcStatus(t.key);
                   return (
                     <button key={t.key} onClick={()=>setCalcTool(t.key)}
-                      style={{background:THEME.card,border:`1.5px solid ${populated?"rgba(34,197,94,0.3)":THEME.border}`,
+                      style={{background:T.card,border:`1.5px solid ${populated?"rgba(34,197,94,0.3)":T.border}`,
                         borderRadius:14,padding:"20px",cursor:"pointer",textAlign:"left",transition:"all 0.15s",
                         display:"flex",flexDirection:"column",gap:10,position:"relative"}}
                       onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.background=ACCENT_DIM;}}
-                      onMouseLeave={e=>{e.currentTarget.style.borderColor=populated?"rgba(34,197,94,0.3)":THEME.border;e.currentTarget.style.background=THEME.card;}}>
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor=populated?"rgba(34,197,94,0.3)":T.border;e.currentTarget.style.background=T.card;}}>
                       {st && (
                         <div style={{position:"absolute",top:10,right:10}}>
                           <span style={{fontSize:9,fontWeight:800,padding:"2px 7px",borderRadius:6,
@@ -11583,8 +11586,8 @@ function ElecCode({ apiKey, sessionTick=0 }) {
                         <Icon name={t.icon} size={20} color={ACCENT}/>
                       </div>
                       <div>
-                        <div style={{fontWeight:800,fontSize:15,color:THEME.text}}>{t.label}</div>
-                        <div style={{fontSize:11,color:THEME.muted,marginTop:3}}>{t.code}</div>
+                        <div style={{fontWeight:800,fontSize:15,color:T.text}}>{t.label}</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:3}}>{t.code}</div>
                       </div>
                       <div style={{fontSize:12,color:ACCENT,fontWeight:700}}>Open →</div>
                     </button>
@@ -11598,11 +11601,11 @@ function ElecCode({ apiKey, sessionTick=0 }) {
             <div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
                 <button onClick={()=>setCalcTool(null)}
-                  style={{background:"transparent",border:"none",color:THEME.muted,cursor:"pointer",
+                  style={{background:"transparent",border:"none",color:T.muted,cursor:"pointer",
                     fontSize:13,padding:0,display:"flex",alignItems:"center",gap:4}}>
                   ← Calculators
                 </button>
-                <span style={{color:THEME.border}}>›</span>
+                <span style={{color:T.border}}>›</span>
                 <span style={{fontSize:13,fontWeight:700,color:ACCENT}}>
                   {CALC_TOOLS.find(t=>t.key===calcTool)?.label}
                 </span>
@@ -11612,7 +11615,7 @@ function ElecCode({ apiKey, sessionTick=0 }) {
                     Pre-filled from plans
                   </span>
                 )}
-                <span style={{marginLeft:"auto",fontSize:11,color:THEME.muted,background:THEME.dim,padding:"3px 10px",borderRadius:6}}>
+                <span style={{marginLeft:"auto",fontSize:11,color:T.muted,background:T.dim,padding:"3px 10px",borderRadius:6}}>
                   {CALC_TOOLS.find(t=>t.key===calcTool)?.code}
                 </span>
               </div>
@@ -11621,11 +11624,11 @@ function ElecCode({ apiKey, sessionTick=0 }) {
                 {CALC_TOOLS.map(t => (
                   <button key={t.key} onClick={()=>setCalcTool(t.key)}
                     style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
-                      border:`1.5px solid ${calcTool===t.key?ACCENT:THEME.border}`,
+                      border:`1.5px solid ${calcTool===t.key?ACCENT:T.border}`,
                       background:calcTool===t.key?ACCENT_DIM:"transparent",
-                      color:calcTool===t.key?ACCENT:THEME.muted,cursor:"pointer",fontSize:11,fontWeight:700,
+                      color:calcTool===t.key?ACCENT:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,
                       whiteSpace:"nowrap",transition:"all 0.15s"}}>
-                    <Icon name={t.icon} size={12} color={calcTool===t.key?ACCENT:THEME.muted}/>
+                    <Icon name={t.icon} size={12} color={calcTool===t.key?ACCENT:T.muted}/>
                     {t.label}
                     <SubToolStatus toolKey={t.key}/>
                   </button>
@@ -11691,9 +11694,9 @@ function SaniCode({ apiKey, sessionTick=0 }) {
   ];
   return (
     <div>
-      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${THEME.border}`,alignItems:"center"}}>
+      <div style={{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap",paddingBottom:16,borderBottom:`1px solid ${T.border}`,alignItems:"center"}}>
         <div style={{display:"flex",gap:6,flex:1,flexWrap:"wrap"}}>
-        {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:THEME.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:THEME.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":THEME.muted}/><span>{t.label}</span></button>)}
+        {TOOLS.map(t=><button key={t.key} onClick={()=>setTool(t.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,border:`1.5px solid ${tool===t.key?SC:T.border}`,background:tool===t.key?`rgba(16,185,129,0.12)`:"transparent",color:tool===t.key?SC:T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s"}}><Icon name={t.icon||"report"} size={13} color={tool===t.key?"#0696d7":T.muted}/><span>{t.label}</span></button>)}
         </div>
         {checkerResult && (
           <button onClick={()=>{
@@ -11921,10 +11924,10 @@ function DashboardHome({ onNavigate }) {
         return (
           <div style={{ marginBottom:24, display:"flex", alignItems:"flex-end", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
             <div>
-              <div style={{ fontWeight:900, fontSize:24, color:THEME.text, letterSpacing:"-0.5px", marginBottom:3 }}>
+              <div style={{ fontWeight:900, fontSize:24, color:T.text, letterSpacing:"-0.5px", marginBottom:3 }}>
                 {greet} 👋
               </div>
-              <div style={{ fontSize:13, color:THEME.muted }}>
+              <div style={{ fontSize:13, color:T.muted }}>
                 Your engineering workspace — {history.length > 0 ? `${history.length} run${history.length!==1?"s":""} logged` : "ready to go"}
               </div>
             </div>
@@ -11943,7 +11946,7 @@ function DashboardHome({ onNavigate }) {
                       background:`${m.color}12`, border:`1px solid ${m.color}30` }}>
                       <span style={{ width:6, height:6, borderRadius:"50%", background:m.color, display:"inline-block" }}/>
                       <span style={{ fontSize:11, fontWeight:700, color:m.color }}>{cnt}</span>
-                      <span style={{ fontSize:10, color:THEME.muted }}>{m.label}</span>
+                      <span style={{ fontSize:10, color:T.muted }}>{m.label}</span>
                     </div>
                   );
                 })}
@@ -11963,12 +11966,12 @@ function DashboardHome({ onNavigate }) {
           { icon:"water",    label:"BOM Value Caught",  value:`₱${fmtR(totalSavings)}`,  color:"#22c55e", sub:"vs market rate" },
           { icon:"beam",     label:"Est. Project Value",value:`₱${fmtR(totalEstimated)}`, color:"#f97316", sub:"from estimator" },
         ].map(s => (
-          <div key={s.label} style={{ background:THEME.card, border:`1px solid ${THEME.border}`, borderRadius:12, padding:"14px 16px" }}>
-            <div style={{ fontSize:9, color:THEME.muted, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6, display:"flex", alignItems:"center", gap:5 }}>
+          <div key={s.label} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px" }}>
+            <div style={{ fontSize:9, color:T.muted, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:6, display:"flex", alignItems:"center", gap:5 }}>
               <Icon name={s.icon} size={11} color={s.color}/> {s.label}
             </div>
             <div style={{ fontSize:20, fontWeight:900, color:s.color, fontFamily:"monospace", letterSpacing:"-0.5px" }}>{s.value||0}</div>
-            {s.sub && <div style={{ fontSize:10, color:trend>0&&s.label==="Total Runs"?"#22c55e":THEME.muted, marginTop:3, fontWeight:s.label==="Total Runs"&&trend!==0?700:400 }}>{s.sub}</div>}
+            {s.sub && <div style={{ fontSize:10, color:trend>0&&s.label==="Total Runs"?"#22c55e":T.muted, marginTop:3, fontWeight:s.label==="Total Runs"&&trend!==0?700:400 }}>{s.sub}</div>}
           </div>
         ))}
       </div>
@@ -11976,7 +11979,7 @@ function DashboardHome({ onNavigate }) {
       {/* ── Recently Used ── */}
       {recent3.length > 0 && (
         <div style={{ marginBottom:24 }}>
-          <div style={{ fontSize:12, fontWeight:800, color:THEME.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>
+          <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>
             ⚡ Recently Used
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:10 }}>
@@ -11984,11 +11987,11 @@ function DashboardHome({ onNavigate }) {
               const meta = TOOL_META[entry.tool] || { icon:"report", label:entry.tool, color:"#94a3b8" };
               return (
                 <button key={entry.id} onClick={() => onNavigate(entry.module, entry.tool)}
-                  style={{ background:THEME.card, border:`1.5px solid ${THEME.border}`, borderRadius:12,
+                  style={{ background:T.card, border:`1.5px solid ${T.border}`, borderRadius:12,
                     padding:"14px 16px", cursor:"pointer", textAlign:"left", transition:"all 0.2s",
                     display:"flex", flexDirection:"column", gap:8, position:"relative", overflow:"hidden" }}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor=meta.color;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 20px ${meta.color}20`;}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=THEME.border;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";}}>
                   {/* Subtle color accent bar */}
                   <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,${meta.color},transparent)`, borderRadius:"12px 12px 0 0" }}/>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -11996,18 +11999,18 @@ function DashboardHome({ onNavigate }) {
                       <Icon name={meta.icon} size={15} color={meta.color}/>
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:800, fontSize:12, color:THEME.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      <div style={{ fontWeight:800, fontSize:12, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         {entry.projectName || "Untitled Project"}
                       </div>
-                      <div style={{ fontSize:10, color:THEME.muted }}>{meta.label}</div>
+                      <div style={{ fontSize:10, color:T.muted }}>{meta.label}</div>
                     </div>
-                    <span style={{ fontSize:10, color:THEME.muted, flexShrink:0 }}>{fmtDate(entry.timestamp)}</span>
+                    <span style={{ fontSize:10, color:T.muted, flexShrink:0 }}>{fmtDate(entry.timestamp)}</span>
                   </div>
                   {(entry.meta?.totalHigh || entry.meta?.findings || entry.meta?.status) && (
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {entry.meta?.status && <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, background:`${STATUS_COLOR[entry.meta.status]||"#94a3b8"}18`, color:STATUS_COLOR[entry.meta.status]||"#94a3b8" }}>{entry.meta.status}</span>}
                       {entry.meta?.totalHigh && <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:4, background:"rgba(16,185,129,0.1)", color:"#10b981", fontFamily:"monospace" }}>₱{fmtR(entry.meta.totalHigh)}</span>}
-                      {entry.meta?.findings && <span style={{ fontSize:9, color:THEME.muted, padding:"2px 7px", borderRadius:4, background:`${THEME.border}` }}>{entry.meta.findings} findings</span>}
+                      {entry.meta?.findings && <span style={{ fontSize:9, color:T.muted, padding:"2px 7px", borderRadius:4, background:`${T.border}` }}>{entry.meta.findings} findings</span>}
                     </div>
                   )}
                   <div style={{ fontSize:10, color:meta.color, fontWeight:700 }}>Resume →</div>
@@ -12020,7 +12023,7 @@ function DashboardHome({ onNavigate }) {
 
       {/* ── Quick Launch ── */}
       <div style={{ marginBottom:24 }}>
-        <div style={{ fontSize:12, fontWeight:800, color:THEME.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Quick Launch</div>
+        <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:12 }}>Quick Launch</div>
 
         {/* Hero card — BOM Review */}
         <button onClick={() => onNavigate(hero.module, hero.tool)}
@@ -12034,10 +12037,10 @@ function DashboardHome({ onNavigate }) {
           </div>
           <div style={{ flex:1 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-              <div style={{ fontWeight:900, fontSize:17, color:THEME.text }}>{hero.label}</div>
+              <div style={{ fontWeight:900, fontSize:17, color:T.text }}>{hero.label}</div>
               <span style={{ fontSize:9, background:"rgba(245,158,11,0.2)", color:GOLD, padding:"2px 7px", borderRadius:5, fontWeight:800 }}>{hero.badge}</span>
             </div>
-            <div style={{ fontSize:12, color:THEME.muted }}>Cross-reference your bill of materials against AI market pricing. Catch under-estimations before they become losses.</div>
+            <div style={{ fontSize:12, color:T.muted }}>Cross-reference your bill of materials against AI market pricing. Catch under-estimations before they become losses.</div>
           </div>
           <div style={{ fontSize:13, color:"#0696d7", fontWeight:800, flexShrink:0 }}>Open →</div>
         </button>
@@ -12046,18 +12049,18 @@ function DashboardHome({ onNavigate }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(195px,1fr))", gap:10 }}>
           {rest.map(q => (
             <button key={q.label} onClick={() => onNavigate(q.module, q.tool)}
-              style={{ background:THEME.card, border:`1px solid ${THEME.border}`, borderRadius:12, padding:"14px 16px",
+              style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px",
                 cursor:"pointer", textAlign:"left", transition:"all 0.2s" }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=q.color;e.currentTarget.style.background=`${q.color}0d`;e.currentTarget.style.transform="translateY(-1px)";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=THEME.border;e.currentTarget.style.background=THEME.card;e.currentTarget.style.transform="translateY(0)";}}>
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.card;e.currentTarget.style.transform="translateY(0)";}}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                 <div style={{ width:30, height:30, borderRadius:8, background:`linear-gradient(${q.grad})`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 3px 10px ${q.color}30` }}>
                   <Icon name={q.icon} size={16} color="#fff"/>
                 </div>
-                <div style={{ fontWeight:800, fontSize:12, color:THEME.text }}>{q.label}</div>
+                <div style={{ fontWeight:800, fontSize:12, color:T.text }}>{q.label}</div>
                 {q.badge && <span style={{ fontSize:8, background:"rgba(245,158,11,0.15)", color:GOLD, padding:"2px 5px", borderRadius:4, fontWeight:800, marginLeft:"auto" }}>{q.badge}</span>}
               </div>
-              <div style={{ fontSize:10, color:THEME.muted, marginBottom:8 }}>{q.sub}</div>
+              <div style={{ fontSize:10, color:T.muted, marginBottom:8 }}>{q.sub}</div>
               <div style={{ fontSize:10, color:q.color, fontWeight:700 }}>Open →</div>
             </button>
           ))}
@@ -12067,13 +12070,13 @@ function DashboardHome({ onNavigate }) {
       {/* ── History ── */}
       <div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-          <div style={{ fontSize:12, fontWeight:800, color:THEME.muted, textTransform:"uppercase", letterSpacing:"1px" }}>📂 History</div>
+          <div style={{ fontSize:12, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:"1px" }}>📂 History</div>
           <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
             {MODULE_FILTERS.map(f => (
               <button key={f.v} onClick={() => setActiveModule(f.v)}
-                style={{ padding:"4px 10px", borderRadius:7, border:`1.5px solid ${activeModule===f.v?f.color:THEME.border}`,
+                style={{ padding:"4px 10px", borderRadius:7, border:`1.5px solid ${activeModule===f.v?f.color:T.border}`,
                   background:activeModule===f.v?`${f.color}18`:"transparent",
-                  color:activeModule===f.v?f.color:THEME.muted, cursor:"pointer", fontSize:10, fontWeight:700, transition:"all 0.15s" }}>
+                  color:activeModule===f.v?f.color:T.muted, cursor:"pointer", fontSize:10, fontWeight:700, transition:"all 0.15s" }}>
                 {f.l}
               </button>
             ))}
@@ -12081,18 +12084,18 @@ function DashboardHome({ onNavigate }) {
               showClearConfirm
                 ? <div style={{ display:"flex", gap:4 }}>
                     <button onClick={()=>{clearHistory();setShowClearConfirm(false);}} style={{ padding:"4px 10px", borderRadius:7, border:"1px solid #ef4444", background:"rgba(239,68,68,0.1)", color:"#ef4444", cursor:"pointer", fontSize:10, fontWeight:700 }}>Confirm Clear</button>
-                    <button onClick={()=>setShowClearConfirm(false)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${THEME.border}`, background:"transparent", color:THEME.muted, cursor:"pointer", fontSize:10 }}>Cancel</button>
+                    <button onClick={()=>setShowClearConfirm(false)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>Cancel</button>
                   </div>
-                : <button onClick={()=>setShowClearConfirm(true)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${THEME.border}`, background:"transparent", color:THEME.muted, cursor:"pointer", fontSize:10 }}>Clear All</button>
+                : <button onClick={()=>setShowClearConfirm(true)} style={{ padding:"4px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontSize:10 }}>Clear All</button>
             )}
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div style={{ background:THEME.card, border:`1px solid ${THEME.border}`, borderRadius:12, padding:"48px 24px", textAlign:"center" }}>
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"48px 24px", textAlign:"center" }}>
             <div style={{ fontSize:40, marginBottom:12 }}>📂</div>
-            <div style={{ fontWeight:700, color:THEME.text, marginBottom:6, fontSize:15 }}>No history yet</div>
-            <div style={{ fontSize:12, color:THEME.muted, marginBottom:20 }}>Run any tool and your results are saved automatically</div>
+            <div style={{ fontWeight:700, color:T.text, marginBottom:6, fontSize:15 }}>No history yet</div>
+            <div style={{ fontSize:12, color:T.muted, marginBottom:20 }}>Run any tool and your results are saved automatically</div>
             <button onClick={()=>onNavigate("structural","bom")}
               style={{ padding:"9px 20px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#0696d7,#0569a8)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
               Start with BOM Review →
@@ -12104,29 +12107,29 @@ function DashboardHome({ onNavigate }) {
               const meta = TOOL_META[entry.tool] || { icon:"report", label:entry.tool, color:"#94a3b8" };
               return (
                 <div key={entry.id}
-                  style={{ background:THEME.card, border:`1px solid ${THEME.border}`, borderRadius:12, padding:"12px 16px",
+                  style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"12px 16px",
                     display:"flex", alignItems:"center", gap:12, transition:"all 0.15s" }}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor=meta.color;e.currentTarget.style.background=`${meta.color}06`;}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=THEME.border;e.currentTarget.style.background=THEME.card;}}>
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.card;}}>
                   <div style={{ width:34, height:34, borderRadius:9, background:`${meta.color}18`, border:`1.5px solid ${meta.color}40`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                     <Icon name={meta.icon||"report"} size={16} color={meta.color}/>
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
-                      <span style={{ fontWeight:800, fontSize:13, color:THEME.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.projectName||"Untitled Project"}</span>
+                      <span style={{ fontWeight:800, fontSize:13, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.projectName||"Untitled Project"}</span>
                       <span style={{ fontSize:9, background:`${meta.color}18`, color:meta.color, padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{meta.label}</span>
                       {entry.meta?.status && <span style={{ fontSize:9, background:`${STATUS_COLOR[entry.meta.status]||"#94a3b8"}18`, color:STATUS_COLOR[entry.meta.status]||"#94a3b8", padding:"2px 6px", borderRadius:4, fontWeight:700, flexShrink:0 }}>{entry.meta.status}</span>}
                     </div>
                     <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
-                      <span style={{ fontSize:10, color:THEME.muted }}>{fmtDate(entry.timestamp)}</span>
+                      <span style={{ fontSize:10, color:T.muted }}>{fmtDate(entry.timestamp)}</span>
                       {entry.meta?.totalHigh && <span style={{ fontSize:10, color:"#10b981", fontWeight:700, fontFamily:"monospace" }}>₱{fmtR(entry.meta.totalHigh)}</span>}
-                      {entry.meta?.findings  && <span style={{ fontSize:10, color:THEME.muted }}>{entry.meta.findings} findings</span>}
-                      {entry.meta?.summary   && <span style={{ fontSize:10, color:THEME.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:280 }}>{entry.meta.summary}</span>}
+                      {entry.meta?.findings  && <span style={{ fontSize:10, color:T.muted }}>{entry.meta.findings} findings</span>}
+                      {entry.meta?.summary   && <span style={{ fontSize:10, color:T.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:280 }}>{entry.meta.summary}</span>}
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                     <button onClick={()=>downloadHistoryReport(entry,meta)} title="Download Report"
-                      style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${THEME.border}`, background:"rgba(6,150,215,0.08)", color:"#0696d7", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", gap:4, fontWeight:700 }}>
+                      style={{ padding:"5px 9px", borderRadius:7, border:`1px solid ${T.border}`, background:"rgba(6,150,215,0.08)", color:"#0696d7", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", gap:4, fontWeight:700 }}>
                       <Icon name="download" size={12} color="#0696d7"/> Report
                     </button>
                     <button onClick={()=>onNavigate(entry.module, entry.tool)} title="Open Tool"
@@ -12134,7 +12137,7 @@ function DashboardHome({ onNavigate }) {
                       <Icon name="open" size={12} color={meta.color}/> Open
                     </button>
                     <button onClick={()=>deleteHistoryEntry(entry.id)} title="Delete"
-                      style={{ padding:"5px 8px", borderRadius:7, border:`1px solid ${THEME.border}`, background:"transparent", color:THEME.muted, cursor:"pointer", display:"flex", alignItems:"center" }}>
+                      style={{ padding:"5px 8px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", display:"flex", alignItems:"center" }}>
                       <Icon name="trash" size={12} color="#64748b"/>
                     </button>
                   </div>
@@ -12662,45 +12665,45 @@ function LoginModal({ onClose, onSuccess }) {
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:999, background:"rgba(8,12,24,0.92)", backdropFilter:"blur(16px)", display:"flex", alignItems:"center", justifyContent:"center", padding:24, animation:"fadeIn 0.25s ease" }}>
-      <div style={{ background:THEME.card, border:"1px solid rgba(245,158,11,0.25)", borderRadius:24, padding:"44px 40px", maxWidth:420, width:"100%", boxShadow:"0 32px 80px rgba(0,0,0,0.6)", animation:"fadeUp 0.3s ease" }}>
+      <div style={{ background:T.card, border:"1px solid rgba(245,158,11,0.25)", borderRadius:24, padding:"44px 40px", maxWidth:420, width:"100%", boxShadow:"0 32px 80px rgba(0,0,0,0.6)", animation:"fadeUp 0.3s ease" }}>
         {/* Logo */}
         <div style={{ textAlign:"center", marginBottom:28 }}>
           <div style={{ width:60, height:60, borderRadius:16, margin:"0 auto 14px", background:"linear-gradient(135deg,#0284c7,#0ea5e9)", display:"flex", alignItems:"center", justifyContent:"center", display:"flex",alignItems:"center",justifyContent:"center", boxShadow:"0 8px 28px rgba(6,150,215,0.4)" }}><BuildifyLogo size={28}/></div>
-          <div style={{ fontWeight:800, fontSize:22, color:THEME.text, letterSpacing:"-0.5px" }}>Welcome back</div>
-          <div style={{ fontSize:13, color:THEME.muted, marginTop:4 }}>Buildify</div>
+          <div style={{ fontWeight:800, fontSize:22, color:T.text, letterSpacing:"-0.5px" }}>Welcome back</div>
+          <div style={{ fontSize:13, color:T.muted, marginTop:4 }}>Buildify</div>
         </div>
 
         {/* Fields */}
         <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:20 }}>
           <div>
-            <div style={{ fontSize:12, fontWeight:700, color:THEME.muted, marginBottom:6, letterSpacing:"0.3px" }}>USERNAME</div>
+            <div style={{ fontSize:12, fontWeight:700, color:T.muted, marginBottom:6, letterSpacing:"0.3px" }}>USERNAME</div>
             <input
               value={user} onChange={e => { setUser(e.target.value); setErr(""); }}
               onKeyDown={e => e.key==="Enter" && submit()}
               placeholder="Enter username"
-              style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:12, padding:"12px 16px", color:THEME.text, fontSize:14, outline:"none", transition:"border-color 0.15s" }}
-              onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=THEME.border}
+              style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:12, padding:"12px 16px", color:T.text, fontSize:14, outline:"none", transition:"border-color 0.15s" }}
+              onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}
             />
           </div>
           <div>
-            <div style={{ fontSize:12, fontWeight:700, color:THEME.muted, marginBottom:6, letterSpacing:"0.3px" }}>PASSWORD</div>
+            <div style={{ fontSize:12, fontWeight:700, color:T.muted, marginBottom:6, letterSpacing:"0.3px" }}>PASSWORD</div>
             <input
               type="password" value={pass} onChange={e => { setPass(e.target.value); setErr(""); }}
               onKeyDown={e => e.key==="Enter" && submit()}
               placeholder="Enter password"
-              style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${THEME.border}`, borderRadius:12, padding:"12px 16px", color:THEME.text, fontSize:14, outline:"none", transition:"border-color 0.15s" }}
-              onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=THEME.border}
+              style={{ width:"100%", background:"#0f1117", border:`1.5px solid ${T.border}`, borderRadius:12, padding:"12px 16px", color:T.text, fontSize:14, outline:"none", transition:"border-color 0.15s" }}
+              onFocus={e=>e.target.style.borderColor="#f59e0b"} onBlur={e=>e.target.style.borderColor=T.border}
             />
           </div>
         </div>
 
-        {err && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:13, color:THEME.danger }}>⚠️ {err}</div>}
+        {err && <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"10px 14px", marginBottom:16, fontSize:13, color:T.danger }}>⚠️ {err}</div>}
 
         <button onClick={submit} disabled={busy} style={{ width:"100%", background:busy?"rgba(2,132,199,0.3)":"linear-gradient(135deg,#0284c7,#0ea5e9)", border:"none", color:busy?"#555":"#fff", fontWeight:800, fontSize:15, padding:"14px", borderRadius:12, cursor:busy?"not-allowed":"pointer", transition:"all 0.2s", marginBottom:16 }}>
           {busy ? "Signing in…" : "Sign In →"}
         </button>
 
-        <button onClick={onClose} style={{ width:"100%", background:"transparent", border:`1.5px solid ${THEME.border}`, color:THEME.muted, fontWeight:600, fontSize:14, padding:"11px", borderRadius:12, cursor:"pointer" }}>
+        <button onClick={onClose} style={{ width:"100%", background:"transparent", border:`1.5px solid ${T.border}`, color:T.muted, fontWeight:600, fontSize:14, padding:"11px", borderRadius:12, cursor:"pointer" }}>
           ← Back to Home
         </button>
       </div>
@@ -12726,7 +12729,7 @@ function EngineeringTools({ apiKey, sessionTick=0 }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
       {/* Tab bar */}
-      <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:`1px solid ${THEME.border}`, paddingBottom:0 }}>
+      <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:`1px solid ${T.border}`, paddingBottom:0 }}>
         {TABS.map(t => {
           const active = tab === t.key;
           return (
@@ -12736,9 +12739,9 @@ function EngineeringTools({ apiKey, sessionTick=0 }) {
                 padding:"10px 18px",
                 borderRadius:"9px 9px 0 0",
                 border:`1.5px solid ${active ? PURPLE+"66" : "transparent"}`,
-                borderBottom: active ? `1.5px solid ${THEME.bg}` : "transparent",
+                borderBottom: active ? `1.5px solid ${T.bg}` : "transparent",
                 background: active ? `${PURPLE}12` : "transparent",
-                color: active ? PURPLE : THEME.muted,
+                color: active ? PURPLE : T.muted,
                 cursor:"pointer", fontSize:13, fontWeight: active ? 800 : 600,
                 transition:"all 0.15s",
                 marginBottom: active ? -1 : 0,
@@ -12846,7 +12849,7 @@ function Dashboard({ user, onLogout }) {
 
 
   return (
-    <div style={{ minHeight:"100vh", background:THEME.bg, color:THEME.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", display:"flex" }}>
+    <div style={{ minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif", display:"flex" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -12860,19 +12863,19 @@ function Dashboard({ user, onLogout }) {
       `}</style>
 
       {/* ── SIDEBAR ── */}
-      <div className="sidebar-transition" style={{ width:SB, flexShrink:0, background:"rgba(15,17,23,0.98)", borderRight:`1px solid ${THEME.border}`, display:"flex", flexDirection:"column", position:"fixed", top:0, left:0, height:"100vh", zIndex:200, overflow:"hidden" }}>
+      <div className="sidebar-transition" style={{ width:SB, flexShrink:0, background:"rgba(15,17,23,0.98)", borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"fixed", top:0, left:0, height:"100vh", zIndex:200, overflow:"hidden" }}>
 
         {/* Logo + toggle */}
-        <div style={{ padding:"14px 12px", borderBottom:`1px solid ${THEME.border}`, display:"flex", alignItems:"center", gap:10, minHeight:58 }}>
+        <div style={{ padding:"14px 12px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:10, minHeight:58 }}>
           <div style={{ width:34, height:34, borderRadius:9, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, flexShrink:0, boxShadow:"0 4px 14px rgba(6,150,215,0.35)", cursor:"pointer" }} onClick={toggleSidebar}><BuildifyLogo size={26}/></div>
           {sidebarOpen && (
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:800, fontSize:13, color:THEME.text, letterSpacing:"-0.3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>Buildify</div>
-              <div style={{ fontSize:9, color:THEME.muted, letterSpacing:"0.5px" }}>by Jon Ureta · PH</div>
+              <div style={{ fontWeight:800, fontSize:13, color:T.text, letterSpacing:"-0.3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>Buildify</div>
+              <div style={{ fontSize:9, color:T.muted, letterSpacing:"0.5px" }}>by Jon Ureta · PH</div>
             </div>
           )}
           {sidebarOpen && (
-            <button onClick={toggleSidebar} style={{ background:"transparent", border:`1px solid ${THEME.border}`, color:THEME.muted, borderRadius:6, width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:12, flexShrink:0 }}>◀</button>
+            <button onClick={toggleSidebar} style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:6, width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:12, flexShrink:0 }}>◀</button>
           )}
         </div>
 
@@ -12890,12 +12893,12 @@ function Dashboard({ user, onLogout }) {
                   borderRadius:10,
                   border:`1.5px solid ${active ? item.color+"55" : "transparent"}`,
                   background: active ? `${item.color}14` : "transparent",
-                  color: active ? item.color : THEME.muted,
+                  color: active ? item.color : T.muted,
                   cursor:"pointer", fontSize:13, fontWeight:active?800:600,
                   transition:"all 0.15s", width:"100%", textAlign:"left",
                   position:"relative" }}
-                onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background="rgba(255,255,255,0.04)"; e.currentTarget.style.color=THEME.text; }}}
-                onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=THEME.muted; }}}>
+                onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background="rgba(255,255,255,0.04)"; e.currentTarget.style.color=T.text; }}}
+                onMouseLeave={e=>{ if(!active){ e.currentTarget.style.background="transparent"; e.currentTarget.style.color=T.muted; }}}>
 
                 {/* Icon — with dot indicator when collapsed */}
                 <span style={{ flexShrink:0, display:"flex", alignItems:"center", position:"relative" }}>
@@ -12920,7 +12923,7 @@ function Dashboard({ user, onLogout }) {
                       {stats && (
                         <span style={{ fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20,
                           background: active ? `${item.color}30` : "rgba(100,116,139,0.15)",
-                          color: active ? item.color : THEME.muted,
+                          color: active ? item.color : T.muted,
                           flexShrink:0, whiteSpace:"nowrap" }}>
                           {stats.count} run{stats.count !== 1 ? "s" : ""}
                         </span>
@@ -12952,8 +12955,8 @@ function Dashboard({ user, onLogout }) {
 
           {/* ── Coming Soon modules ── */}
           {sidebarOpen && (
-            <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${THEME.border}` }}>
-              <div style={{ fontSize:9, color:THEME.muted, fontWeight:700, textTransform:"uppercase",
+            <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:9, color:T.muted, fontWeight:700, textTransform:"uppercase",
                 letterSpacing:"0.8px", padding:"0 12px", marginBottom:6 }}>Coming Soon</div>
               {[
                 { label:"ArchiCode",   color:"#a78bfa", sub:"Architecture" },
@@ -12966,11 +12969,11 @@ function Dashboard({ user, onLogout }) {
                     border:`1px dashed ${cs.color}50`, flexShrink:0, display:"flex",
                     alignItems:"center", justifyContent:"center", fontSize:9 }}>?</span>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, fontWeight:700, color:THEME.muted, whiteSpace:"nowrap" }}>{cs.label}</div>
+                    <div style={{ fontSize:12, fontWeight:700, color:T.muted, whiteSpace:"nowrap" }}>{cs.label}</div>
                     <div style={{ fontSize:9, color:"rgba(100,116,139,0.5)" }}>{cs.sub}</div>
                   </div>
                   <span style={{ fontSize:8, fontWeight:800, padding:"1px 5px", borderRadius:3,
-                    background:"rgba(100,116,139,0.1)", color:THEME.muted }}>SOON</span>
+                    background:"rgba(100,116,139,0.1)", color:T.muted }}>SOON</span>
                 </div>
               ))}
             </div>
@@ -12979,27 +12982,27 @@ function Dashboard({ user, onLogout }) {
 
         {/* Expand button when collapsed */}
         {!sidebarOpen && (
-          <div style={{ padding:"6px 8px", borderTop:`1px solid ${THEME.border}` }}>
+          <div style={{ padding:"6px 8px", borderTop:`1px solid ${T.border}` }}>
             <button onClick={toggleSidebar} title="Expand sidebar"
-              style={{ background:"transparent", border:`1px solid ${THEME.border}`, color:THEME.muted,
+              style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted,
                 borderRadius:8, width:"100%", height:28, display:"flex", alignItems:"center",
                 justifyContent:"center", cursor:"pointer", fontSize:11 }}>▶</button>
           </div>
         )}
 
         {/* User badge at bottom */}
-        <div style={{ padding:"10px 8px", borderTop:`1px solid ${THEME.border}` }}>
+        <div style={{ padding:"10px 8px", borderTop:`1px solid ${T.border}` }}>
           {sidebarOpen ? (
             <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", background:"rgba(245,158,11,0.06)", border:"1px solid rgba(245,158,11,0.15)", borderRadius:10 }}>
               <div style={{ width:28, height:28, borderRadius:"50%", background:"linear-gradient(135deg,#f59e0b,#f97316)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"#000", flexShrink:0 }}>{user.username[0].toUpperCase()}</div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:11, fontWeight:700, color:THEME.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.username}</div>
-                <div style={{ fontSize:9, color:THEME.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px" }}>{user.role}</div>
+                <div style={{ fontSize:11, fontWeight:700, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.username}</div>
+                <div style={{ fontSize:9, color:T.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px" }}>{user.role}</div>
               </div>
-              <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:"none", color:THEME.muted, cursor:"pointer", fontSize:14, padding:2 }}><Icon name="signout" size={16} color="#ef4444"/></button>
+              <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:"none", color:T.muted, cursor:"pointer", fontSize:14, padding:2 }}><Icon name="signout" size={16} color="#ef4444"/></button>
             </div>
           ) : (
-            <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:`1px solid ${THEME.border}`, color:THEME.muted, borderRadius:8, width:"100%", height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:14 }}><Icon name="signout" size={16} color="#ef4444"/></button>
+            <button onClick={onLogout} title="Sign out" style={{ background:"transparent", border:`1px solid ${T.border}`, color:T.muted, borderRadius:8, width:"100%", height:32, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:14 }}><Icon name="signout" size={16} color="#ef4444"/></button>
           )}
         </div>
       </div>
@@ -13008,15 +13011,15 @@ function Dashboard({ user, onLogout }) {
       <div style={{ marginLeft:SB, flex:1, display:"flex", flexDirection:"column", minWidth:0, transition:"margin-left 0.22s cubic-bezier(0.4,0,0.2,1)" }}>
 
         {/* Top bar */}
-        <div style={{ background:"rgba(22,27,39,0.95)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${THEME.border}`, position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ background:"rgba(22,27,39,0.95)", backdropFilter:"blur(20px)", borderBottom:`1px solid ${T.border}`, position:"sticky", top:0, zIndex:100 }}>
           <div style={{ padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:58 }}>
             {/* Page title */}
             <div style={{ display:"flex", flexDirection:"column", justifyContent:"center" }}>
-              <div style={{ fontWeight:800, fontSize:15, color:THEME.text, lineHeight:1.2 }}>
+              <div style={{ fontWeight:800, fontSize:15, color:T.text, lineHeight:1.2 }}>
                 {PAGE_META[module]?.title || "Dashboard"}
               </div>
               {PAGE_META[module]?.sub && (
-                <div style={{ fontSize:10, color:THEME.muted, marginTop:1 }}>
+                <div style={{ fontSize:10, color:T.muted, marginTop:1 }}>
                   {PAGE_META[module].sub}
                 </div>
               )}
@@ -13029,7 +13032,7 @@ function Dashboard({ user, onLogout }) {
                   onChange={e => { const v=e.target.value; setApiKey(v); window.__PHEN_KEY__=v; if(v.startsWith("sk-")) localStorage.setItem("phen_key",v); }}
                   onKeyDown={e => { if(e.key==="Enter" && apiKey.startsWith("sk-")){ window.__PHEN_KEY__=apiKey; localStorage.setItem("phen_key",apiKey); }}}
                   placeholder={apiKey.startsWith("sk-") ? "API key saved ✓" : "Paste sk-ant-... key"}
-                  style={{background:"transparent",border:"none",outline:"none",color:apiKey.startsWith("sk-")?"#10b981":THEME.text,fontSize:11,fontFamily:"monospace",width:140,padding:"2px 0"}}/>
+                  style={{background:"transparent",border:"none",outline:"none",color:apiKey.startsWith("sk-")?"#10b981":T.text,fontSize:11,fontFamily:"monospace",width:140,padding:"2px 0"}}/>
                 {apiKey.startsWith("sk-")
                   ? <span style={{fontSize:10,background:"rgba(16,185,129,0.15)",color:"#10b981",padding:"3px 7px",borderRadius:6,fontWeight:700}}>✓</span>
                   : <button onClick={()=>{if(apiKey.startsWith("sk-")){window.__PHEN_KEY__=apiKey;localStorage.setItem("phen_key",apiKey);}}} style={{background:"linear-gradient(135deg,#f59e0b,#f97316)",border:"none",color:"#000",fontWeight:700,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontSize:11}}>Save</button>}
@@ -13061,8 +13064,8 @@ function Dashboard({ user, onLogout }) {
               <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
                 <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="structural" size={16} color="#0696d7"/></div>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:THEME.text }}>Structural</div>
-                  <div style={{ fontSize:11, color:THEME.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Structural</div>
+                  <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
                 </div>
               </div>
               <Card>
@@ -13077,8 +13080,8 @@ function Dashboard({ user, onLogout }) {
               <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
                 <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="sanitary" size={16} color="#06b6d4"/></div>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:THEME.text }}>Sanitary</div>
-                  <div style={{ fontSize:11, color:THEME.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Sanitary</div>
+                  <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
                 </div>
               </div>
               <Card>
@@ -13093,8 +13096,8 @@ function Dashboard({ user, onLogout }) {
               <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
                 <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="wrench" size={15} color="#fff"/></div>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:THEME.text }}>Engineering Tools</div>
-                  <div style={{ fontSize:11, color:THEME.muted }}>BOM Review · Cost Estimator</div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Engineering Tools</div>
+                  <div style={{ fontSize:11, color:T.muted }}>BOM Review · Cost Estimator</div>
                 </div>
               </div>
               <EngineeringTools apiKey={apiKey} sessionTick={sessionTick.engtools}/>
@@ -13103,9 +13106,9 @@ function Dashboard({ user, onLogout }) {
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop:`1px solid ${THEME.border}`, padding:"16px 24px", textAlign:"center" }}>
+        <div style={{ borderTop:`1px solid ${T.border}`, padding:"16px 24px", textAlign:"center" }}>
           <div style={{ fontSize:12, color:"rgba(100,116,139,0.4)" }}>
-            Buildify · Developed by <strong style={{ color:THEME.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
+            Buildify · Developed by <strong style={{ color:T.muted }}>Jon Ureta</strong> · Philippines · Powered by Claude AI
           </div>
         </div>
       </div>
@@ -13113,31 +13116,10 @@ function Dashboard({ user, onLogout }) {
   );
 }
 
-// ─── ERROR BOUNDARY ──────────────────────────────────────────────────────────
-class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { error: null, info: null }; }
-  componentDidCatch(error, info) { this.setState({ error, info }); }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ padding:40, fontFamily:"monospace", background:"#0f1118", color:"#ef4444", minHeight:"100vh" }}>
-          <div style={{ fontSize:20, fontWeight:800, marginBottom:16 }}>🔴 React Error — {this.props.name}</div>
-          <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:16, marginBottom:16 }}>
-            <strong>{this.state.error?.message}</strong>
-          </div>
-          <pre style={{ fontSize:11, color:"#94a3b8", whiteSpace:"pre-wrap", lineHeight:1.6 }}>
-            {this.state.error?.stack}
-          </pre>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 export default function App() {
-  const [auth, setAuth] = useState(null);
-  if (auth) return <ErrorBoundary name="Dashboard"><Dashboard user={auth} onLogout={() => setAuth(null)} /></ErrorBoundary>;
-  return <ErrorBoundary name="LandingPage"><LandingPage onLogin={setAuth} /></ErrorBoundary>;
+  const [auth, setAuth] = useState(null); // null = not logged in
+
+  if (auth) return <Dashboard user={auth} onLogout={() => setAuth(null)} />;
+  return <LandingPage onLogin={setAuth} />;
 }
