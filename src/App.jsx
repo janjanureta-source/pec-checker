@@ -12785,6 +12785,8 @@ function Dashboard({ user, onLogout }) {
   });
   // sessionTick: incremented each time user navigates to a module (triggers session reload in child)
   const [sessionTick, setSessionTick] = useState({ structural:0, electrical:0, sanitary:0, engtools:0 });
+  // Track which modules have been visited — they mount on first visit and stay mounted
+  const [visited, setVisited] = useState(new Set());
 
 
 
@@ -12795,6 +12797,19 @@ function Dashboard({ user, onLogout }) {
     return () => window.removeEventListener("buildify_history_update", handler);
   }, []);
 
+  // Restore previously-visited modules so state survives page refresh
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("buildify_visited_modules") || "[]");
+      if (saved.length) setVisited(new Set(saved));
+    } catch {}
+  }, []);
+
+  // Persist visited modules whenever they change
+  useEffect(() => {
+    try { localStorage.setItem("buildify_visited_modules", JSON.stringify([...visited])); } catch {}
+  }, [visited]);
+
   const toggleSidebar = () => setSidebarOpen(p => {
     const next = !p;
     try { localStorage.setItem("buildify_sidebar", next ? "open" : "collapsed"); } catch {}
@@ -12803,6 +12818,7 @@ function Dashboard({ user, onLogout }) {
 
   const navigateTo = (mod, tool) => {
     setModule(mod);
+    if (mod !== "home") setVisited(p => new Set([...p, mod]));
     if (mod === "structural" && tool) setStructTool(tool === "checker" ? "checker" : tool);
     // Increment tick to trigger session reload in the module
     if (mod !== "home") setSessionTick(p => ({ ...p, [mod]: (p[mod]||0) + 1 }));
@@ -12883,7 +12899,7 @@ function Dashboard({ user, onLogout }) {
             const active = module === item.key;
             const stats  = item.key !== "home" ? modStats(item.key) : null;
             return (
-              <button key={item.key} onClick={() => setModule(item.key)}
+              <button key={item.key} onClick={() => { setModule(item.key); if (item.key !== "home") setVisited(p => new Set([...p, item.key])); }}
                 title={!sidebarOpen ? item.label : undefined}
                 style={{ display:"flex", alignItems:"center", gap:10,
                   padding: sidebarOpen ? "9px 12px" : "10px 0",
@@ -13045,54 +13061,62 @@ function Dashboard({ user, onLogout }) {
 
         </div>
 
-        {/* Page content — modules stay MOUNTED always via display:none to preserve React state */}
+        {/* Page content — lazy first-mount: each module mounts on first visit, then stays mounted */}
         <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
           {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
 
-          {/* Electrical — always mounted */}
-          <div style={{ display: module==="electrical" ? "block" : "none" }}>
-            <ElecCode apiKey={apiKey} sessionTick={sessionTick.electrical}/>
-          </div>
-
-          {/* Structural — always mounted */}
-          <div style={{ display: module==="structural" ? "block" : "none" }}>
-            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="structural" size={16} color="#0696d7"/></div>
-              <div>
-                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Structural</div>
-                <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
-              </div>
+          {/* Electrical — mounts on first visit, stays mounted after */}
+          {visited.has("electrical") && (
+            <div style={{ display: module==="electrical" ? "block" : "none" }}>
+              <ElecCode apiKey={apiKey} sessionTick={sessionTick.electrical}/>
             </div>
-            <Card>
-              <StructiCode apiKey={apiKey} initialTool={structTool} sessionTick={sessionTick.structural}/>
-            </Card>
-          </div>
+          )}
 
-          {/* Sanitary — always mounted */}
-          <div style={{ display: module==="sanitary" ? "block" : "none" }}>
-            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="sanitary" size={16} color="#06b6d4"/></div>
-              <div>
-                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Sanitary</div>
-                <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
+          {/* Structural — mounts on first visit, stays mounted after */}
+          {visited.has("structural") && (
+            <div style={{ display: module==="structural" ? "block" : "none" }}>
+              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="structural" size={16} color="#0696d7"/></div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Structural</div>
+                  <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
+                </div>
               </div>
+              <Card>
+                <StructiCode apiKey={apiKey} initialTool={structTool} sessionTick={sessionTick.structural}/>
+              </Card>
             </div>
-            <Card>
-              <SaniCode apiKey={apiKey} sessionTick={sessionTick.sanitary}/>
-            </Card>
-          </div>
+          )}
 
-          {/* Engineering Tools — always mounted */}
-          <div style={{ display: module==="engtools" ? "block" : "none" }}>
-            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="wrench" size={15} color="#fff"/></div>
-              <div>
-                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Engineering Tools</div>
-                <div style={{ fontSize:11, color:T.muted }}>BOM Review · Cost Estimator</div>
+          {/* Sanitary — mounts on first visit, stays mounted after */}
+          {visited.has("sanitary") && (
+            <div style={{ display: module==="sanitary" ? "block" : "none" }}>
+              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="sanitary" size={16} color="#06b6d4"/></div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Sanitary</div>
+                  <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
+                </div>
               </div>
+              <Card>
+                <SaniCode apiKey={apiKey} sessionTick={sessionTick.sanitary}/>
+              </Card>
             </div>
-            <EngineeringTools apiKey={apiKey} sessionTick={sessionTick.engtools}/>
-          </div>
+          )}
+
+          {/* Engineering Tools — mounts on first visit, stays mounted after */}
+          {visited.has("engtools") && (
+            <div style={{ display: module==="engtools" ? "block" : "none" }}>
+              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="wrench" size={15} color="#fff"/></div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Engineering Tools</div>
+                  <div style={{ fontSize:11, color:T.muted }}>BOM Review · Cost Estimator</div>
+                </div>
+              </div>
+              <EngineeringTools apiKey={apiKey} sessionTick={sessionTick.engtools}/>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
