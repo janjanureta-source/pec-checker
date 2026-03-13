@@ -11798,8 +11798,8 @@ function DashboardHome({ onNavigate }) {
   const trend = thisW - lastW;
 
   const QUICK_LAUNCH = [
-    { icon:"bom",      label:"BOM Review",       sub:"Upload plan + BOM",      module:"structural", tool:"bom",      color:"#0696d7", grad:"135deg,#0696d7,#0569a8", badge:"⭐ Flagship", hero:true },
-    { icon:"estimate", label:"Cost Estimator",   sub:"Upload plan → estimate", module:"structural", tool:"estimate", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"AI" },
+    { icon:"bom",      label:"BOM Review",       sub:"Upload plan + BOM",      module:"engtools",   tool:"bom",      color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", badge:"⭐ Flagship", hero:true },
+    { icon:"estimate", label:"Cost Estimator",   sub:"Upload plan → estimate", module:"engtools",   tool:"estimate", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"AI" },
     { icon:"checker",  label:"Electrical Check", sub:"PEC 2017 compliance",    module:"electrical", tool:"checker",  color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
     { icon:"checker",  label:"Structural Check", sub:"NSCP 2015 compliance",   module:"structural", tool:"checker",  color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
     { icon:"fixture",  label:"Plumbing Check",   sub:"NPC 2000 compliance",    module:"sanitary",   tool:"checker",  color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
@@ -11995,7 +11995,7 @@ function DashboardHome({ onNavigate }) {
             <div style={{ fontSize:40, marginBottom:12 }}>📂</div>
             <div style={{ fontWeight:700, color:T.text, marginBottom:6, fontSize:15 }}>No history yet</div>
             <div style={{ fontSize:12, color:T.muted, marginBottom:20 }}>Run any tool and your results are saved automatically</div>
-            <button onClick={()=>onNavigate("structural","bom")}
+            <button onClick={()=>onNavigate("engtools","bom")}
               style={{ padding:"9px 20px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#0696d7,#0569a8)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
               Start with BOM Review →
             </button>
@@ -12126,8 +12126,8 @@ function LandingPage({ onLogin }) {
   const MODULES = [
     {
       icon:"structural", color:BLUE, grad:`135deg,${BLUE},#0569a8`, name:"Structural", code:"NSCP 2015 · DPWH Blue Book",
-      badge:"⭐ Flagship", live:true,
-      tools:["📋 BOM Review — quantities, costs, missing items","💰 Cost Estimator — parametric from plan upload","🤖 AI Plan Checker (NSCP 2015)","🌍 Seismic Load · 📐 Beam · 🏛️ Column · 🪨 Footing · 🔩 Slab","📊 Load Combinations"]
+      live:true,
+      tools:["🤖 AI Plan Checker (NSCP 2015)","🌍 Seismic Load · 📐 Beam · 🏛️ Column · 🪨 Footing · 🔩 Slab","📊 Load Combinations · Rebar Schedule"]
     },
     {
       icon:"electrical", color:ORANGE, grad:`135deg,${ORANGE},#e85520`, name:"Electrical", code:"PEC 2017 · RA 9514 · Green Building",
@@ -12138,6 +12138,11 @@ function LandingPage({ onLogin }) {
       icon:"sanitary", color:CYAN, grad:`135deg,${CYAN},#0891b2`, name:"Sanitary", code:"NPC 2000 · PD 856 Sanitation Code",
       live:true,
       tools:["🔍 AI Plan Checker (NPC 2000)","🚿 Fixture Unit Calculator","📏 Pipe Sizing · 🪣 Septic Tank","💧 Water Demand · 🔢 Pressure Loss · 🌧️ Storm Drainage"]
+    },
+    {
+      icon:"wrench", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"Eng. Tools", code:"Estimating · QS · BOM",
+      badge:"⭐ Flagship", live:true,
+      tools:["📋 BOM Review — quantities, costs, missing items","💰 Cost Estimator — parametric from plan upload","✨ AI BOM Generator — full takeoff from plans","🏛️ DPWH / Private rate toggle · PDF export"]
     },
     {
       icon:"column", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344 · Green Building",
@@ -12187,7 +12192,7 @@ function LandingPage({ onLogin }) {
   const PRICING = [
     { name:"Solo Contractor",   price:"₱499",    period:"/month", color:"#64748b",
       desc:"For freelance estimators and sole contractors",
-      features:["Full suite — all 3 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
+      features:["Full suite — all 4 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
     { name:"Small Firm",        price:"₱3,500",  period:"/month", color:BLUE, best:true,
       desc:"For contracting firms and design-build teams",
       features:["Everything in Solo","Up to 10 users","Dashboard + project history","Priority support","Unlimited runs"] },
@@ -12368,7 +12373,7 @@ function LandingPage({ onLogin }) {
             <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
               Every Engineering Discipline.<br/><span style={{color:CYAN}}>One Platform.</span>
             </h2>
-            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>3 modules live now · 2 coming soon · All built for Philippine codes</p>
+            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>4 modules live now · 2 coming soon · All built for Philippine codes</p>
           </div>
           <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20 }}>
             {MODULES.map((m,i) => (
