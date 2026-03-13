@@ -1615,11 +1615,16 @@ Return only valid JSON — no markdown, no preamble.`});
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
       setResult(parsed);
-              if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
-        setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
+      // ── Lift result to parent (ElecCode) so Review Sheet and Intelligence Panel receive it ──
+      if (onResultChange) onResultChange(parsed);
+      if (onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
+      setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"electrical", module:"electrical", projectName:parsed?.summary?.projectName||"Electrical Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
-      // Direct save — no React state, no callbacks, always works
-      try { localStorage.setItem("buildify_session_electrical", JSON.stringify({ checkerResult: parsed, _savedAt: new Date().toISOString(), _module: "electrical", userId: "local" })); } catch(e) { console.warn("Session save failed", e); }
+      // Merge into existing session — preserve electricalData and other fields
+      try {
+        const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+        localStorage.setItem("buildify_session_electrical", JSON.stringify({ ...cur, checkerResult: parsed, _savedAt: new Date().toISOString() }));
+      } catch(e) { console.warn("Session save failed", e); }
     } catch(e) { setError(e.message||"Analysis failed."); }
     finally { setBusy(false); setBusyMsg(""); }
   };
