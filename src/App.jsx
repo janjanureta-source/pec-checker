@@ -11263,8 +11263,7 @@ function ElecCode({ apiKey, sessionTick=0 }) {
       if (s._mainTab)       setMainTab(s._mainTab);
     } catch {}
   };
-  useEffect(() => { _loadElecSession(); }, []); // eslint-disable-line
-  useEffect(() => { if (sessionTick > 0) _loadElecSession(); }, [sessionTick]); // eslint-disable-line
+  useEffect(() => { _loadElecSession(); }, []); // load once on mount only — component stays mounted so no reload needed
   const [calcTool, setCalcTool] = useState(null);
 
   const CALC_TOOLS = [
@@ -11290,20 +11289,20 @@ function ElecCode({ apiKey, sessionTick=0 }) {
     } catch {}
   };
 
-  const handleRunAll = async () => {
+  const handleRunAll = () => {
     setRunState({ running: true });
-    setElecResults(null);
-    await new Promise(r => setTimeout(r, 80));
-    const results = runElecComputations(electricalData, calcStates);
-    setElecResults(results);
-    setRunState({ running: false });
-    // Persist so session restore shows full computation package
-    try {
-      const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
-      localStorage.setItem("buildify_session_electrical", JSON.stringify({
-        ...cur, elecResults: results, runState: { running: false }
-      }));
-    } catch {}
+    // Use setTimeout to let React render the "running" state before heavy computation
+    setTimeout(() => {
+      const results = runElecComputations(electricalData, calcStates);
+      setElecResults(results);
+      setRunState({ running: false });
+      try {
+        const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+        localStorage.setItem("buildify_session_electrical", JSON.stringify({
+          ...cur, elecResults: results, runState: { running: false }
+        }));
+      } catch {}
+    }, 50);
   };
 
   const handleClear = () => {
@@ -11400,14 +11399,16 @@ function ElecCode({ apiKey, sessionTick=0 }) {
                   localStorage.setItem("buildify_session_electrical", JSON.stringify({ ...cur2, _mainTab: t.key }));
                 } catch {}
                 if (t.key === "review" && electricalData && !elecResults) {
-                  const results = runElecComputations(electricalData, calcStates);
-                  setElecResults(results);
-                  try {
-                    const cur3 = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
-                    localStorage.setItem("buildify_session_electrical", JSON.stringify({
-                      ...cur3, _mainTab: t.key, elecResults: results, runState: { running: false }
-                    }));
-                  } catch {}
+                  setTimeout(() => {
+                    const results = runElecComputations(electricalData, calcStates);
+                    setElecResults(results);
+                    try {
+                      const cur3 = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+                      localStorage.setItem("buildify_session_electrical", JSON.stringify({
+                        ...cur3, _mainTab: t.key, elecResults: results, runState: { running: false }
+                      }));
+                    } catch {}
+                  }, 50);
                 }
               }}
               style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
