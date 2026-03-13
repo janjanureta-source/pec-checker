@@ -10467,6 +10467,55 @@ function GECCalculator({ electricalData, calcState, onStateChange }) {
 
 // ─── REVIEW SUMMARY SHEET ─────────────────────────────────────────────────────
 // Phase 6: One-page exportable review for MERALCO/LGU/PEE submission
+
+// ── CalcResultRow — extracted so useState is a valid top-level hook ──────────
+function CalcResultRow({ item, T, CALC_LABELS }) {
+  const [whyOpen, setWhyOpen] = React.useState(false);
+  const isNoInput = item.status === "NO INPUT";
+  const col = item.status==="PASS"||item.status==="COMPUTED" ? "#22c55e"
+             : item.status==="FAIL"    ? "#ef4444"
+             : "#f59e0b";
+  const showWhy = item.status !== "PASS" && item.status !== "COMPUTED";
+  return (
+    <tr style={{borderBottom:`1px solid ${T.border}`}}>
+      <td style={{padding:"10px 14px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
+      <td style={{padding:"10px 14px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
+      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>
+        {isNoInput
+          ? <span style={{color:"#f59e0b",fontStyle:"italic"}}>{item.detail}</span>
+          : item.detail}
+      </td>
+      <td style={{padding:"10px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,
+            background:`${col}15`,color:col,border:`1px solid ${col}30`}}>
+            {item.status}
+          </span>
+          {showWhy&&(
+            <button onClick={()=>setWhyOpen(p=>!p)}
+              style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:5,
+                border:`1px solid ${col}40`,background:`${col}10`,color:col,
+                cursor:"pointer",flexShrink:0}}>
+              {whyOpen?"▲":"ⓘ Why?"}
+            </button>
+          )}
+        </div>
+        {whyOpen&&(
+          <div style={{marginTop:6,fontSize:11,color:T.muted,lineHeight:1.6,
+            background:`${col}08`,border:`1px solid ${col}25`,borderRadius:7,
+            padding:"8px 10px",maxWidth:260}}>
+            {isNoInput
+              ? item.detail
+              : item.status==="FAIL"
+                ? "This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design."
+                : "Result is within acceptable limits but warrants review."}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
   const ACCENT = "#ff6b2b";
 
@@ -10741,51 +10790,9 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
                 </tr>
               </thead>
               <tbody>
-                {calcItems.map(item=>{
-                  const isNoInput = item.status==="NO INPUT";
-                  const col = item.status==="PASS"||item.status==="COMPUTED" ? "#22c55e"
-                            : item.status==="FAIL"     ? "#ef4444"
-                            : "#f59e0b";
-                  const [whyOpen, setWhyOpen] = React.useState(false);
-                  const showWhy = item.status !== "PASS" && item.status !== "COMPUTED";
-                  return(
-                    <tr key={item.tool} style={{borderBottom:`1px solid ${T.border}`}}>
-                      <td style={{padding:"10px 14px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
-                      <td style={{padding:"10px 14px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
-                      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>
-                        {isNoInput
-                          ? <span style={{color:"#f59e0b",fontStyle:"italic"}}>{item.detail}</span>
-                          : item.detail}
-                      </td>
-                      <td style={{padding:"10px 14px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                          <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,background:`${col}15`,color:col,border:`1px solid ${col}30`}}>
-                            {item.status}
-                          </span>
-                          {showWhy&&(
-                            <button onClick={()=>setWhyOpen(p=>!p)}
-                              style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:5,
-                                border:`1px solid ${col}40`,background:`${col}10`,color:col,
-                                cursor:"pointer",flexShrink:0}}>
-                              {whyOpen?"▲":"ⓘ Why?"}
-                            </button>
-                          )}
-                        </div>
-                        {whyOpen&&(
-                          <div style={{marginTop:6,fontSize:11,color:T.muted,lineHeight:1.6,
-                            background:`${col}08`,border:`1px solid ${col}25`,borderRadius:7,
-                            padding:"8px 10px",maxWidth:260}}>
-                            {isNoInput
-                              ? item.detail
-                              : item.status==="FAIL"
-                                ? "This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design."
-                                : "Result is within acceptable limits but warrants review."}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {calcItems.map(item=>(
+                  <CalcResultRow key={item.tool} item={item} T={T} CALC_LABELS={CALC_LABELS}/>
+                ))}
               </tbody>
             </table>
           </div>
@@ -11247,8 +11254,8 @@ function ElecCode({ apiKey, sessionTick=0 }) {
   const _loadElecSession = () => {
     try {
       const s = JSON.parse(localStorage.getItem("buildify_session_electrical") || "null");
-      if (!s?.checkerResult?.summary?.projectName) return;
-      setCheckerResult(s.checkerResult);
+      if (!s) return;
+      if (s.checkerResult)  setCheckerResult(s.checkerResult);
       if (s.electricalData) setElectricalData(s.electricalData);
       if (s.elecResults)    setElecResults(s.elecResults);
       if (s.runState)       setRunState(s.runState);
@@ -11388,14 +11395,17 @@ function ElecCode({ apiKey, sessionTick=0 }) {
           return (
             <button key={t.key} onClick={()=>{
                 setMainTab(t.key);
-                // Auto-compute when entering Review Sheet if data is ready but results not yet run
+                try {
+                  const cur2 = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+                  localStorage.setItem("buildify_session_electrical", JSON.stringify({ ...cur2, _mainTab: t.key }));
+                } catch {}
                 if (t.key === "review" && electricalData && !elecResults) {
                   const results = runElecComputations(electricalData, calcStates);
                   setElecResults(results);
                   try {
-                    const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+                    const cur3 = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
                     localStorage.setItem("buildify_session_electrical", JSON.stringify({
-                      ...cur, elecResults: results, runState: { running: false }
+                      ...cur3, _mainTab: t.key, elecResults: results, runState: { running: false }
                     }));
                   } catch {}
                 }
