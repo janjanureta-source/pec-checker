@@ -55,6 +55,8 @@ const Icon = ({ name, size=16, color="currentColor", strokeWidth=1.6 }) => {
     info:        <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8.5" strokeWidth={2.5}/><path d="M12 12v5"/></>,
     alert:       <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".5" fill={color}/></>,
     logo:        <><path d="M3 6h8v12H3zM13 6h8v12h-8z" strokeWidth={1.4}/><line x1="3" y1="12" x2="11" y2="12"/><line x1="13" y1="12" x2="21" y2="12"/></>,
+    // ── Engineering Tools
+    wrench:      <><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></>,
     // ── New electrical icons
     panel:       <><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="2" y1="9" x2="8" y2="9"/><line x1="2" y1="14" x2="8" y2="14"/><line x1="11" y1="8" x2="18" y2="8"/><line x1="11" y1="12" x2="18" y2="12"/><line x1="11" y1="16" x2="15" y2="16"/></>,
     conduit:     <><path d="M3 12h18"/><path d="M3 7c0-2 2-4 4-4h8c2 0 4 2 4 4"/><path d="M3 17c0 2 2 4 4 4h8c2 0 4-2 4-4"/><circle cx="7" cy="12" r="1.5" fill={color}/><circle cx="12" cy="12" r="1.5" fill={color}/><circle cx="17" cy="12" r="1.5" fill={color}/></>,
@@ -4153,7 +4155,7 @@ function BOMReview({ apiKey, sessionTick=0 }) {
   // ── Session restore helper ──
   const _loadBomSession = () => {
     try {
-      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      const s = JSON.parse(localStorage.getItem("buildify_session_engtools") || "null");
       if (!s?.bomResult?.summary) return;
       // Detect whether saved result is a generated BOM or a review BOM
       const isGenerated = !!(s.bomResult.lineItems && !s.bomResult.overallStatus);
@@ -4302,10 +4304,10 @@ CRITICAL OUTPUT RULES:
           console.log("[BOM Generate] JSON repaired successfully");
         }
         setGenerateResult(parsed);
-        addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed?.summary?.projectName||"BOM Generated", meta:{ totalHigh:parsed?.summary?.totalCostHigh, findings:parsed?.lineItems?.length||0, summary:parsed?.summary?.notes||"" } });
+        addHistoryEntry({ tool:"bom", module:"engtools", projectName:parsed?.summary?.projectName||"BOM Generated", meta:{ totalHigh:parsed?.summary?.totalCostHigh, findings:parsed?.lineItems?.length||0, summary:parsed?.summary?.notes||"" } });
         try {
-          const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
-          localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult:parsed, _bomMode:"generate", _savedAt:new Date().toISOString(), _module:"structural", userId:"local" }));
+          const _cur = JSON.parse(localStorage.getItem("buildify_session_engtools") || "{}");
+          localStorage.setItem("buildify_session_engtools", JSON.stringify({ ..._cur, bomResult:parsed, _bomMode:"generate", _savedAt:new Date().toISOString(), _module:"engtools", userId:"local" }));
         } catch {}
       } catch(e) { setError(e.message || "Generation failed. Please try again."); }
       finally { setBusy(false); setBusyMsg(""); }
@@ -4329,11 +4331,11 @@ CRITICAL OUTPUT RULES:
       let parsed1;
       try { parsed1 = JSON.parse(text1); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed1);
-      addHistoryEntry({ tool:"bom", module:"structural", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.notes||"" } });
+      addHistoryEntry({ tool:"bom", module:"engtools", projectName:parsed1?.summary?.projectName||"BOM Review", meta:{ totalHigh:parsed1?.summary?.totalCost, findings:(parsed1?.lineItems?.length||0)+(parsed1?.missingItems?.length||0), summary:parsed1?.summary?.notes||"" } });
       // Direct save — merge with existing structural session
       try {
-        const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
-        localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult: parsed1, _bomMode: mode, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
+        const _cur = JSON.parse(localStorage.getItem("buildify_session_engtools") || "{}");
+        localStorage.setItem("buildify_session_engtools", JSON.stringify({ ..._cur, bomResult: parsed1, _bomMode: mode, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
       } catch(e) { console.warn("Session save failed", e); }
 
       setActiveTab("summary");
@@ -11642,9 +11644,10 @@ function SaniCode({ apiKey, sessionTick=0 }) {
 // ─────────────────────────────────────────────────────────────────────────────
 const HISTORY_KEY  = "buildify_history";
 const SESSION_KEYS = {
-  structural: "buildify_session_structural",
-  electrical: "buildify_session_electrical",
-  sanitary:   "buildify_session_sanitary",
+  structural:  "buildify_session_structural",
+  electrical:  "buildify_session_electrical",
+  sanitary:    "buildify_session_sanitary",
+  engtools:    "buildify_session_engtools",
 };
 
 function _uuid() {
@@ -11759,15 +11762,16 @@ function DashboardHome({ onNavigate }) {
   };
 
   const MODULE_FILTERS = [
-    { v:"all",        l:"All",        color:"#94a3b8" },
-    { v:"structural", l:"Structural", color:"#0696d7" },
-    { v:"electrical", l:"Electrical", color:"#ff6b2b" },
-    { v:"sanitary",   l:"Sanitary",   color:"#06b6d4" },
+    { v:"all",        l:"All",               color:"#94a3b8" },
+    { v:"structural", l:"Structural",        color:"#0696d7" },
+    { v:"electrical", l:"Electrical",        color:"#ff6b2b" },
+    { v:"sanitary",   l:"Sanitary",          color:"#06b6d4" },
+    { v:"engtools",   l:"Eng. Tools",        color:"#a78bfa" },
   ];
 
   const TOOL_META = {
-    bom:        { icon:"bom",      label:"BOM Review",        module:"structural", color:"#0696d7" },
-    estimate:   { icon:"estimate", label:"Cost Estimator",    module:"structural", color:"#f59e0b" },
+    bom:        { icon:"bom",      label:"BOM Review",        module:"engtools",   color:"#0696d7" },
+    estimate:   { icon:"estimate", label:"Cost Estimator",    module:"engtools",   color:"#f59e0b" },
     structural: { icon:"checker",  label:"Structural Check",  module:"structural", color:"#0696d7" },
     seismic:    { icon:"seismic",  label:"Seismic Load",      module:"structural", color:"#0696d7" },
     beam:       { icon:"beam",     label:"Beam Design",       module:"structural", color:"#0696d7" },
@@ -12623,6 +12627,56 @@ function LoginModal({ onClose, onSuccess }) {
 }
 
 // ─── DASHBOARD (logged-in app) ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENGINEERING TOOLS MODULE
+// Two tabs: BOM Review · Cost Estimator
+// Session:  buildify_session_engtools (own key, no structural dependency)
+// ═══════════════════════════════════════════════════════════════════════════════
+function EngineeringTools({ apiKey, sessionTick=0 }) {
+  const PURPLE = "#a78bfa";
+  const [tab, setTab] = useState("bom");
+
+  const TABS = [
+    { key:"bom",      label:"📋 BOM Review",     icon:"bom"      },
+    { key:"estimate", label:"💰 Cost Estimator",  icon:"estimate" },
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+      {/* Tab bar */}
+      <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:`1px solid ${T.border}`, paddingBottom:0 }}>
+        {TABS.map(t => {
+          const active = tab === t.key;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              style={{
+                display:"flex", alignItems:"center", gap:7,
+                padding:"10px 18px",
+                borderRadius:"9px 9px 0 0",
+                border:`1.5px solid ${active ? PURPLE+"66" : "transparent"}`,
+                borderBottom: active ? `1.5px solid ${T.bg}` : "transparent",
+                background: active ? `${PURPLE}12` : "transparent",
+                color: active ? PURPLE : T.muted,
+                cursor:"pointer", fontSize:13, fontWeight: active ? 800 : 600,
+                transition:"all 0.15s",
+                marginBottom: active ? -1 : 0,
+              }}>
+              <Icon name={t.icon} size={15} color={active ? PURPLE : "#64748b"}/>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab content */}
+      <div style={{ animation:"fadeIn 0.2s ease" }} key={tab}>
+        {tab === "bom"      && <BOMReview    apiKey={apiKey} sessionTick={sessionTick}/>}
+        {tab === "estimate" && <CostEstimator apiKey={apiKey}/>}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ user, onLogout }) {
   const [module,         setModule]         = useState("home");
   const [structTool,     setStructTool]     = useState("bom");
@@ -12631,7 +12685,7 @@ function Dashboard({ user, onLogout }) {
     try { return localStorage.getItem("buildify_sidebar") !== "collapsed"; } catch { return true; }
   });
   // sessionTick: incremented each time user navigates to a module (triggers session reload in child)
-  const [sessionTick, setSessionTick] = useState({ structural:0, electrical:0, sanitary:0 });
+  const [sessionTick, setSessionTick] = useState({ structural:0, electrical:0, sanitary:0, engtools:0 });
 
 
 
@@ -12675,18 +12729,20 @@ function Dashboard({ user, onLogout }) {
 
   const SB = sidebarOpen ? 230 : 58;
   const NAV_ITEMS = [
-    { key:"home",       icon:"home",       label:"Home",       color:"#0696d7", sub:null },
-    { key:"structural", icon:"structural", label:"Structural", color:"#0696d7", sub:"NSCP 2015" },
-    { key:"electrical", icon:"electrical", label:"Electrical", color:"#ff6b2b", sub:"PEC 2017" },
-    { key:"sanitary",   icon:"sanitary",   label:"Sanitary",   color:"#06b6d4", sub:"NPC 2000" },
+    { key:"home",       icon:"home",       label:"Home",          color:"#0696d7", sub:null       },
+    { key:"structural", icon:"structural", label:"Structural",    color:"#0696d7", sub:"NSCP 2015" },
+    { key:"electrical", icon:"electrical", label:"Electrical",    color:"#ff6b2b", sub:"PEC 2017"  },
+    { key:"sanitary",   icon:"sanitary",   label:"Sanitary",      color:"#06b6d4", sub:"NPC 2000"  },
+    { key:"engtools",   icon:"wrench",     label:"Eng. Tools",    color:"#a78bfa", sub:"BOM · Estimates" },
   ];
 
   // Module page titles & subtitles
   const PAGE_META = {
-    home:       { title:"Dashboard",  sub:null },
-    structural: { title:"Structural", sub:"NSCP 2015 7th Edition · DPWH Blue Book" },
-    electrical: { title:"Electrical", sub:"PEC 2017 · RA 9514 (FSIC) · Green Building Code" },
-    sanitary:   { title:"Sanitary",   sub:"National Plumbing Code 2000 · PD 856 Sanitation Code" },
+    home:       { title:"Dashboard",        sub:null },
+    structural: { title:"Structural",       sub:"NSCP 2015 7th Edition · DPWH Blue Book" },
+    electrical: { title:"Electrical",       sub:"PEC 2017 · RA 9514 (FSIC) · Green Building Code" },
+    sanitary:   { title:"Sanitary",         sub:"National Plumbing Code 2000 · PD 856 Sanitation Code" },
+    engtools:   { title:"Engineering Tools",sub:"BOM Review · Cost Estimator" },
   };
 
 
@@ -12926,6 +12982,18 @@ function Dashboard({ user, onLogout }) {
               <Card>
                 <SaniCode apiKey={apiKey} sessionTick={sessionTick.sanitary}/>
               </Card>
+            </>
+          )}
+          {module==="engtools" && (
+            <>
+              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="wrench" size={15} color="#fff"/></div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Engineering Tools</div>
+                  <div style={{ fontSize:11, color:T.muted }}>BOM Review · Cost Estimator</div>
+                </div>
+              </div>
+              <EngineeringTools apiKey={apiKey} sessionTick={sessionTick.engtools}/>
             </>
           )}
         </div>
