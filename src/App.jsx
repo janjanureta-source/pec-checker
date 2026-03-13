@@ -2098,6 +2098,8 @@ Return ONLY valid JSON — no markdown, no preamble.
   "beams": [
     {
       "id": "beam mark from schedule (B1, B2, GB, RB, etc.)",
+      "location": "grid line reference where beam is located (e.g. 'Grid A-B/3', 'A/1-2') or null if not on schedule",
+      "level": "floor level (e.g. '1F', '2F', 'Roof', 'Ground') or null if not specified",
       "width": "beam width in mm or null",
       "depth": "beam TOTAL depth h in mm (not effective depth) or null",
       "span": "span in METERS or null",
@@ -2113,6 +2115,8 @@ Return ONLY valid JSON — no markdown, no preamble.
   "columns": [
     {
       "id": "column mark (C1, C2, etc.)",
+      "location": "grid line reference where column is located (e.g. 'Grid A-3', 'B/2') or null if not on schedule",
+      "level": "floor level or story (e.g. '1F', '2F', 'All floors') or null if not specified",
       "width": "shorter dimension in mm or null",
       "height": "longer dimension in mm or null",
       "mainBarCount": "total number of longitudinal bars or null",
@@ -3030,7 +3034,11 @@ function BeamDesign({ structuralData, structuralResults }) {
             {beamPriorItems.map((item,idx)=>(
               <div key={idx} style={{padding:"8px 12px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.3)":"rgba(34,197,94,0.2)"}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id}</span>
+                    {item.location && <span style={{fontSize:10,color:"#0696d7",background:"rgba(6,150,215,0.1)",padding:"1px 7px",borderRadius:4,fontWeight:600}}>📍 {item.location}</span>}
+                    {item.level && <span style={{fontSize:10,color:T.muted,background:"rgba(255,255,255,0.06)",padding:"1px 7px",borderRadius:4}}>{item.level}</span>}
+                  </div>
                   <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":"#0696d7",padding:"1px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
                 </div>
                 {item.value && <div style={{fontSize:11,color:T.muted,marginTop:4,fontFamily:"monospace"}}>{item.value}</div>}
@@ -3220,8 +3228,12 @@ function ColumnDesign({ structuralData, structuralResults }) {
                   </div>
                   {priorItems.map((item,idx)=>(
                     <div key={idx} style={{padding:"10px 14px",background:T.dim,borderRadius:8,marginBottom:6,border:`1px solid ${item.status==="FAIL"?"rgba(239,68,68,0.2)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.2)":"rgba(34,197,94,0.2)"}`}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.id}</span>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4,flexWrap:"wrap",gap:6}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.id}</span>
+                          {item.location && <span style={{fontSize:10,color:"#0696d7",background:"rgba(6,150,215,0.1)",padding:"1px 7px",borderRadius:4,fontWeight:600}}>📍 {item.location}</span>}
+                          {item.level && <span style={{fontSize:10,color:T.muted,background:"rgba(255,255,255,0.06)",padding:"1px 7px",borderRadius:4}}>{item.level}</span>}
+                        </div>
                         <span style={{fontSize:11,fontWeight:800,color:item.status==="FAIL"?"#ef4444":item.status==="PASS"?"#22c55e":item.status==="CANNOT VERIFY"?"#f59e0b":"#0696d7",padding:"2px 8px",borderRadius:6,background:item.status==="FAIL"?"rgba(239,68,68,0.1)":item.status==="PASS"?"rgba(34,197,94,0.1)":item.status==="CANNOT VERIFY"?"rgba(245,158,11,0.1)":"rgba(6,150,215,0.1)"}}>{item.status}</span>
                       </div>
                       {item.value && <div style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{item.value}</div>}
@@ -7067,9 +7079,9 @@ function runAllComputations(sd) {
     }
 
     if (!checks.length) {
-      results.items.push({ tool:"beam", id, status:"INCOMPLETE", detail:`Beam ${id}: dimensions extracted (${b||"?"}×${h||"?"}mm) but reinforcement details incomplete for full verification.` });
+      results.items.push({ tool:"beam", id, status:"INCOMPLETE", detail:`Beam ${id}: dimensions extracted (${b||"?"}×${h||"?"}mm) but reinforcement details incomplete for full verification.`, location:bm.location||null, level:bm.level||null });
     }
-    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef }));
+    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef, location:bm.location||null, level:bm.level||null }));
   });
 
   // ══════════════════════════════════════════════════════════════════
@@ -7121,9 +7133,9 @@ function runAllComputations(sd) {
     }
 
     if (!checks.length) {
-      results.items.push({ tool:"column", id, status:"INCOMPLETE", detail:`Column ${id}: dimensions extracted (${b||"?"}×${h||"?"}mm) but reinforcement details incomplete.` });
+      results.items.push({ tool:"column", id, status:"INCOMPLETE", detail:`Column ${id}: dimensions extracted (${b||"?"}×${h||"?"}mm) but reinforcement details incomplete.`, location:col.location||null, level:col.level||null });
     }
-    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef }));
+    checks.forEach(c => results.items.push({ tool:c.tool, id:c.id, status:c.status, value:`${c.rule}: ${c.value} vs ${c.limit}`, detail:c.detail, nscpRef:c.nscpRef, location:col.location||null, level:col.level||null }));
   });
 
   // ══════════════════════════════════════════════════════════════════
@@ -10924,10 +10936,10 @@ function runElecComputations(electricalData, calcStates) {
     const fla    = sc.existingFLA || 20;
     const ratio  = Isc / fla;
     const faultNoInput = Isc < 1;
-    items.push({ tool:"fault", id:"Short Circuit", value: faultNoInput ? "—" : `${(Isc/1000).toFixed(2)} kA`,
+    items.push({ tool:"fault", id:"Short Circuit", value:`${(Isc/1000).toFixed(2)} kA`,
       detail: faultNoInput
-        ? `Isc is near zero — most likely the default 15m cable run is too long, overwhelming the transformer impedance. Open Short Circuit calculator: (1) set Cable Length to actual service drop (typically 3–10m for MERALCO), (2) confirm transformer kVA and %Z from your MERALCO service data`
-        : `Isc = ${(Isc/1000).toFixed(2)} kA · Min AIC = ${(STD_AIC.find(r=>r>=Isc)||200000).toLocaleString()} A · ratio = ${ratio.toFixed(1)}× FLA`,
+        ? `⚠ Isc result is near zero. Likely cause: Cable Length default (${sc.cableLen||15}m) is too long. Open the Short Circuit calculator and set Cable Length to the actual service drop distance (typically 3–10m for MERALCO connections). Also confirm transformer kVA and %Z match your MERALCO service data.`
+        : `Isc=${(Isc/1000).toFixed(2)}kA, ratio=${ratio.toFixed(1)}× FLA`,
       status: faultNoInput ? "NO INPUT" : ratio > 1 ? "PASS" : "FAIL",
       noInput: faultNoInput,
       numeric: Isc, limit: null });
@@ -11008,10 +11020,10 @@ function runElecComputations(electricalData, calcStates) {
     const derated = baseA * tf * ff;
     const loadA   = +(amp.loadCurrent) || 0;
     const ampNoInput = derated === 0 || baseA === 0;
-    items.push({ tool:"ampacity", id:"Ampacity Derating", value: ampNoInput ? "—" : `${derated.toFixed(1)} A`,
+    items.push({ tool:"ampacity", id:"Ampacity Derating", value:`${derated.toFixed(1)} A`,
       detail: ampNoInput
-        ? `Conductor count and ambient temp not extracted — open Ampacity Derating calculator and enter wire size, number of conductors, and ambient temperature to verify`
-        : `#${amp.wireSize} AWG ${ins} · derated = ${derated.toFixed(1)} A · load = ${loadA} A · ${derated >= loadA && loadA > 0 ? "✓ adequate" : loadA === 0 ? "load not set" : "✗ undersized"}`,
+        ? `⚠ Derated ampacity is 0A because wire size or conductor count is missing. Open the Ampacity Derating calculator and enter: Wire Size (from your plan's schedule), Number of conductors sharing the conduit, and Ambient Temperature (35°C is standard for Philippine locations).`
+        : `#${amp.wireSize} AWG ${ins}, derated=${derated.toFixed(1)}A, load=${loadA}A`,
       status: ampNoInput ? "NO INPUT" : derated >= loadA && loadA > 0 ? "PASS" : derated >= loadA ? "COMPUTED" : "FAIL",
       noInput: ampNoInput,
       numeric: derated });
@@ -11128,13 +11140,10 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
 
   const getResult = (key) => elecResults?.items.find(i => i.tool === key);
   const statusCfg = {
-    PASS:       { bg:"rgba(34,197,94,0.12)",   color:"#22c55e", border:"rgba(34,197,94,0.3)",   label:"✓ PASS"      },
-    FAIL:       { bg:"rgba(239,68,68,0.12)",   color:"#ef4444", border:"rgba(239,68,68,0.3)",   label:"✗ FAIL"      },
-    WARNING:    { bg:"rgba(245,158,11,0.12)",  color:"#f59e0b", border:"rgba(245,158,11,0.3)",  label:"⚠ WARNING"   },
-    COMPUTED:   { bg:"rgba(6,150,215,0.12)",   color:"#0696d7", border:"rgba(6,150,215,0.3)",   label:"✓ COMPUTED"  },
-    "NO INPUT": { bg:"rgba(100,116,139,0.1)",  color:"#94a3b8", border:"rgba(100,116,139,0.2)", label:"⊘ NO INPUT"  },
-    "NO DATA":  { bg:"rgba(100,116,139,0.1)",  color:"#94a3b8", border:"rgba(100,116,139,0.2)", label:"⊘ NO DATA"   },
-    ERROR:      { bg:"rgba(245,158,11,0.08)",  color:"#f59e0b", border:"rgba(245,158,11,0.25)", label:"⚠ ERROR"     },
+    PASS:     { bg:"rgba(34,197,94,0.12)",  color:"#22c55e", border:"rgba(34,197,94,0.3)",  label:"✓ PASS"     },
+    FAIL:     { bg:"rgba(239,68,68,0.12)",  color:"#ef4444", border:"rgba(239,68,68,0.3)",  label:"✗ FAIL"     },
+    WARNING:  { bg:"rgba(245,158,11,0.12)", color:"#f59e0b", border:"rgba(245,158,11,0.3)", label:"⚠ WARNING"  },
+    COMPUTED: { bg:"rgba(6,150,215,0.12)",  color:"#0696d7", border:"rgba(6,150,215,0.3)",  label:"✓ COMPUTED" },
   };
 
   return (
@@ -11185,7 +11194,7 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
           {READINESS.map(r => {
             const result = getResult(r.key);
             const hasSt  = !!result;
-            const stCfg  = hasSt ? (statusCfg[result.status] ?? statusCfg.WARNING) : null;
+            const stCfg  = hasSt ? statusCfg[result.status] : null;
             const cardBorder = hasSt ? stCfg.border : r.ok ? "rgba(34,197,94,0.3)" : T.border;
             const cardBg     = hasSt ? stCfg.bg     : r.ok ? "rgba(34,197,94,0.04)" : "transparent";
             return (
