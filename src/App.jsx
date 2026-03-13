@@ -1613,8 +1613,7 @@ Return only valid JSON — no markdown, no preamble.`});
       const parsed = repairJSON(raw.replace(/```json|```/g,"").trim());
       if(!parsed) throw new Error("Could not parse AI response. Try uploading fewer pages or a smaller file.");
       setResult(parsed);
-      if(onResultChange) onResultChange(parsed);
-        if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
+              if(onDataExtracted && parsed.extracted) onDataExtracted(parsed.extracted);
         setOpen({}); setTab("all"); setChecked({}); setCorrections(null);
       addHistoryEntry({ tool:"electrical", module:"electrical", projectName:parsed?.summary?.projectName||"Electrical Check", meta:{ status:parsed?.summary?.overallStatus, findings:(parsed?.findings?.length||0), summary:parsed?.summary?.analysisNotes||"" } });
       // Direct save — no React state, no callbacks, always works
@@ -5252,7 +5251,7 @@ CRITICAL OUTPUT RULES:
 // COST ESTIMATOR MODULE
 // Components: CostEstimator
 // Prompts:    COST_ESTIMATOR_PROMPT
-// Session:    buildify_session_structural (to be migrated to engtools in Phase D)
+// Session:    buildify_session_engtools
 // Standalone: No plan extraction dependency — all inputs are manual
 // ═══════════════════════════════════════════════════════════════════════════════
 const COST_ESTIMATOR_PROMPT = `You are a licensed Philippine Quantity Surveyor (PQS) and Cost Estimator with 20+ years of experience on Philippine government and private construction projects. You produce parametric cost estimates that practicing engineers and project owners trust for budget planning and bid preparation.
@@ -5627,10 +5626,10 @@ Return this exact JSON structure:
   ]
 }`;
 
-function CostEstimator({ apiKey, onResultChange=null }) {
+function CostEstimator({ apiKey }) {
   // ── Props ───────────────────────────────────────────────────────────────────
-  // apiKey         {string}    Anthropic API key
-  // onResultChange {function}  Optional callback when a result is produced (used by StrucCode — will be removed in Phase E)
+  // apiKey  {string}  Anthropic API key
+  // Standalone: no parent state dependencies — self-contained
 
   const [files,       setFiles]       = useState([]);
   const [drag,        setDrag]        = useState(false);
@@ -5675,7 +5674,7 @@ function CostEstimator({ apiKey, onResultChange=null }) {
   // ── Restore last estimate session on mount ──
   useEffect(() => {
     try {
-      const s = JSON.parse(localStorage.getItem("buildify_session_structural") || "null");
+      const s = JSON.parse(localStorage.getItem("buildify_session_engtools") || "null");
       if (!s?.estimateResult?.summary) return;
       setResult(s.estimateResult);
     } catch {}
@@ -5887,7 +5886,6 @@ CRITICAL INSTRUCTIONS:
       let parsed;
       try { parsed = JSON.parse(raw); } catch { throw new Error("Could not parse AI response. Please try again."); }
       setResult(parsed);
-      if(onResultChange) onResultChange(parsed);
       setActiveTab("summary");
       // ── Save to history ──
       addHistoryEntry({
@@ -5901,8 +5899,8 @@ CRITICAL INSTRUCTIONS:
       });
       // Direct save — merge with existing structural session
       try {
-        const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
-        localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, estimateResult: parsed, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
+        const _cur = JSON.parse(localStorage.getItem("buildify_session_engtools") || "{}");
+        localStorage.setItem("buildify_session_engtools", JSON.stringify({ ..._cur, estimateResult: parsed, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
       } catch(e) { console.warn("Session save failed", e); }
     } catch(e) {
       setError(e.message || "Estimation failed. Please try again.");
