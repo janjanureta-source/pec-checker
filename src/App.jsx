@@ -10924,10 +10924,10 @@ function runElecComputations(electricalData, calcStates) {
     const fla    = sc.existingFLA || 20;
     const ratio  = Isc / fla;
     const faultNoInput = Isc < 1;
-    items.push({ tool:"fault", id:"Short Circuit", value:`${(Isc/1000).toFixed(2)} kA`,
+    items.push({ tool:"fault", id:"Short Circuit", value: faultNoInput ? "—" : `${(Isc/1000).toFixed(2)} kA`,
       detail: faultNoInput
-        ? `⚠ Isc result is near zero. Likely cause: Cable Length default (${sc.cableLen||15}m) is too long. Open the Short Circuit calculator and set Cable Length to the actual service drop distance (typically 3–10m for MERALCO connections). Also confirm transformer kVA and %Z match your MERALCO service data.`
-        : `Isc=${(Isc/1000).toFixed(2)}kA, ratio=${ratio.toFixed(1)}× FLA`,
+        ? `Isc is near zero — most likely the default 15m cable run is too long, overwhelming the transformer impedance. Open Short Circuit calculator: (1) set Cable Length to actual service drop (typically 3–10m for MERALCO), (2) confirm transformer kVA and %Z from your MERALCO service data`
+        : `Isc = ${(Isc/1000).toFixed(2)} kA · Min AIC = ${(STD_AIC.find(r=>r>=Isc)||200000).toLocaleString()} A · ratio = ${ratio.toFixed(1)}× FLA`,
       status: faultNoInput ? "NO INPUT" : ratio > 1 ? "PASS" : "FAIL",
       noInput: faultNoInput,
       numeric: Isc, limit: null });
@@ -11008,10 +11008,10 @@ function runElecComputations(electricalData, calcStates) {
     const derated = baseA * tf * ff;
     const loadA   = +(amp.loadCurrent) || 0;
     const ampNoInput = derated === 0 || baseA === 0;
-    items.push({ tool:"ampacity", id:"Ampacity Derating", value:`${derated.toFixed(1)} A`,
+    items.push({ tool:"ampacity", id:"Ampacity Derating", value: ampNoInput ? "—" : `${derated.toFixed(1)} A`,
       detail: ampNoInput
-        ? `⚠ Derated ampacity is 0A because wire size or conductor count is missing. Open the Ampacity Derating calculator and enter: Wire Size (from your plan's schedule), Number of conductors sharing the conduit, and Ambient Temperature (35°C is standard for Philippine locations).`
-        : `#${amp.wireSize} AWG ${ins}, derated=${derated.toFixed(1)}A, load=${loadA}A`,
+        ? `Conductor count and ambient temp not extracted — open Ampacity Derating calculator and enter wire size, number of conductors, and ambient temperature to verify`
+        : `#${amp.wireSize} AWG ${ins} · derated = ${derated.toFixed(1)} A · load = ${loadA} A · ${derated >= loadA && loadA > 0 ? "✓ adequate" : loadA === 0 ? "load not set" : "✗ undersized"}`,
       status: ampNoInput ? "NO INPUT" : derated >= loadA && loadA > 0 ? "PASS" : derated >= loadA ? "COMPUTED" : "FAIL",
       noInput: ampNoInput,
       numeric: derated });
