@@ -12261,7 +12261,7 @@ function LandingPage({ onLogin }) {
   const PRICING = [
     { name:"Solo Contractor",   price:"₱499",    period:"/month", color:"#64748b",
       desc:"For freelance estimators and sole contractors",
-      features:["Full suite — all 3 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
+      features:["Full suite — all 4 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
     { name:"Small Firm",        price:"₱3,500",  period:"/month", color:BLUE, best:true,
       desc:"For contracting firms and design-build teams",
       features:["Everything in Solo","Up to 10 users","Dashboard + project history","Priority support","Unlimited runs"] },
@@ -12442,7 +12442,7 @@ function LandingPage({ onLogin }) {
             <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
               Every Engineering Discipline.<br/><span style={{color:CYAN}}>One Platform.</span>
             </h2>
-            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>3 modules live now · 2 coming soon · All built for Philippine codes</p>
+            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>4 modules live now · 2 coming soon · All built for Philippine codes</p>
           </div>
           <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20 }}>
             {MODULES.map((m,i) => (
