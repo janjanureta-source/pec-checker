@@ -371,17 +371,17 @@ Respond ONLY as valid JSON (no markdown, no preamble):
 
 EXTRACTION RULES — read every table in the plans carefully:
 
-voltageDrop: wireSize = AWG integer (e.g. 12 for #12 AWG or 3.5mm²). current = largest branch circuit breaker AT rating. length = longest run estimate in meters (use 30m if not shown). voltage = service voltage.
+voltageDrop: wireSize = AWG integer (e.g. 12 for #12 AWG). current = largest branch breaker AT. length = longest run estimate in meters (use 30m if not shown). voltage = service voltage.
 
 shortCircuit: xfmrKVA and xfmrZ from transformer schedule ONLY — leave null if transformer specs are not explicitly in the plans (very common for residential). voltage = service voltage. phases = integer.
 
-loadCalc.loads: Extract EVERY row from ALL load schedule tables across all panels (PP, LP, etc.). For each circuit: { "name": "circuit description", "watts": total_VA_for_circuit, "pct": 100 }. Do not skip any circuits.
+loadCalc.loads: Extract EVERY row from ALL load schedule tables across all panels (PP, LP, etc.). For each circuit: { "name": "circuit description", "watts": total_VA, "pct": 100 }. Do not skip any circuits.
 
-panel: Use the main/largest panel. mainBreaker = AT rating as integer. circuits = array of { "desc": circuit description, "va": total watts, "breaker": AT rating, "poles": integer, "type": one of Lighting/Receptacle/HVAC/AC/Appliance/Motor }.
+panel: Use the main/largest panel. mainBreaker = AT rating as integer. circuits = array of { "desc": description, "va": total VA, "breaker": AT rating, "poles": integer, "type": one of Lighting/Receptacle/HVAC/AC/Appliance/Motor }.
 
 conduit: Most common conduit run shown. conduitType = "PVC (Schedule 40)" for PVC, "RSC/IMC" for rigid. conduitSize = metric string exactly as shown e.g. "20mm" or "25mm". conductors = [{ "size": "12", "qty": 3, "type": "THWN" }].
 
-ampacity: wireSize = AWG integer of most loaded conductor. insulation = "THWN_75" for THWN/THHN. ambient = 38 for Philippine climate. numWires = conductors bundled in conduit. loadCurrent = circuit amperes.`;
+ampacity: wireSize = AWG integer of most loaded conductor. insulation = "THWN_75" for THWN/THHN. ambient = 38 for Philippine climate. numWires = conductors in conduit. loadCurrent = circuit amperes.`;
 
 // ─── DATA TABLES ─────────────────────────────────────────────────────────────
 const WIRE_DATA = {
@@ -1130,13 +1130,13 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
   useEffect(() => {
     if (!ed || Object.keys(ed).length === 0) return;
     const sN = (v,fb) => { const n=+v; return isFinite(n)&&n>0?n:fb; };
-    if (ed.voltage  !=null && +ed.voltage >0) { setVoltage(sN(ed.voltage,230));  setFp(p=>({...p,voltage:true})); }
-    if (ed.phases   !=null && +ed.phases  >0) { setPhases(sN(ed.phases,1));      setFp(p=>({...p,phases:true})); }
-    if (ed.xfmrKVA  !=null && +ed.xfmrKVA>0) { setXfmrKVA(sN(ed.xfmrKVA,25)); setFp(p=>({...p,xfmrKVA:true})); setXfmrFromPlans(true); }
-    if (ed.xfmrZ    !=null && +ed.xfmrZ  >0) { setXfmrZ(sN(ed.xfmrZ,4));       setFp(p=>({...p,xfmrZ:true})); }
-    if (ed.cableLen !=null && +ed.cableLen>0) { setCableLen(sN(ed.cableLen,15)); setFp(p=>({...p,cableLen:true})); }
-    if (ed.cableSize!=null)                   { setCableSize(ed.cableSize);      setFp(p=>({...p,cableSize:true})); }
-    if (ed.material !=null)                   { setMaterial(ed.material); }
+    if (sN(ed.voltage,0)>0)  { setVoltage(sN(ed.voltage,230));  setFp(p=>({...p,voltage:true})); }
+    if (sN(ed.phases,0)>0)   { setPhases(sN(ed.phases,1));      setFp(p=>({...p,phases:true})); }
+    if (sN(ed.xfmrKVA,0)>0) { setXfmrKVA(sN(ed.xfmrKVA,25)); setFp(p=>({...p,xfmrKVA:true})); setXfmrFromPlans(true); }
+    if (sN(ed.xfmrZ,0)>0)   { setXfmrZ(sN(ed.xfmrZ,4));       setFp(p=>({...p,xfmrZ:true})); }
+    if (sN(ed.cableLen,0)>0) { setCableLen(sN(ed.cableLen,15)); setFp(p=>({...p,cableLen:true})); }
+    if (ed.cableSize!=null)  { setCableSize(ed.cableSize);      setFp(p=>({...p,cableSize:true})); }
+    if (ed.material!=null)   { setMaterial(ed.material); }
   }, [electricalData]);
   useEffect(() => {
     if (onStateChange) onStateChange({ voltage, phases, xfmrKVA, xfmrZ, cableLen, cableSize, material, existingFLA });
@@ -1148,7 +1148,7 @@ function ShortCircuitCalc({ electricalData, calcState, onStateChange }) {
 
   const safeKVA = xfmrKVA>0 ? xfmrKVA : 25;
   const safeZ   = xfmrZ>0   ? xfmrZ   : 4;
-  const Zxfmr   = (safeZ/100) * ((voltage*voltage)/(safeKVA*1000));
+  const Zxfmr   = (safeZ/100)*((voltage*voltage)/(safeKVA*1000));
   const Rcable  = R_cable * cableLen * 2;
   const Xcable  = 0.0492e-3 * cableLen * 2;
   const Xtxfmr  = Zxfmr * 0.95;
@@ -9498,11 +9498,11 @@ function PanelScheduleBuilder({ electricalData, calcState, onStateChange }) {
     if (!ed || Object.keys(ed).length === 0) return;
     const sN = (v,fb) => { const n=+v; return isFinite(n)&&n>0?n:fb; };
     const TMAP = {Lighting:"Lighting",Receptacle:"Receptacle","HVAC/AC":"HVAC/AC",Appliance:"Appliance",Motor:"Motor"};
-    if (ed.panelName  !=null) { setPanelName(ed.panelName);               setFp(p=>({...p,panelName:true})); }
-    if (sN(ed.voltage,0)>0)   { setPanelVolt(sN(ed.voltage,230));         setFp(p=>({...p,voltage:true})); }
-    if (ed.phases     !=null) { setPanelPhase(+ed.phases===3?"3":"1");    setFp(p=>({...p,phases:true})); }
-    if (sN(ed.mainBreaker,0)>0){ setMainBreaker(sN(ed.mainBreaker,100));  setFp(p=>({...p,mainBreaker:true})); }
-    if (sN(ed.busRating,0)>0)  { setBusRating(sN(ed.busRating,100));      setFp(p=>({...p,busRating:true})); }
+    if (ed.panelName !=null) { setPanelName(ed.panelName);              setFp(p=>({...p,panelName:true})); }
+    if (sN(ed.voltage,0)>0)  { setPanelVolt(sN(ed.voltage,230));        setFp(p=>({...p,voltage:true})); }
+    if (ed.phases    !=null) { setPanelPhase(+ed.phases===3?"3":"1");   setFp(p=>({...p,phases:true})); }
+    if (sN(ed.mainBreaker,0)>0){ setMainBreaker(sN(ed.mainBreaker,100));setFp(p=>({...p,mainBreaker:true})); }
+    if (sN(ed.busRating,0)>0){ setBusRating(sN(ed.busRating,100));      setFp(p=>({...p,busRating:true})); }
     if (ed.circuits?.length) {
       const v = sN(ed.voltage,230);
       setCircuits(ed.circuits.filter(c=>c).map((c,i)=>{
@@ -9832,16 +9832,15 @@ function ConduitFillCalc({ electricalData, calcState, onStateChange }) {
   const normCSize = (s) => {
     if (!s) return "3/4\"";
     const k = String(s).trim().replace(/^0*(\d+)\s*mm$/i,"$1mm");
-    return METRIC_TO_TRADE[k] || METRIC_TO_TRADE[s] || s;
+    return METRIC_TO_TRADE[k] || METRIC_TO_TRADE[String(s).toLowerCase().replace(/[^0-9]/g,"")+"mm"] || s;
   };
   const normCType = (t) => {
     if (!t) return "PVC (Schedule 40)";
-    if (t==="PVC"||t==="PVC40"||t==="pvc") return "PVC (Schedule 40)";
-    if (t==="RSC"||t==="IMC")              return "RSC/IMC";
+    if (/^pvc/i.test(t)) return "PVC (Schedule 40)";
+    if (/^(rsc|imc)/i.test(t)) return "RSC/IMC";
     if (["RSC/IMC","EMT","PVC (Schedule 40)"].includes(t)) return t;
     return "PVC (Schedule 40)";
   };
-
   const [conduitType, setConduitType] = useState(normCType(init.conduitType ?? ed.conduitType));
   const [conduitSize, setConduitSize] = useState(normCSize(init.conduitSize ?? ed.conduitSize) || "3/4\"");
   const [conductors,  setConductors]  = useState(() => {
@@ -10422,48 +10421,115 @@ function runElecComputations(electricalData, calcStates) {
       numeric: derated });
   }
 
-  // ── Phase 2: Chain — Load ➜ Panel ➜ Service Entrance ➜ AIC check ──
+  // ── Phase 2: Chain — Load ➜ Panel ➜ Service Entrance ➜ AIC ──────────────────
   const loadItem  = items.find(i=>i.tool==="load");
   const panelItem = items.find(i=>i.tool==="panel");
   const faultItem = items.find(i=>i.tool==="fault");
-
-  // Pick best demand source: panel VA > load calc VA
   const rawDemandVA = panelItem?.numeric ?? loadItem?.numeric ?? null;
-  const sysVolt     = +(cs.panel?.panelVolt || cs.load?.voltage || ed?.system?.voltage || 230);
+  const sysVolt = +(cs.panel?.panelVolt || cs.load?.voltage || ed?.system?.voltage || 230);
 
   if (rawDemandVA != null && rawDemandVA > 0) {
-    const demandA   = rawDemandVA / sysVolt;
-    const reqMainA  = Math.ceil(demandA * 1.25 / 5) * 5;
-    const AWG_LIST  = [14,12,10,8,6,4,3,2,1,"1/0","2/0","3/0","4/0",250,300,350,400,500];
-    const reqWire   = AWG_LIST.find(s=>(WIRE_DATA[s]?.ampacity||0) >= reqMainA) || "500+";
-    const Isc_kA    = faultItem ? faultItem.numeric/1000 : null;
-    const STD_AIC   = [5,10,14,18,22,25,35,42,65,100,200];
-    const reqAIC    = Isc_kA ? (STD_AIC.find(r=>r>=Isc_kA)||200) : null;
-
-    items.push({
-      tool:"service", id:"Service Entrance Summary",
+    const demandA  = rawDemandVA / sysVolt;
+    const reqMainA = Math.ceil(demandA * 1.25 / 5) * 5;
+    const AWG_LIST = [14,12,10,8,6,4,3,2,1,"1/0","2/0","3/0","4/0",250,300,350,400,500];
+    const reqWire  = AWG_LIST.find(s=>(WIRE_DATA[s]?.ampacity||0) >= reqMainA) || "500+";
+    const Isc_kA   = faultItem ? faultItem.numeric/1000 : null;
+    const STD_AIC  = [5,10,14,18,22,25,35,42,65,100,200];
+    const reqAIC   = Isc_kA ? (STD_AIC.find(r=>r>=Isc_kA)||200) : null;
+    items.push({ tool:"service", id:"Service Entrance Summary",
       value:`${(rawDemandVA/1000).toFixed(2)} kVA`,
       detail:`${demandA.toFixed(1)}A demand → Main ≥${reqMainA}A · Wire ≥#${reqWire} AWG${reqAIC?` · AIC ≥${reqAIC}kA`:""}`,
       status:"COMPUTED", numeric: rawDemandVA,
       chain:{ demandA, reqMainA, reqWire, reqAIC_kA: reqAIC, voltage: sysVolt }
     });
-
-    // Flag undersized main breaker
-    const mb = +(cs.panel?.mainBreaker || 0);
-    if (mb > 0 && mb < reqMainA) {
+    const mb = +(cs.panel?.mainBreaker||0);
+    if (mb>0 && mb<reqMainA) {
       items.push({ tool:"panel_warn", id:"Main Breaker Undersized",
         value:`${mb}A < ${reqMainA}A`, numeric: mb,
-        detail:`Plans show ${mb}AT main. Demand requires ≥${reqMainA}A (125% of ${demandA.toFixed(1)}A). PEC Art. 2.20`,
+        detail:`Plans show ${mb}AT main. Demand requires ≥${reqMainA}A (125% × ${demandA.toFixed(1)}A). PEC Art. 2.20`,
         status:"FAIL" });
     }
-
-    // Flag AIC if fault current exceeds typical 10kAIC branch breakers
-    if (Isc_kA && Isc_kA > 10) {
+    if (Isc_kA && Isc_kA>10) {
       items.push({ tool:"aic_warn", id:"Branch Breaker AIC Insufficient",
         value:`${Isc_kA.toFixed(1)} kA > 10 kAIC`, numeric: Isc_kA,
-        detail:`Available fault ${Isc_kA.toFixed(1)}kA exceeds standard 10kAIC branch breakers. Upgrade to ≥${reqAIC}kAIC. PEC Art. 2.40`,
+        detail:`Fault current ${Isc_kA.toFixed(1)}kA exceeds standard 10kAIC branch breakers. Upgrade to ≥${reqAIC}kAIC. PEC Art. 2.40`,
         status:"FAIL" });
     }
+  }
+
+  // ── Phase 3: Branch circuit 80% rule ─────────────────────────────────────────
+  // Check every circuit in panel: breaker must not be loaded above 80% continuously
+  const panCircuits = cs.panel?.circuits || [];
+  const panVolt = sysVolt;
+  let branch80Fails = 0;
+  const branch80Details = [];
+  panCircuits.forEach(circ => {
+    const va = +(circ.va||0);
+    const bkr = +(circ.breaker||20);
+    if (va<=0 || bkr<=0) return;
+    const loadA = va / panVolt;
+    const limitA = bkr * 0.8; // 80% rule for continuous loads
+    if (loadA > limitA) {
+      branch80Fails++;
+      branch80Details.push(`Ckt "${circ.desc||circ.num||"?"}" — ${loadA.toFixed(1)}A on ${bkr}A breaker (limit ${limitA.toFixed(1)}A)`);
+    }
+  });
+  if (panCircuits.length > 0) {
+    items.push({ tool:"branch80", id:"Branch Circuit 80% Rule",
+      value: branch80Fails===0 ? "All PASS" : `${branch80Fails} violation${branch80Fails>1?"s":""}`,
+      detail: branch80Fails===0
+        ? `All ${panCircuits.length} circuits within 80% continuous load limit (PEC Art. 2.20.3.2)`
+        : branch80Details.slice(0,3).join(" | ")+(branch80Details.length>3?` +${branch80Details.length-3} more`:""),
+      status: branch80Fails===0 ? "PASS" : "FAIL",
+      numeric: branch80Fails,
+      violations: branch80Details
+    });
+  }
+
+  // ── Phase 3: Motor circuit rules (125% FLA, 250% breaker) ────────────────────
+  const motorCircuits = panCircuits.filter(circ => circ.type==="Motor" || /motor|pump|acpu|aircon|ac\s/i.test(circ.desc||""));
+  let motorFails = 0;
+  const motorDetails = [];
+  motorCircuits.forEach(circ => {
+    const va = +(circ.va||0);
+    const bkr = +(circ.breaker||20);
+    if (va<=0) return;
+    const fla = va / panVolt;
+    const reqBkr = Math.ceil(fla * 2.5 / 5) * 5; // 250% of FLA per PEC Art. 4.30
+    if (bkr < reqBkr) {
+      motorFails++;
+      motorDetails.push(`"${circ.desc||"Motor"}" — ${fla.toFixed(1)}A FLA, needs ${reqBkr}A breaker, has ${bkr}A`);
+    }
+  });
+  if (motorCircuits.length > 0) {
+    items.push({ tool:"motor", id:"Motor Circuit Rules",
+      value: motorFails===0 ? `${motorCircuits.length} motors OK` : `${motorFails} violation${motorFails>1?"s":""}`,
+      detail: motorFails===0
+        ? `${motorCircuits.length} motor circuits comply with 250% breaker rule (PEC Art. 4.30)`
+        : motorDetails.slice(0,3).join(" | ")+(motorDetails.length>3?` +${motorDetails.length-3} more`:""),
+      status: motorFails===0 ? "PASS" : motorCircuits.length>0 ? "FAIL" : "COMPUTED",
+      numeric: motorFails
+    });
+  }
+
+  // ── Phase 3: Grounding conductor sizing ──────────────────────────────────────
+  // PEC Table 2.50.12 — grounding conductor based on service conductor size
+  const GEC_TABLE = {
+    14:14, 12:12, 10:10, 8:10, 6:10, 4:8, 3:8, 2:8, 1:6,
+    "1/0":6, "2/0":4, "3/0":4, "4/0":2, 250:2, 300:2, 350:2, 400:2, 500:2
+  };
+  const serviceWire = (rawDemandVA != null)
+    ? (AWG_LIST.find(s=>(WIRE_DATA[s]?.ampacity||0) >= Math.ceil((rawDemandVA/sysVolt)*1.25/5)*5) || null)
+    : null;
+  if (serviceWire != null) {
+    const reqGEC = GEC_TABLE[serviceWire];
+    items.push({ tool:"grounding", id:"Grounding Conductor (GEC)",
+      value: reqGEC ? `#${reqGEC} AWG min.` : "—",
+      detail: reqGEC
+        ? `Service conductor #${serviceWire} AWG → min. GEC = #${reqGEC} AWG Cu per PEC Table 2.50.12`
+        : `Cannot determine without service conductor size`,
+      status:"COMPUTED", numeric: reqGEC||0
+    });
   }
 
   const passCount = items.filter(i=>i.status==="PASS").length;
@@ -10630,6 +10696,319 @@ function ElecIntelligencePanel({ data, onClear, runState, elecResults, onRunAll,
 }
 
 // ─── ELEC COMPUTATION SUMMARY ─────────────────────────────────────────────────
+// ─── BRANCH 80% CHECKER ──────────────────────────────────────────────────────
+function Branch80Checker({ electricalData, calcState, onStateChange }) {
+  const ACCENT = "#ff6b2b";
+  const ed = electricalData?.panel || {};
+  const init = calcState || {};
+  const sN = (v,fb) => { const n=+v; return isFinite(n)&&n>0?n:fb; };
+  const TMAP = {Lighting:"Lighting",Receptacle:"Receptacle","HVAC/AC":"HVAC/AC",Appliance:"Appliance",Motor:"Motor"};
+
+  const [voltage,  setVoltage]  = useState(init.voltage  ?? sN(ed.voltage,230));
+  const [circuits, setCircuits] = useState(() => {
+    if (init.circuits?.length) return init.circuits;
+    if (ed.circuits?.length) return ed.circuits.filter(c=>c).map((c,i) => ({
+      id:i+1, desc:c.desc||c.name||`Circuit ${i+1}`,
+      va:sN(c.va||c.watts,0), breaker:sN(c.breaker,20),
+      type:TMAP[c.type]||"Lighting", continuous: true
+    }));
+    return [
+      { id:1, desc:"Lighting Panel",      va:1380, breaker:20, type:"Lighting",    continuous:true  },
+      { id:2, desc:"General Receptacle",  va:1800, breaker:20, type:"Receptacle",  continuous:true  },
+      { id:3, desc:"Split-Type AC 1HP",   va:900,  breaker:20, type:"HVAC/AC",     continuous:true  },
+      { id:4, desc:"Water Heater",        va:2000, breaker:20, type:"Appliance",   continuous:false },
+    ];
+  });
+
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (sN(ed.voltage,0)>0) setVoltage(sN(ed.voltage,230));
+    if (ed.circuits?.length) {
+      setCircuits(ed.circuits.filter(c=>c).map((c,i)=>({
+        id:i+1, desc:c.desc||c.name||`Circuit ${i+1}`,
+        va:sN(c.va||c.watts,0), breaker:sN(c.breaker,20),
+        type:TMAP[c.type]||"Lighting", continuous:true
+      })));
+    }
+  }, [electricalData]);
+  useEffect(() => { if (onStateChange) onStateChange({ voltage, circuits }); }, [voltage, circuits]);
+
+  const updC = (id,f,v) => setCircuits(p=>p.map(c=>c.id===id?{...c,[f]:v}:c));
+  const addC = () => setCircuits(p=>[...p,{id:Date.now(),desc:"New Circuit",va:0,breaker:20,type:"Lighting",continuous:true}]);
+  const remC = id => setCircuits(p=>p.filter(c=>c.id!==id));
+
+  // 80% rule: continuous loads must not exceed 80% of breaker rating
+  const results = circuits.map(circ => {
+    const loadA = circ.va > 0 ? circ.va / voltage : 0;
+    const limitA = circ.continuous ? circ.breaker * 0.8 : circ.breaker * 1.0;
+    const utilPct = circ.breaker > 0 ? (loadA / circ.breaker * 100) : 0;
+    const pass = loadA <= limitA;
+    return { ...circ, loadA, limitA, utilPct, pass };
+  });
+
+  const passCount = results.filter(r=>r.pass).length;
+  const failCount = results.filter(r=>!r.pass && r.va>0).length;
+  const overallOk = failCount === 0;
+
+  const thS = { padding:"8px 10px", color:T.muted, fontWeight:700, fontSize:10,
+    textTransform:"uppercase", textAlign:"left", borderBottom:`1px solid ${T.border}`,
+    whiteSpace:"nowrap", background:T.dim };
+  const tdS = { padding:"7px 8px", borderBottom:`1px solid ${T.border}`, verticalAlign:"middle", fontSize:12 };
+  const inS = { background:"#0a0f1a", border:`1px solid ${T.border}`, borderRadius:7,
+    padding:"5px 8px", color:T.text, fontSize:12, outline:"none", width:"100%" };
+
+  return (
+    <div>
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 6px"}}>
+        Continuous loads (3h+) must not exceed <strong style={{color:T.text}}>80% of breaker rating</strong> per <strong style={{color:T.text}}>PEC Art. 2.20.3.2</strong>. Non-continuous loads may use 100%.
+      </p>
+
+      <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:18,flexWrap:"wrap"}}>
+        <div><Label>Panel Voltage</Label>
+          <Select value={voltage} onChange={e=>setVoltage(+e.target.value)} style={{width:120}}>
+            <option value={230}>230 V</option>
+            <option value={400}>400 V</option>
+            <option value={120}>120 V</option>
+          </Select>
+        </div>
+        <div style={{marginTop:18,display:"flex",gap:8}}>
+          <span style={{fontSize:12,padding:"4px 12px",borderRadius:8,background:"rgba(34,197,94,0.1)",color:"#22c55e",fontWeight:700}}>✓ {passCount} Pass</span>
+          {failCount>0 && <span style={{fontSize:12,padding:"4px 12px",borderRadius:8,background:"rgba(239,68,68,0.1)",color:"#ef4444",fontWeight:700}}>✗ {failCount} Fail</span>}
+        </div>
+      </div>
+
+      <div style={{overflowX:"auto",borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:14}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr>
+              <th style={thS}>Circuit</th>
+              <th style={{...thS,textAlign:"center"}}>Type</th>
+              <th style={{...thS,textAlign:"right"}}>Load (VA)</th>
+              <th style={{...thS,textAlign:"right"}}>Load (A)</th>
+              <th style={{...thS,textAlign:"center"}}>Breaker (A)</th>
+              <th style={{...thS,textAlign:"center"}}>Continuous?</th>
+              <th style={{...thS,textAlign:"center"}}>Limit (A)</th>
+              <th style={{...thS,textAlign:"center"}}>Utilization</th>
+              <th style={{...thS,textAlign:"center"}}>Status</th>
+              <th style={thS}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map(r => {
+              const barColor = r.utilPct > 100 ? "#ef4444" : r.utilPct > 80 ? "#f59e0b" : "#22c55e";
+              return (
+                <tr key={r.id} style={{background:!r.pass&&r.va>0?"rgba(239,68,68,0.04)":"transparent"}}>
+                  <td style={tdS}>
+                    <input value={r.desc} onChange={e=>updC(r.id,"desc",e.target.value)}
+                      style={{...inS,width:160}} placeholder="Description"/>
+                  </td>
+                  <td style={{...tdS,textAlign:"center"}}>
+                    <select value={r.type} onChange={e=>updC(r.id,"type",e.target.value)} style={{...inS,width:100}}>
+                      {["Lighting","Receptacle","HVAC/AC","Appliance","Motor"].map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </td>
+                  <td style={{...tdS,textAlign:"right"}}>
+                    <input type="number" value={r.va||""} min={0} onChange={e=>updC(r.id,"va",+e.target.value)}
+                      style={{...inS,width:80,textAlign:"right"}} placeholder="VA"/>
+                  </td>
+                  <td style={{...tdS,textAlign:"right",fontFamily:"monospace",color:r.pass||r.va===0?T.muted:"#ef4444",fontWeight:700}}>
+                    {r.va>0 ? r.loadA.toFixed(2) : "—"}
+                  </td>
+                  <td style={{...tdS,textAlign:"center"}}>
+                    <input type="number" value={r.breaker} min={1} onChange={e=>updC(r.id,"breaker",+e.target.value)}
+                      style={{...inS,width:60,textAlign:"center"}}/>
+                  </td>
+                  <td style={{...tdS,textAlign:"center"}}>
+                    <input type="checkbox" checked={r.continuous} onChange={e=>updC(r.id,"continuous",e.target.checked)}
+                      style={{width:16,height:16,cursor:"pointer"}}/>
+                  </td>
+                  <td style={{...tdS,textAlign:"center",fontFamily:"monospace",color:T.muted}}>
+                    {r.limitA.toFixed(1)}
+                  </td>
+                  <td style={{...tdS,textAlign:"center",minWidth:90}}>
+                    {r.va>0 ? (
+                      <div>
+                        <div style={{fontSize:11,fontWeight:700,color:barColor,fontFamily:"monospace"}}>{r.utilPct.toFixed(0)}%</div>
+                        <div style={{height:4,borderRadius:2,background:"rgba(255,255,255,0.08)",marginTop:3,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${Math.min(r.utilPct,100)}%`,background:barColor,borderRadius:2,transition:"width 0.3s"}}/>
+                        </div>
+                      </div>
+                    ) : <span style={{color:T.muted}}>—</span>}
+                  </td>
+                  <td style={{...tdS,textAlign:"center"}}>
+                    {r.va>0 ? (
+                      <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:6,
+                        background:r.pass?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)",
+                        color:r.pass?"#22c55e":"#ef4444",
+                        border:`1px solid ${r.pass?"rgba(34,197,94,0.2)":"rgba(239,68,68,0.2)"}`}}>
+                        {r.pass?"✓ PASS":"✗ FAIL"}
+                      </span>
+                    ) : <span style={{color:T.muted,fontSize:11}}>—</span>}
+                  </td>
+                  <td style={{...tdS,textAlign:"center"}}>
+                    <button onClick={()=>remC(r.id)} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,padding:"2px 6px"}}
+                      onMouseEnter={e=>e.currentTarget.style.color="#ef4444"}
+                      onMouseLeave={e=>e.currentTarget.style.color=T.muted}>✕</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <button onClick={addC} style={{background:"transparent",border:`1.5px dashed ${T.border}`,color:T.muted,
+        padding:"8px 18px",borderRadius:10,cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:20}}>
+        + Add Circuit
+      </button>
+
+      {failCount>0 && (
+        <div style={{background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#fca5a5",lineHeight:1.7}}>
+          <strong style={{color:"#ef4444"}}>✗ {failCount} circuit{failCount>1?"s":""} exceeding 80% rule:</strong>
+          {results.filter(r=>!r.pass&&r.va>0).map(r=>(
+            <div key={r.id} style={{marginTop:4}}>
+              • <strong>{r.desc}</strong>: {r.loadA.toFixed(2)}A on {r.breaker}A breaker
+              — needs {Math.ceil(r.loadA/0.8/5)*5}A breaker minimum, or reduce load to ≤{(r.breaker*0.8).toFixed(1)}A
+            </div>
+          ))}
+        </div>
+      )}
+
+      {overallOk && results.filter(r=>r.va>0).length>0 && (
+        <div style={{background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:10,padding:"12px 16px",fontSize:12,color:"#86efac"}}>
+          ✓ All {passCount} loaded circuits comply with PEC Art. 2.20.3.2 continuous load limit (80% of breaker rating).
+        </div>
+      )}
+
+      <div style={{marginTop:14,padding:"10px 14px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:10,fontSize:11,color:T.muted,lineHeight:1.7}}>
+        <strong style={{color:"#93c5fd"}}>ℹ️ PEC Art. 2.20.3.2 Rule:</strong> A continuous load (expected to operate 3 hours or more) must not exceed 80% of the breaker's ampere rating. Air-conditioning, lighting circuits, and most branch circuits are considered continuous. Non-continuous loads (motor starting, intermittent appliances) may use 100%.
+      </div>
+    </div>
+  );
+}
+
+// ─── GEC CALCULATOR ───────────────────────────────────────────────────────────
+function GECCalculator({ electricalData, calcState, onStateChange }) {
+  const ACCENT = "#ff6b2b";
+  const ed = electricalData?.panel || {};
+  const init = calcState || {};
+  const sN = (v,fb) => { const n=+v; return isFinite(n)&&n>0?n:fb; };
+
+  const AWG_LIST = [14,12,10,8,6,4,3,2,1,"1/0","2/0","3/0","4/0",250,300,350,400,500];
+
+  // PEC Table 2.50.12 — Equipment Grounding Conductor sizes
+  const GEC_TABLE = {
+    14:14, 12:12, 10:10, 8:10, 6:10, 4:8, 3:8, 2:8, 1:6,
+    "1/0":6, "2/0":4, "3/0":4, "4/0":2,
+    250:2, 300:2, 350:2, 400:2, 500:1
+  };
+  // PEC Table 2.50.6 — Grounding Electrode Conductor (from service entrance to ground rod)
+  const GROUNDING_ELECTRODE_TABLE = {
+    2:8, 1:8, "1/0":8, "2/0":6, "3/0":4, "4/0":4, 250:4, 300:2, 350:2, 400:2, 500:2
+  };
+
+  const [mainBreaker, setMainBreaker] = useState(init.mainBreaker ?? sN(ed.mainBreaker,100));
+  const [voltage,     setVoltage]     = useState(init.voltage     ?? sN(ed.voltage,230));
+  const [phases,      setPhases]      = useState(init.phases      ?? 1);
+  const [serviceSize, setServiceSize] = useState(init.serviceSize ?? "2");
+  const [material,    setMaterial]    = useState(init.material    ?? "copper");
+
+  useEffect(() => {
+    if (!ed || Object.keys(ed).length === 0) return;
+    if (sN(ed.mainBreaker,0)>0) setMainBreaker(sN(ed.mainBreaker,100));
+    if (sN(ed.voltage,0)>0)     setVoltage(sN(ed.voltage,230));
+    if (ed.phases!=null)        setPhases(+ed.phases===3?3:1);
+  }, [electricalData]);
+  useEffect(() => { if (onStateChange) onStateChange({ mainBreaker, voltage, phases, serviceSize, material }); },
+    [mainBreaker, voltage, phases, serviceSize, material]);
+
+  // Determine minimum service conductor from main breaker
+  const minServiceAWG = AWG_LIST.find(s=>(WIRE_DATA[s]?.ampacity||0)>=mainBreaker) || "4/0";
+  const alFactor = material==="aluminum" ? 0.84 : 1;
+
+  // Equipment Grounding Conductor (EGC) — from each circuit back to panel
+  const egcSize  = GEC_TABLE[serviceSize] || GEC_TABLE[minServiceAWG] || 6;
+
+  // Grounding Electrode Conductor (GEC) — from panel to ground rod
+  const gecSize  = GROUNDING_ELECTRODE_TABLE[serviceSize] || GROUNDING_ELECTRODE_TABLE[minServiceAWG] || 6;
+
+  // Neutral conductor sizing — same as service conductor for single phase
+  const neutralSize = serviceSize;
+
+  const rows = [
+    { label:"Service Entrance Conductor", wire:`#${serviceSize} AWG`, note:"Largest feeder to panel (set above)", color:T.accent },
+    { label:"Min. Service Conductor (from breaker)", wire:`#${minServiceAWG} AWG`, note:`Based on ${mainBreaker}A main breaker`, color:"#8b5cf6" },
+    { label:"Equipment Grounding Conductor (EGC)", wire:`#${egcSize} AWG Cu`, note:"PEC Table 2.50.12 — panel to equipment", color:"#22c55e" },
+    { label:"Grounding Electrode Conductor (GEC)", wire:`#${gecSize} AWG Cu`, note:"PEC Table 2.50.6 — panel to ground rod", color:"#0696d7" },
+    { label:"Neutral Conductor (1φ)", wire:`#${neutralSize} AWG`, note:"Same as phase conductor for 1φ systems", color:"#f59e0b" },
+  ];
+
+  return (
+    <div>
+      <p style={{color:T.muted,fontSize:13,margin:"0 0 16px"}}>
+        Grounding conductor sizing per <strong style={{color:T.text}}>PEC Table 2.50.12</strong> (EGC) and <strong style={{color:T.text}}>PEC Table 2.50.6</strong> (Grounding Electrode). Based on service entrance conductor size.
+      </p>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14,marginBottom:24}}>
+        <div><Label>Main Breaker (A)</Label>
+          <Input type="number" value={mainBreaker} min={1} onChange={e=>setMainBreaker(+e.target.value)} placeholder="AT"/>
+        </div>
+        <div><Label>System Voltage</Label>
+          <Select value={voltage} onChange={e=>setVoltage(+e.target.value)}>
+            <option value={230}>230 V (1φ)</option>
+            <option value={400}>400 V (3φ)</option>
+          </Select>
+        </div>
+        <div><Label>Service Conductor Size</Label>
+          <Select value={serviceSize} onChange={e=>setServiceSize(e.target.value)}>
+            {AWG_LIST.map(s=><option key={s} value={s}>#{s} AWG{+s>=250?" kcmil":""}</option>)}
+          </Select>
+        </div>
+        <div><Label>Conductor Material</Label>
+          <Select value={material} onChange={e=>setMaterial(e.target.value)}>
+            <option value="copper">Copper (Cu)</option>
+            <option value="aluminum">Aluminum (Al)</option>
+          </Select>
+        </div>
+      </div>
+
+      {/* Results table */}
+      <div style={{borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:20}}>
+        {rows.map((row,i) => (
+          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"12px 16px",borderBottom:i<rows.length-1?`1px solid ${T.border}`:"none",
+            background:i%2===0?"transparent":"rgba(255,255,255,0.01)"}}>
+            <div>
+              <div style={{fontSize:12,fontWeight:700,color:T.text}}>{row.label}</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>{row.note}</div>
+            </div>
+            <div style={{fontSize:22,fontWeight:900,color:row.color,fontFamily:"monospace",textAlign:"right",flexShrink:0,marginLeft:16}}>
+              {row.wire}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Ground rod note */}
+      <div style={{padding:"12px 16px",background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.18)",borderRadius:10,fontSize:12,color:T.muted,lineHeight:1.7}}>
+        <strong style={{color:"#93c5fd"}}>ℹ️ PEC Grounding Requirements:</strong>
+        <div style={{marginTop:6}}>
+          • <strong style={{color:T.text}}>Ground Rod:</strong> Min. 2.4m (8 ft) copper-clad steel rod, driven vertically. Resistance ≤25Ω (PEC Art. 2.50.5.1)
+        </div>
+        <div>
+          • <strong style={{color:T.text}}>EGC (Equipment Grounding):</strong> Connects equipment chassis/conduit back to panel neutral bus — protects against shock
+        </div>
+        <div>
+          • <strong style={{color:T.text}}>GEC (Grounding Electrode):</strong> Connects panel neutral/ground bus to the actual earth electrode (ground rod or water pipe)
+        </div>
+        <div>
+          • <strong style={{color:T.text}}>Philippine requirement:</strong> Green or bare copper for EGC. GEC must be continuous and unspliced (PEC Art. 2.50.6.1)
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ElecComputationSummary({ results, data, onNavigate }) {
   if (!results) return null;
   const ACCENT = "#ff6b2b";
@@ -10640,15 +11019,28 @@ function ElecComputationSummary({ results, data, onNavigate }) {
     WARNING:  { bg:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"rgba(245,158,11,0.25)", label:"⚠ WARNING"  },
     COMPUTED: { bg:"rgba(6,150,215,0.1)",  color:"#0696d7", border:"rgba(6,150,215,0.25)",  label:"✓ COMPUTED" },
   };
-  const toolLabel = { vdrop:"Voltage Drop", fault:"Short Circuit", load:"Load Calc", panel:"Panel Schedule", conduit:"Conduit Fill", ampacity:"Ampacity Derating", service:"Service Entrance", panel_warn:"Main Breaker", aic_warn:"Branch AIC" };
-  const toolCode  = { vdrop:"PEC Art. 2.30", fault:"PEC Art. 2.40", load:"PEC Art. 2.20", panel:"PEC Art. 2.20", conduit:"PEC Art. 3.50", ampacity:"PEC Table 3.10", service:"PEC Art. 2.20", panel_warn:"PEC Art. 2.20", aic_warn:"PEC Art. 2.40" };
-  const toolIcon  = { vdrop:"vdrop", fault:"fault", load:"load", panel:"panel", conduit:"conduit", ampacity:"ampacity", service:"electrical", panel_warn:"panel", aic_warn:"fault" };
+  const toolLabel = {
+    vdrop:"Voltage Drop", fault:"Short Circuit", load:"Load Calc", panel:"Panel Schedule",
+    conduit:"Conduit Fill", ampacity:"Ampacity Derating",
+    service:"Service Entrance", panel_warn:"Main Breaker", aic_warn:"Branch AIC",
+    branch80:"Branch 80% Rule", motor:"Motor Circuits", grounding:"Grounding (GEC)"
+  };
+  const toolCode  = {
+    vdrop:"PEC Art. 2.30", fault:"PEC Art. 2.40", load:"PEC Art. 2.20", panel:"PEC Art. 2.20",
+    conduit:"PEC Art. 3.50", ampacity:"PEC Table 3.10",
+    service:"PEC Art. 2.20", panel_warn:"PEC Art. 2.20", aic_warn:"PEC Art. 2.40",
+    branch80:"PEC Art. 2.20.3", motor:"PEC Art. 4.30", grounding:"PEC Table 2.50.12"
+  };
+  const toolIcon  = {
+    vdrop:"vdrop", fault:"fault", load:"load", panel:"panel",
+    conduit:"conduit", ampacity:"ampacity",
+    service:"electrical", panel_warn:"panel", aic_warn:"fault",
+    branch80:"load", motor:"electrical", grounding:"electrical"
+  };
 
-  // Phase 2: extract chain data for flow diagram
   const chainItem   = results.items.find(i=>i.tool==="service");
   const loadResult  = results.items.find(i=>i.tool==="load");
   const panelResult = results.items.find(i=>i.tool==="panel");
-  const faultResult = results.items.find(i=>i.tool==="fault");
   const chain       = chainItem?.chain;
 
   const { passCount, failCount, warnCount, totalRun } = results.summary;
@@ -10747,37 +11139,29 @@ function ElecComputationSummary({ results, data, onNavigate }) {
         <div style={{margin:"0 18px 14px",background:"rgba(255,107,43,0.04)",border:"1px solid rgba(255,107,43,0.18)",borderRadius:12,padding:"14px 18px"}}>
           <div style={{fontSize:11,fontWeight:700,color:ACCENT,textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:12}}>⛓ Calculation Chain — Load → Panel → Service Entrance</div>
           <div style={{display:"flex",alignItems:"center",gap:0,flexWrap:"wrap",rowGap:8}}>
-            {/* Load box */}
             <div style={{background:"rgba(6,150,215,0.08)",border:"1px solid rgba(6,150,215,0.25)",borderRadius:9,padding:"8px 14px",minWidth:110,textAlign:"center"}}>
               <div style={{fontSize:10,color:"#0696d7",fontWeight:700,marginBottom:3}}>LOAD CALC</div>
               <div style={{fontSize:16,fontWeight:900,color:"#0696d7",fontFamily:"monospace"}}>{loadResult?.value||panelResult?.value||"—"}</div>
-              <div style={{fontSize:10,color:T.muted,marginTop:2}}>{loadResult?`${loadResult.detail?.split(",")[0]}`:"from panel"}</div>
+              <div style={{fontSize:10,color:T.muted,marginTop:2}}>{loadResult ? loadResult.detail?.split(",")[0] : "from panel"}</div>
             </div>
-            {/* Arrow */}
             <div style={{fontSize:16,color:T.muted,padding:"0 6px",flexShrink:0}}>→</div>
-            {/* Demand box */}
             <div style={{background:"rgba(255,107,43,0.07)",border:"1px solid rgba(255,107,43,0.25)",borderRadius:9,padding:"8px 14px",minWidth:120,textAlign:"center"}}>
               <div style={{fontSize:10,color:ACCENT,fontWeight:700,marginBottom:3}}>DEMAND CURRENT</div>
               <div style={{fontSize:16,fontWeight:900,color:ACCENT,fontFamily:"monospace"}}>{chain.demandA.toFixed(1)} A</div>
               <div style={{fontSize:10,color:T.muted,marginTop:2}}>at {chain.voltage}V</div>
             </div>
-            {/* Arrow */}
             <div style={{fontSize:16,color:T.muted,padding:"0 6px",flexShrink:0}}>→</div>
-            {/* Main breaker box */}
-            <div style={{background:"rgba(34,197,94,0.07)",border:`1px solid ${chain.reqMainA>(+(results.items.find(i=>i.tool==="panel_warn")?.numeric||9999))?"rgba(239,68,68,0.35)":"rgba(34,197,94,0.25)"}`,borderRadius:9,padding:"8px 14px",minWidth:110,textAlign:"center"}}>
+            <div style={{background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:9,padding:"8px 14px",minWidth:110,textAlign:"center"}}>
               <div style={{fontSize:10,color:"#22c55e",fontWeight:700,marginBottom:3}}>MIN. MAIN BREAKER</div>
               <div style={{fontSize:16,fontWeight:900,color:"#22c55e",fontFamily:"monospace"}}>{chain.reqMainA} A</div>
               <div style={{fontSize:10,color:T.muted,marginTop:2}}>125% × demand</div>
             </div>
-            {/* Arrow */}
             <div style={{fontSize:16,color:T.muted,padding:"0 6px",flexShrink:0}}>→</div>
-            {/* Wire box */}
             <div style={{background:"rgba(139,92,246,0.07)",border:"1px solid rgba(139,92,246,0.25)",borderRadius:9,padding:"8px 14px",minWidth:110,textAlign:"center"}}>
               <div style={{fontSize:10,color:"#8b5cf6",fontWeight:700,marginBottom:3}}>SERVICE WIRE</div>
               <div style={{fontSize:16,fontWeight:900,color:"#8b5cf6",fontFamily:"monospace"}}>#{chain.reqWire} AWG</div>
               <div style={{fontSize:10,color:T.muted,marginTop:2}}>Cu, 75°C, conduit</div>
             </div>
-            {/* AIC box if fault data exists */}
             {chain.reqAIC_kA && (<>
               <div style={{fontSize:16,color:T.muted,padding:"0 6px",flexShrink:0}}>→</div>
               <div style={{background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:9,padding:"8px 14px",minWidth:110,textAlign:"center"}}>
@@ -10790,33 +11174,57 @@ function ElecComputationSummary({ results, data, onNavigate }) {
         </div>
       )}
 
-      {/* Result cards */}
-      <div style={{padding:"14px 18px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
-        {results.items.map(item => {
-          const cfg = statusCfg[item.status] || statusCfg.COMPUTED;
-          return (
-            <button key={item.tool} onClick={()=>onNavigate(item.tool)}
-              style={{background:cfg.bg,border:`1.5px solid ${cfg.border}`,borderRadius:10,padding:"14px 16px",
-                textAlign:"left",cursor:"pointer",transition:"all 0.15s",width:"100%"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=cfg.color;}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=cfg.border;}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div style={{display:"flex",alignItems:"center",gap:7}}>
-                  <Icon name={toolIcon[item.tool]||"loads"} size={14} color={cfg.color}/>
-                  <span style={{fontWeight:800,fontSize:12,color:T.text}}>{toolLabel[item.tool]||item.tool}</span>
-                </div>
-                <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:6,
-                  background:cfg.bg,color:cfg.color,border:`1px solid ${cfg.border}`}}>{cfg.label}</span>
-              </div>
-              <div style={{fontSize:26,fontWeight:900,color:cfg.color,fontFamily:"monospace",lineHeight:1,marginBottom:6}}>
-                {item.value||"—"}
-              </div>
-              <div style={{fontSize:11,color:T.muted,lineHeight:1.4}}>{item.detail}</div>
-              <div style={{fontSize:10,color:"rgba(255,107,43,0.5)",marginTop:6,fontWeight:600}}>{toolCode[item.tool]} · Open calculator →</div>
-            </button>
-          );
-        })}
-      </div>
+      {/* Result cards — grouped by phase */}
+      {/* Phase 1+2 core calc results */}
+      {(() => {
+        const P1_TOOLS = ["vdrop","fault","load","panel","conduit","ampacity"];
+        const P2_TOOLS = ["service","panel_warn","aic_warn"];
+        const P3_TOOLS = ["branch80","motor","grounding"];
+        const p1 = results.items.filter(i=>P1_TOOLS.includes(i.tool));
+        const p2 = results.items.filter(i=>P2_TOOLS.includes(i.tool));
+        const p3 = results.items.filter(i=>P3_TOOLS.includes(i.tool));
+        const CardGrid = ({items:its}) => (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+            {its.map(item => {
+              const cfg = statusCfg[item.status] || statusCfg.COMPUTED;
+              return (
+                <button key={item.id||item.tool} onClick={()=>onNavigate(item.tool)}
+                  style={{background:cfg.bg,border:`1.5px solid ${cfg.border}`,borderRadius:10,padding:"14px 16px",
+                    textAlign:"left",cursor:"pointer",transition:"all 0.15s",width:"100%"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=cfg.color;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=cfg.border;}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <Icon name={toolIcon[item.tool]||"electrical"} size={14} color={cfg.color}/>
+                      <span style={{fontWeight:800,fontSize:12,color:T.text}}>{toolLabel[item.tool]||item.tool}</span>
+                    </div>
+                    <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:6,
+                      background:cfg.bg,color:cfg.color,border:`1px solid ${cfg.border}`}}>{cfg.label}</span>
+                  </div>
+                  <div style={{fontSize:22,fontWeight:900,color:cfg.color,fontFamily:"monospace",lineHeight:1,marginBottom:6}}>
+                    {item.value||"—"}
+                  </div>
+                  <div style={{fontSize:11,color:T.muted,lineHeight:1.4}}>{item.detail}</div>
+                  <div style={{fontSize:10,color:"rgba(255,107,43,0.5)",marginTop:6,fontWeight:600}}>{toolCode[item.tool]} · Open calculator →</div>
+                </button>
+              );
+            })}
+          </div>
+        );
+        const SectionHead = ({label,count,failCnt}) => (
+          <div style={{padding:"10px 18px 6px",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.6px"}}>{label}</span>
+            {failCnt>0 && <span style={{fontSize:10,fontWeight:700,padding:"1px 8px",borderRadius:6,background:"rgba(239,68,68,0.1)",color:"#ef4444",border:"1px solid rgba(239,68,68,0.2)"}}>✗ {failCnt} fail</span>}
+          </div>
+        );
+        return (
+          <div>
+            {p1.length>0 && <><SectionHead label="Calculator Results" failCnt={p1.filter(i=>i.status==="FAIL").length}/><div style={{padding:"0 18px 14px"}}><CardGrid items={p1}/></div></>}
+            {p2.length>0 && <><SectionHead label="Service Entrance Analysis" failCnt={p2.filter(i=>i.status==="FAIL").length}/><div style={{padding:"0 18px 14px"}}><CardGrid items={p2}/></div></>}
+            {p3.length>0 && <><SectionHead label="Phase 3 — Code Compliance Checks" failCnt={p3.filter(i=>i.status==="FAIL").length}/><div style={{padding:"0 18px 14px"}}><CardGrid items={p3}/></div></>}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -10864,6 +11272,8 @@ function ElecCode({ apiKey, sessionTick=0 }) {
     { key:"panel",    icon:"panel",     label:"Panel Schedule",    code:"PEC Art. 2.20" },
     { key:"conduit",  icon:"conduit",   label:"Conduit Fill",      code:"PEC Art. 3.50" },
     { key:"ampacity", icon:"ampacity",  label:"Ampacity Derating", code:"PEC Table 3.10" },
+    { key:"branch80", icon:"load",      label:"Branch 80% Check",  code:"PEC Art. 2.20.3" },
+    { key:"gec",      icon:"electrical",label:"Grounding (GEC)",   code:"PEC Table 2.50.12" },
   ];
 
   const handleDataExtracted = (extracted) => {
@@ -11159,6 +11569,12 @@ function ElecCode({ apiKey, sessionTick=0 }) {
                 </div>
                 <div style={{display:calcTool==="ampacity"?"block":"none"}}>
                   <AmpacityDerating  electricalData={electricalData} calcState={calcStates.ampacity} onStateChange={s=>updateCalcState("ampacity",s)}/>
+                </div>
+                <div style={{display:calcTool==="branch80"?"block":"none"}}>
+                  <Branch80Checker   electricalData={electricalData} calcState={calcStates.branch80} onStateChange={s=>updateCalcState("branch80",s)}/>
+                </div>
+                <div style={{display:calcTool==="gec"?"block":"none"}}>
+                  <GECCalculator     electricalData={electricalData} calcState={calcStates.gec}      onStateChange={s=>updateCalcState("gec",s)}/>
                 </div>
               </Card>
             </div>
