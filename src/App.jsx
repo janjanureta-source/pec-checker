@@ -4111,15 +4111,12 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
 function BOMReview({ apiKey, sessionTick=0 }) {
   const [planFiles,     setPlanFiles]     = useState([]);
   const [bomFiles,      setBomFiles]      = useState([]);
-  const [bomFiles2,     setBomFiles2]     = useState([]);
   const [result,        setResult]        = useState(null);
-  const [compareResult, setCompareResult] = useState(null);
   const [generateResult,setGenerateResult]= useState(null);
   const [busy,          setBusy]          = useState(false);
   const [error,         setError]         = useState(null);
   const [dragPlan,      setDragPlan]      = useState(false);
   const [dragBom,       setDragBom]       = useState(false);
-  const [dragBom2,      setDragBom2]      = useState(false);
   const [activeTab,     setActiveTab]     = useState("summary");
   const [mode,          setMode]          = useState("single");
   const [projectType,   setProjectType]   = useState("private");
@@ -4138,7 +4135,6 @@ function BOMReview({ apiKey, sessionTick=0 }) {
 
   const planRef = useRef(null);
   const bomRef  = useRef(null);
-  const bom2Ref = useRef(null);
   const STR = "#0696d7";
   const tick = () => new Promise(r => setTimeout(r, 0));
 
@@ -4154,8 +4150,7 @@ function BOMReview({ apiKey, sessionTick=0 }) {
         setMode("generate");
       } else {
         setResult(s.bomResult);
-        if (s.compareResult) setCompareResult(s.compareResult);
-        setMode(s._bomMode || "single");
+        setMode(s._bomMode === "generate" ? "generate" : "single");
       }
     } catch {}
   };
@@ -4189,7 +4184,6 @@ function BOMReview({ apiKey, sessionTick=0 }) {
 
   const addPlanFiles  = useCallback(fs => setPlanFiles(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
   const addBomFiles   = useCallback(fs => setBomFiles(p =>  [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
-  const addBomFiles2  = useCallback(fs => setBomFiles2(p => [...p, ...Array.from(fs).map(f => ({ file:f, id:Math.random().toString(36).slice(2), name:f.name, size:f.size, type:f.type||"application/octet-stream" }))]), []);
 
   const applyMarkup = (base) => {
     const m = bomMarkup;
@@ -4306,11 +4300,11 @@ CRITICAL OUTPUT RULES:
       return;
     }
 
-    const allBom = [...bomFiles, ...bomFiles2];
+    const allBom = [...bomFiles];
     const bad = allBom.find(f => !f.type.startsWith("image/") && f.type !== "application/pdf" && !f.name.match(/\.pdf$/i));
     if (bad) { setError(`"${bad.name}" must be a PDF. In Excel: File → Save As → PDF, then re-upload.`); return; }
 
-    setBusy(true); setError(null); setResult(null); setCompareResult(null);
+    setBusy(true); setError(null); setResult(null);
     try {
       const planBlocks = await encodeFiles(planFiles, "PLAN");
 
@@ -4329,17 +4323,6 @@ CRITICAL OUTPUT RULES:
         const _cur = JSON.parse(localStorage.getItem("buildify_session_structural") || "{}");
         localStorage.setItem("buildify_session_structural", JSON.stringify({ ..._cur, bomResult: parsed1, _bomMode: mode, _savedAt: new Date().toISOString(), _module: "structural", userId: "local" }));
       } catch(e) { console.warn("Session save failed", e); }
-
-      // Comparison BOM
-      if (mode === "compare" && bomFiles2.length) {
-        setBusyMsg("AI reviewing Revised BOM for comparison…"); await tick();
-        const bomBlocks2 = await encodeFiles(bomFiles2, "BOM-REVISED");
-        const msg2 = [...planBlocks, ...bomBlocks2, { type:"text", text:buildContext("This is a REVISED BOM submitted after initial review. Identify what improved, what was gamed (e.g. qty reduced without basis), and whether overall risk improved.") }];
-        const data2 = await callAI({ apiKey, system:BOM_SYSTEM_PROMPT, messages:[{ role:"user", content:msg2 }], max_tokens:8000 });
-        const text2 = data2.content?.map(b => b.text||"").join("").replace(/```json|```/g,"").trim();
-        let parsed2; try { parsed2 = JSON.parse(text2); } catch { parsed2 = null; }
-        setCompareResult(parsed2);
-      }
 
       setActiveTab("summary");
     } catch(e) {
@@ -4477,8 +4460,8 @@ CRITICAL OUTPUT RULES:
   };
 
   const handleNewBOM = () => {
-    setResult(null); setCompareResult(null); setGenerateResult(null);
-    setPlanFiles([]); setBomFiles([]); setBomFiles2([]);
+    setResult(null); setGenerateResult(null);
+    setPlanFiles([]); setBomFiles([]);
     setError(null); setDebugInfo("");
     // Session stays in localStorage so history cards can reopen it
   };
@@ -4503,7 +4486,7 @@ CRITICAL OUTPUT RULES:
         {/* Mode + Rate toggles */}
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            {[{v:"single",l:"Review BOM"},{v:"compare",l:"🔄 Compare 2 BOMs"},{v:"generate",l:"✨ Generate BOM",premium:true}].map(o=>(
+            {[{v:"single",l:"Review BOM"},{v:"generate",l:"✨ Generate BOM",premium:true}].map(o=>(
               <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?(o.premium?"#a78bfa":STR):T.border}`,background:mode===o.v?(o.premium?"rgba(167,139,250,0.13)":"rgba(59,130,246,0.12)"):"transparent",color:mode===o.v?(o.premium?"#a78bfa":STR):T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
                 {o.l}
                 {o.premium && <span style={{fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:20,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",letterSpacing:"0.5px",boxShadow:"0 1px 6px rgba(124,58,237,0.4)"}}>PREMIUM</span>}
@@ -4546,7 +4529,7 @@ CRITICAL OUTPUT RULES:
         )}
 
         {/* Upload zones */}
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="compare"?3:mode==="generate"?1:2},1fr)`,gap:12,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${mode==="generate"?1:2},1fr)`,gap:12,marginBottom:14}}>
           <div style={{display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
               <div style={{fontSize:10,fontWeight:700,color:STR}}>📐 Engineering Plans *</div>
@@ -4556,20 +4539,12 @@ CRITICAL OUTPUT RULES:
           </div>
           {mode !== "generate" && (<div style={{display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#ff6b2b"}}>{mode==="compare"?"📋 BOM #1 — Original":"📋 Draft BOM"} <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
+              <div style={{fontSize:10,fontWeight:700,color:"#ff6b2b"}}>"📋 Draft BOM" <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
               <div style={{fontSize:10,color:T.muted}}>💡 Excel → Save As PDF before uploading</div>
             </div>
-            <DropZone label={mode==="compare"?"Original BOM (PDF)":"Upload BOM (PDF)"} sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#ff6b2b"/>
+            <DropZone label="Upload BOM (PDF)" sublabel="PDF only" files={bomFiles} onAdd={addBomFiles} onRemove={id=>setBomFiles(p=>p.filter(f=>f.id!==id))} dragState={dragBom} setDrag={setDragBom} inputRef={bomRef} icon="📋" accent="#ff6b2b"/>
           </div>)}
-          {mode==="compare" && (
-            <div style={{display:"flex",flexDirection:"column"}}>
-              <div style={{display:"flex",flexDirection:"column",gap:2,marginBottom:5,minHeight:34}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#10b981"}}>📋 BOM #2 — Revised <span style={{color:T.muted,fontWeight:400}}>(optional)</span></div>
-                <div style={{fontSize:10,color:T.muted}}>💡 Contractor's revised / updated BOM</div>
-              </div>
-              <DropZone label="Revised BOM (PDF)" sublabel="PDF only" files={bomFiles2} onAdd={addBomFiles2} onRemove={id=>setBomFiles2(p=>p.filter(f=>f.id!==id))} dragState={dragBom2} setDrag={setDragBom2} inputRef={bom2Ref} icon="🔄" accent="#10b981"/>
-            </div>
-          )}
+
         </div>
 
         
@@ -4629,7 +4604,7 @@ CRITICAL OUTPUT RULES:
         )}
 
         <button onClick={run} disabled={busy||!planFiles.length} style={{width:"100%",background:busy||!planFiles.length?`rgba(59,130,246,0.2)`:`linear-gradient(135deg,${STR},#0369a1)`,border:"none",color:busy||!planFiles.length?"#555":"#fff",fontWeight:800,fontSize:15,padding:"13px",borderRadius:12,cursor:busy||!planFiles.length?"not-allowed":"pointer",transition:"all 0.2s"}}>
-          {busy ? (busyMsg||"⚙️ Processing…") : mode==="generate" ? "✨ Generate BOM from Plans" : mode==="generate" ? "✨ Generate BOM from Plans" : mode==="compare" ? "📋 Run BOM Comparison Review" : "📋 Run BOM Review"}
+          {busy ? (busyMsg||"⚙️ Processing…") : mode==="generate" ? "✨ Generate BOM from Plans" : "📋 Run BOM Review"}
         </button>
         {busy && (
           <div style={{marginTop:10,background:"rgba(59,130,246,0.06)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:10,padding:"10px 16px",fontSize:12,color:STR,display:"flex",alignItems:"center",gap:10}}>
@@ -4701,7 +4676,6 @@ CRITICAL OUTPUT RULES:
                 {k:"missing",   l:`🔴 Missing (${missingItems.length})`},
                 {k:"excess",    l:`🟡 Excess (${excessItems.length})`},
                 {k:"markup",    l:"⚙️ Markup"},
-                ...(compareResult ? [{k:"compare",l:"🔄 Compare"}] : []),
               ].map(t=>(
                 <button key={t.k} onClick={()=>setActiveTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:`1.5px solid ${activeTab===t.k?STR:T.border}`,background:activeTab===t.k?"rgba(59,130,246,0.12)":"transparent",color:activeTab===t.k?STR:T.muted,cursor:"pointer",fontSize:11,fontWeight:700,transition:"all 0.15s"}}>{t.l}</button>
               ))}
@@ -4933,57 +4907,6 @@ CRITICAL OUTPUT RULES:
             </div>
           )}
 
-          {/* COMPARISON TAB */}
-          {activeTab==="compare" && compareResult && (
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                {[{label:"BOM #1 — Original",r:result,c:"#f59e0b"},{label:"BOM #2 — Revised",r:compareResult,c:"#10b981"}].map(({label,r,c})=>(
-                  <Card key={label} style={{border:`1.5px solid ${c}33`}}>
-                    <div style={{fontSize:11,fontWeight:800,color:c,marginBottom:10,textTransform:"uppercase"}}>{label}</div>
-                    <div style={{display:"flex",flexDirection:"column",gap:7}}>
-                      {[
-                        {l:"Status",     v:r.summary.overallStatus,    col:STATUS_COL[r.summary.overallStatus]},
-                        {l:"Risk",       v:r.summary.contractorRisk,   col:RISK_COL[r.summary.contractorRisk]},
-                        {l:"BOM Total",  v:bomMf(r.summary.bomTotalEstimate), col:T.text},
-                        {l:"AI Base",    v:bomMf(r.summary.aiAdjustedEstimate), col:STR},
-                        {l:"Missing",    v:`${(r.missingItems||[]).length} items`, col:"#8b5cf6"},
-                        {l:"Critical",   v:`${r.summary.criticalCount} issues`, col:"#ef4444"},
-                      ].map(s=>(
-                        <div key={s.l} style={{display:"flex",justifyContent:"space-between",padding:"7px 12px",background:T.dim,borderRadius:8}}>
-                          <span style={{fontSize:12,color:T.muted}}>{s.l}</span>
-                          <span style={{fontSize:12,fontWeight:800,color:s.col}}>{s.v}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{marginTop:10,fontSize:11,color:T.muted,lineHeight:1.5,background:T.dim,padding:"8px 10px",borderRadius:7}}>{r.summary.notes}</div>
-                  </Card>
-                ))}
-              </div>
-              <Card>
-                <Label>Delta — What Changed Between BOMs</Label>
-                <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:12}}>
-                  {[
-                    {l:"BOM Total",     a:result.summary.bomTotalEstimate,        b:compareResult.summary.bomTotalEstimate,       isMoney:true},
-                    {l:"AI Base",       a:result.summary.aiAdjustedEstimate,       b:compareResult.summary.aiAdjustedEstimate,    isMoney:true},
-                    {l:"Missing Items", a:(result.missingItems||[]).length,         b:(compareResult.missingItems||[]).length,      isMoney:false},
-                    {l:"Critical Issues",a:result.summary.criticalCount,           b:compareResult.summary.criticalCount,          isMoney:false},
-                    {l:"Warnings",      a:result.summary.warningCount,             b:compareResult.summary.warningCount,           isMoney:false},
-                  ].map(r=>{
-                    const diff=r.b-r.a; const improved=diff<0; const neutral=diff===0;
-                    const col=neutral?"#64748b":improved?"#10b981":"#ef4444";
-                    return (<div key={r.l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",background:T.dim,borderRadius:9}}>
-                      <span style={{fontSize:12,color:T.muted}}>{r.l}</span>
-                      <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        <span style={{fontSize:11,color:T.muted,fontFamily:"monospace"}}>{r.isMoney?fmt(r.a):r.a} → {r.isMoney?fmt(r.b):r.b}</span>
-                        <span style={{fontSize:13,fontWeight:800,color:col}}>{diff>0?"+":""}{r.isMoney?fmt(diff):diff} {neutral?"–":improved?"✅":"⚠️"}</span>
-                      </div>
-                    </div>);
-                  })}
-                </div>
-              </Card>
-            </div>
-          )}
-
           <div style={{marginTop:12,padding:"9px 14px",background:T.dim,borderRadius:9,fontSize:11,color:T.muted,lineHeight:1.5}}>
             ⚠️ AI-assisted review. All findings must be verified by a licensed QS or Engineer before submission. · PH Engineering Suite
           </div>
@@ -4998,7 +4921,6 @@ CRITICAL OUTPUT RULES:
             {i:"💰",t:"Unit Cost Check",             d:"vs. 2025 NCR or DPWH Blue Book rates"},
             {i:"📈",t:"Scope Completeness Scores",   d:"Score per trade: Structural, Electrical, Plumbing…"},
             {i:"📈",t:"Scope Completeness Score",     d:"Trade-by-trade completeness 0–100%"},
-            {i:"🔄",t:"Compare 2 BOMs",              d:"Original vs. Revised — catch what was gamed"},
             {i:"📅",t:"Price Escalation Warning",    d:"Flags outdated BOM date + material cost drift"},
             {i:"🏛️",t:"DPWH / Private Toggle",       d:"Benchmark against the right rate table"},
             {i:"📄",t:"Full PDF Export",              d:"QS-grade report with all findings"},
