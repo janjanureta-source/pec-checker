@@ -13014,56 +13014,54 @@ function Dashboard({ user, onLogout }) {
 
         </div>
 
-        {/* Page content */}
+        {/* Page content — modules stay MOUNTED always via display:none to preserve React state */}
         <div style={{ flex:1, padding:"28px 24px", maxWidth:1060, width:"100%" }}>
           {module==="home" && <DashboardHome onNavigate={navigateTo}/>}
-          {module==="electrical" && (
+
+          {/* Electrical — always mounted */}
+          <div style={{ display: module==="electrical" ? "block" : "none" }}>
             <ElecCode apiKey={apiKey} sessionTick={sessionTick.electrical}/>
-          )}
-          {module==="structural" && (
-            <>
-              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="structural" size={16} color="#0696d7"/></div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Structural</div>
-                  <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
-                </div>
+          </div>
+
+          {/* Structural — always mounted */}
+          <div style={{ display: module==="structural" ? "block" : "none" }}>
+            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#0696d7,#0569a8)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="structural" size={16} color="#0696d7"/></div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Structural</div>
+                <div style={{ fontSize:11, color:T.muted }}>NSCP 2015 7th Edition · DPWH Blue Book</div>
               </div>
-              <Card>
-                <StructiCode
-                  apiKey={apiKey}
-                  initialTool={structTool}
-                  sessionTick={sessionTick.structural}
-                />
-              </Card>
-            </>
-          )}
-          {module==="sanitary" && (
-            <>
-              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="sanitary" size={16} color="#06b6d4"/></div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Sanitary</div>
-                  <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
-                </div>
+            </div>
+            <Card>
+              <StructiCode apiKey={apiKey} initialTool={structTool} sessionTick={sessionTick.structural}/>
+            </Card>
+          </div>
+
+          {/* Sanitary — always mounted */}
+          <div style={{ display: module==="sanitary" ? "block" : "none" }}>
+            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#06b6d4,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="sanitary" size={16} color="#06b6d4"/></div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Sanitary</div>
+                <div style={{ fontSize:11, color:T.muted }}>National Plumbing Code 2000 · PD 856 Sanitation Code</div>
               </div>
-              <Card>
-                <SaniCode apiKey={apiKey} sessionTick={sessionTick.sanitary}/>
-              </Card>
-            </>
-          )}
-          {module==="engtools" && (
-            <>
-              <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="wrench" size={15} color="#fff"/></div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Engineering Tools</div>
-                  <div style={{ fontSize:11, color:T.muted }}>BOM Review · Cost Estimator</div>
-                </div>
+            </div>
+            <Card>
+              <SaniCode apiKey={apiKey} sessionTick={sessionTick.sanitary}/>
+            </Card>
+          </div>
+
+          {/* Engineering Tools — always mounted */}
+          <div style={{ display: module==="engtools" ? "block" : "none" }}>
+            <div style={{ marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:7, background:"linear-gradient(135deg,#a78bfa,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon name="wrench" size={15} color="#fff"/></div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:18, color:T.text }}>Engineering Tools</div>
+                <div style={{ fontSize:11, color:T.muted }}>BOM Review · Cost Estimator</div>
               </div>
-              <EngineeringTools apiKey={apiKey} sessionTick={sessionTick.engtools}/>
-            </>
-          )}
+            </div>
+            <EngineeringTools apiKey={apiKey} sessionTick={sessionTick.engtools}/>
+          </div>
         </div>
 
         {/* Footer */}
