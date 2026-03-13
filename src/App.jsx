@@ -13113,10 +13113,43 @@ function Dashboard({ user, onLogout }) {
   );
 }
 
+// ─── ERROR BOUNDARY ──────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null, info: null }; }
+  componentDidCatch(error, info) { this.setState({ error, info }); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding:40, fontFamily:"monospace", background:"#0f1118", color:"#ef4444", minHeight:"100vh" }}>
+          <div style={{ fontSize:20, fontWeight:800, marginBottom:16 }}>🔴 React Error — {this.props.name}</div>
+          <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:16, marginBottom:16 }}>
+            <strong>{this.state.error?.message}</strong>
+          </div>
+          <pre style={{ fontSize:11, color:"#94a3b8", whiteSpace:"pre-wrap", lineHeight:1.6 }}>
+            {this.state.error?.stack}
+          </pre>
+          <div style={{ marginTop:16, fontSize:11, color:"#64748b" }}>
+            <strong>Component:</strong> {this.state.info?.componentStack}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ─── ROOT APP ────────────────────────────────────────────────────────────────
 export default function App() {
   const [auth, setAuth] = useState(null); // null = not logged in
 
-  if (auth) return <Dashboard user={auth} onLogout={() => setAuth(null)} />;
-  return <LandingPage onLogin={setAuth} />;
+  if (auth) return (
+    <ErrorBoundary name="Dashboard">
+      <Dashboard user={auth} onLogout={() => setAuth(null)} />
+    </ErrorBoundary>
+  );
+  return (
+    <ErrorBoundary name="LandingPage">
+      <LandingPage onLogin={setAuth} />
+    </ErrorBoundary>
+  );
 }
