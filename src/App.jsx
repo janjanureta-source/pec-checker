@@ -10486,6 +10486,7 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
   const calcItems = items.filter(i=>["vdrop","fault","load","panel","conduit","ampacity","branch80","motor","grounding","vdrop_table"].includes(i.tool));
   const passes    = calcItems.filter(i=>i.status==="PASS"||i.status==="COMPUTED").length;
   const fails     = calcItems.filter(i=>i.status==="FAIL").length;
+  const noInputs  = calcItems.filter(i=>i.status==="NO INPUT").length;
 
   // PEE sign-off checklist
   const SIGNOFF = [
@@ -10515,8 +10516,8 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
   const exportReviewPDF = () => {
     const w = window.open("","_blank");
     const date = new Date().toLocaleDateString("en-PH",{year:"numeric",month:"long",day:"numeric"});
-    const statusBg = fails>0?"#dc2626":criticals.length>0?"#d97706":"#16a34a";
-    const statusLbl= fails>0?"NON-COMPLIANT":criticals.length>0?"COMPLIANT WITH WARNINGS":"COMPLIANT";
+    const statusBg = fails>0?"#dc2626":criticals.length>0||noInputs>0?"#d97706":"#16a34a";
+    const statusLbl= fails>0?"NON-COMPLIANT":criticals.length>0?"COMPLIANT WITH WARNINGS":noInputs>0?"NEEDS REVIEW":"COMPLIANT";
 
     const findingRows = [...criticals,...warnings,...infos].map(f=>{
       const col={CRITICAL:"#dc2626",WARNING:"#d97706",INFO:"#2563eb"}[f.severity]||"#555";
@@ -10530,11 +10531,12 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
     }).join("");
 
     const calcRows = calcItems.map(i=>{
-      const col=i.status==="PASS"||i.status==="COMPUTED"?"#16a34a":i.status==="FAIL"?"#dc2626":"#d97706";
+      const col=i.status==="PASS"||i.status==="COMPUTED"?"#16a34a":i.status==="FAIL"?"#dc2626":i.status==="NO INPUT"?"#d97706":"#d97706";
+      const detailText = i.status==="NO INPUT" ? `⚠ INPUT NEEDED: ${i.detail}` : (i.detail||"");
       return `<tr>
         <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:12px;font-weight:600">${CALC_LABELS[i.tool]||i.tool}</td>
         <td style="padding:7px 10px;border:1px solid #e5e7eb;font-family:monospace;font-size:13px;font-weight:700">${i.value||"—"}</td>
-        <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:11px;color:#6b7280">${i.detail||""}</td>
+        <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:11px;color:${i.status==='NO INPUT'?'#d97706':'#6b7280'};font-style:${i.status==='NO INPUT'?'italic':'normal'}">${detailText}</td>
         <td style="padding:7px 10px;border:1px solid #e5e7eb;color:${col};font-weight:700;font-size:11px">${i.status}</td>
       </tr>`;
     }).join("");
@@ -10642,8 +10644,8 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
     );
   }
 
-  const statusColor = fails>0?"#ef4444":criticals.length>0?"#f59e0b":"#22c55e";
-  const statusLabel = fails>0?"NON-COMPLIANT":criticals.length>0?"COMPLIANT WITH WARNINGS":"COMPLIANT";
+  const statusColor = fails>0?"#ef4444":criticals.length>0||noInputs>0?"#f59e0b":"#22c55e";
+  const statusLabel = fails>0?"NON-COMPLIANT":criticals.length>0?"COMPLIANT WITH WARNINGS":noInputs>0?"NEEDS REVIEW":"COMPLIANT";
 
   return (
     <div>
@@ -10670,7 +10672,11 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
           {criticals.length>0&&<span style={{fontSize:13,fontWeight:700,color:"#ef4444"}}>⚑ {criticals.length} Critical</span>}
           {warnings.length>0&&<span style={{fontSize:13,fontWeight:700,color:"#f59e0b"}}>⚠ {warnings.length} Warning</span>}
           {infos.length>0&&<span style={{fontSize:13,fontWeight:700,color:"#0696d7"}}>ℹ {infos.length} Info</span>}
-          {calcItems.length>0&&<><span style={{fontSize:13,fontWeight:700,color:"#22c55e"}}>✓ {passes} pass</span>{fails>0&&<span style={{fontSize:13,fontWeight:700,color:"#ef4444"}}>✗ {fails} fail</span>}</>}
+          {calcItems.length>0&&<>
+            <span style={{fontSize:13,fontWeight:700,color:"#22c55e"}}>✓ {passes} pass</span>
+            {fails>0&&<span style={{fontSize:13,fontWeight:700,color:"#ef4444"}}>✗ {fails} fail</span>}
+            {noInputs>0&&<span style={{fontSize:13,fontWeight:700,color:"#f59e0b"}}>⚠ {noInputs} needs input</span>}
+          </>}
         </div>
       </div>
 
@@ -10730,14 +10736,47 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
               </thead>
               <tbody>
                 {calcItems.map(item=>{
-                  const col=item.status==="PASS"||item.status==="COMPUTED"?"#22c55e":item.status==="FAIL"?"#ef4444":"#f59e0b";
+                  const isNoInput = item.status==="NO INPUT";
+                  const col = item.status==="PASS"||item.status==="COMPUTED" ? "#22c55e"
+                            : item.status==="FAIL"    ? "#ef4444"
+                            : item.status==="NO INPUT"? "#f59e0b"
+                            : "#f59e0b";
+                  const [whyOpen, setWhyOpen] = React.useState(false);
+                  const showWhy = item.status !== "PASS" && item.status !== "COMPUTED";
                   return(
                     <tr key={item.tool} style={{borderBottom:`1px solid ${T.border}`}}>
                       <td style={{padding:"10px 14px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
                       <td style={{padding:"10px 14px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
-                      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>{item.detail}</td>
+                      <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>
+                        {isNoInput ? (
+                          <span style={{color:"#f59e0b",fontStyle:"italic"}}>{item.detail}</span>
+                        ) : item.detail}
+                      </td>
                       <td style={{padding:"10px 14px"}}>
-                        <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,background:`${col}15`,color:col,border:`1px solid ${col}30`}}>{item.status}</span>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                          <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,background:`${col}15`,color:col,border:`1px solid ${col}30`}}>
+                            {item.status}
+                          </span>
+                          {showWhy && (
+                            <button onClick={()=>setWhyOpen(p=>!p)}
+                              style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:5,
+                                border:`1px solid ${col}40`,background:`${col}10`,color:col,
+                                cursor:"pointer",flexShrink:0}}>
+                              {whyOpen ? "▲" : "ⓘ Why?"}
+                            </button>
+                          )}
+                        </div>
+                        {whyOpen && (
+                          <div style={{marginTop:6,fontSize:11,color:T.muted,lineHeight:1.6,
+                            background:`${col}08`,border:`1px solid ${col}25`,borderRadius:7,
+                            padding:"8px 10px",maxWidth:260}}>
+                            {isNoInput
+                              ? item.detail
+                              : item.status==="FAIL"
+                                ? `This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design.`
+                                : `Result is within acceptable limits but warrants review.`}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -10842,9 +10881,13 @@ function runElecComputations(electricalData, calcStates) {
     const Isc    = sc.voltage / (Math.sqrt(sc.phases === 3 ? 3 : 1) * Ztot);
     const fla    = sc.existingFLA || 20;
     const ratio  = Isc / fla;
+    const faultNoInput = Isc < 1;
     items.push({ tool:"fault", id:"Short Circuit", value:`${(Isc/1000).toFixed(2)} kA`,
-      detail:`Isc=${(Isc/1000).toFixed(2)}kA, ratio=${ratio.toFixed(1)}× FLA`,
-      status: ratio > 1 ? "PASS" : "FAIL",
+      detail: faultNoInput
+        ? "Cable run too long or transformer data missing — enter MERALCO service details to compute"
+        : `Isc=${(Isc/1000).toFixed(2)}kA, ratio=${ratio.toFixed(1)}× FLA`,
+      status: faultNoInput ? "NO INPUT" : ratio > 1 ? "PASS" : "FAIL",
+      noInput: faultNoInput,
       numeric: Isc, limit: null });
   }
 
@@ -10922,9 +10965,13 @@ function runElecComputations(electricalData, calcStates) {
     const baseA  = (BASE[amp.wireSize]?.[ins] || 0) * (amp.material === "aluminum" ? 0.84 : 1);
     const derated = baseA * tf * ff;
     const loadA   = +(amp.loadCurrent) || 0;
+    const ampNoInput = derated === 0 || baseA === 0;
     items.push({ tool:"ampacity", id:"Ampacity Derating", value:`${derated.toFixed(1)} A`,
-      detail:`#${amp.wireSize} AWG ${ins}, derated=${derated.toFixed(1)}A, load=${loadA}A`,
-      status: derated >= loadA && loadA > 0 ? "PASS" : derated >= loadA ? "COMPUTED" : "FAIL",
+      detail: ampNoInput
+        ? "Conductor count or ambient temp not extracted from plans — enter manually to verify"
+        : `#${amp.wireSize} AWG ${ins}, derated=${derated.toFixed(1)}A, load=${loadA}A`,
+      status: ampNoInput ? "NO INPUT" : derated >= loadA && loadA > 0 ? "PASS" : derated >= loadA ? "COMPUTED" : "FAIL",
+      noInput: ampNoInput,
       numeric: derated });
   }
 
@@ -11798,8 +11845,8 @@ function DashboardHome({ onNavigate }) {
   const trend = thisW - lastW;
 
   const QUICK_LAUNCH = [
-    { icon:"bom",      label:"BOM Review",       sub:"Upload plan + BOM",      module:"engtools",   tool:"bom",      color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", badge:"⭐ Flagship", hero:true },
-    { icon:"estimate", label:"Cost Estimator",   sub:"Upload plan → estimate", module:"engtools",   tool:"estimate", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"AI" },
+    { icon:"bom",      label:"BOM Review",       sub:"Upload plan + BOM",      module:"structural", tool:"bom",      color:"#0696d7", grad:"135deg,#0696d7,#0569a8", badge:"⭐ Flagship", hero:true },
+    { icon:"estimate", label:"Cost Estimator",   sub:"Upload plan → estimate", module:"structural", tool:"estimate", color:"#f59e0b", grad:"135deg,#f59e0b,#f97316", badge:"AI" },
     { icon:"checker",  label:"Electrical Check", sub:"PEC 2017 compliance",    module:"electrical", tool:"checker",  color:"#ff6b2b", grad:"135deg,#ff6b2b,#e85520" },
     { icon:"checker",  label:"Structural Check", sub:"NSCP 2015 compliance",   module:"structural", tool:"checker",  color:"#0696d7", grad:"135deg,#0696d7,#0569a8" },
     { icon:"fixture",  label:"Plumbing Check",   sub:"NPC 2000 compliance",    module:"sanitary",   tool:"checker",  color:"#06b6d4", grad:"135deg,#06b6d4,#0891b2" },
@@ -11995,7 +12042,7 @@ function DashboardHome({ onNavigate }) {
             <div style={{ fontSize:40, marginBottom:12 }}>📂</div>
             <div style={{ fontWeight:700, color:T.text, marginBottom:6, fontSize:15 }}>No history yet</div>
             <div style={{ fontSize:12, color:T.muted, marginBottom:20 }}>Run any tool and your results are saved automatically</div>
-            <button onClick={()=>onNavigate("engtools","bom")}
+            <button onClick={()=>onNavigate("structural","bom")}
               style={{ padding:"9px 20px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#0696d7,#0569a8)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700 }}>
               Start with BOM Review →
             </button>
@@ -12126,8 +12173,8 @@ function LandingPage({ onLogin }) {
   const MODULES = [
     {
       icon:"structural", color:BLUE, grad:`135deg,${BLUE},#0569a8`, name:"Structural", code:"NSCP 2015 · DPWH Blue Book",
-      live:true,
-      tools:["🤖 AI Plan Checker (NSCP 2015)","🌍 Seismic Load · 📐 Beam · 🏛️ Column · 🪨 Footing · 🔩 Slab","📊 Load Combinations · Rebar Schedule"]
+      badge:"⭐ Flagship", live:true,
+      tools:["📋 BOM Review — quantities, costs, missing items","💰 Cost Estimator — parametric from plan upload","🤖 AI Plan Checker (NSCP 2015)","🌍 Seismic Load · 📐 Beam · 🏛️ Column · 🪨 Footing · 🔩 Slab","📊 Load Combinations"]
     },
     {
       icon:"electrical", color:ORANGE, grad:`135deg,${ORANGE},#e85520`, name:"Electrical", code:"PEC 2017 · RA 9514 · Green Building",
@@ -12138,11 +12185,6 @@ function LandingPage({ onLogin }) {
       icon:"sanitary", color:CYAN, grad:`135deg,${CYAN},#0891b2`, name:"Sanitary", code:"NPC 2000 · PD 856 Sanitation Code",
       live:true,
       tools:["🔍 AI Plan Checker (NPC 2000)","🚿 Fixture Unit Calculator","📏 Pipe Sizing · 🪣 Septic Tank","💧 Water Demand · 🔢 Pressure Loss · 🌧️ Storm Drainage"]
-    },
-    {
-      icon:"wrench", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"Eng. Tools", code:"Estimating · QS · BOM",
-      badge:"⭐ Flagship", live:true,
-      tools:["📋 BOM Review — quantities, costs, missing items","💰 Cost Estimator — parametric from plan upload","✨ AI BOM Generator — full takeoff from plans","🏛️ DPWH / Private rate toggle · PDF export"]
     },
     {
       icon:"column", color:"#a78bfa", grad:"135deg,#a78bfa,#7c3aed", name:"ArchiCode", code:"NBC Philippines · BP 344 · Green Building",
@@ -12192,7 +12234,7 @@ function LandingPage({ onLogin }) {
   const PRICING = [
     { name:"Solo Contractor",   price:"₱499",    period:"/month", color:"#64748b",
       desc:"For freelance estimators and sole contractors",
-      features:["Full suite — all 4 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
+      features:["Full suite — all 3 live modules","BOM Review + Cost Estimator","All calculators","PDF report export","1 user"] },
     { name:"Small Firm",        price:"₱3,500",  period:"/month", color:BLUE, best:true,
       desc:"For contracting firms and design-build teams",
       features:["Everything in Solo","Up to 10 users","Dashboard + project history","Priority support","Unlimited runs"] },
@@ -12373,7 +12415,7 @@ function LandingPage({ onLogin }) {
             <h2 style={{ fontSize:"clamp(26px,4vw,44px)",fontWeight:900,letterSpacing:"-1px" }}>
               Every Engineering Discipline.<br/><span style={{color:CYAN}}>One Platform.</span>
             </h2>
-            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>4 modules live now · 2 coming soon · All built for Philippine codes</p>
+            <p style={{ fontSize:13,color:"#64748b",marginTop:12 }}>3 modules live now · 2 coming soon · All built for Philippine codes</p>
           </div>
           <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20 }}>
             {MODULES.map((m,i) => (
