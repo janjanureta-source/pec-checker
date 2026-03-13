@@ -8629,7 +8629,13 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
               apiKey={apiKey}
               onDataExtracted={handleDataExtracted}
               externalResult={checkerResult}
-              onResultChange={setCheckerResult}
+              onResultChange={(result) => {
+                setCheckerResult(result);
+                try {
+                  const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+                  localStorage.setItem("buildify_session_electrical", JSON.stringify({ ...cur, checkerResult: result }));
+                } catch {}
+              }}
               externalExtracted={checkerExtracted}
              
             />
@@ -10531,7 +10537,7 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
     }).join("");
 
     const calcRows = calcItems.map(i=>{
-      const col=i.status==="PASS"||i.status==="COMPUTED"?"#16a34a":i.status==="FAIL"?"#dc2626":i.status==="NO INPUT"?"#d97706":"#d97706";
+      const col=i.status==="PASS"||i.status==="COMPUTED"?"#16a34a":i.status==="FAIL"?"#dc2626":"#d97706";
       const detailText = i.status==="NO INPUT" ? `⚠ INPUT NEEDED: ${i.detail}` : (i.detail||"");
       return `<tr>
         <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:12px;font-weight:600">${CALC_LABELS[i.tool]||i.tool}</td>
@@ -10738,8 +10744,7 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
                 {calcItems.map(item=>{
                   const isNoInput = item.status==="NO INPUT";
                   const col = item.status==="PASS"||item.status==="COMPUTED" ? "#22c55e"
-                            : item.status==="FAIL"    ? "#ef4444"
-                            : item.status==="NO INPUT"? "#f59e0b"
+                            : item.status==="FAIL"     ? "#ef4444"
                             : "#f59e0b";
                   const [whyOpen, setWhyOpen] = React.useState(false);
                   const showWhy = item.status !== "PASS" && item.status !== "COMPUTED";
@@ -10748,33 +10753,33 @@ function ReviewSummarySheet({ checkerResult, electricalData, elecResults }) {
                       <td style={{padding:"10px 14px",fontWeight:600,color:T.text}}>{CALC_LABELS[item.tool]||item.tool}</td>
                       <td style={{padding:"10px 14px",fontFamily:"monospace",fontWeight:800,color:col,fontSize:14}}>{item.value||"—"}</td>
                       <td style={{padding:"10px 14px",color:T.muted,fontSize:11}}>
-                        {isNoInput ? (
-                          <span style={{color:"#f59e0b",fontStyle:"italic"}}>{item.detail}</span>
-                        ) : item.detail}
+                        {isNoInput
+                          ? <span style={{color:"#f59e0b",fontStyle:"italic"}}>{item.detail}</span>
+                          : item.detail}
                       </td>
                       <td style={{padding:"10px 14px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                           <span style={{fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:6,background:`${col}15`,color:col,border:`1px solid ${col}30`}}>
                             {item.status}
                           </span>
-                          {showWhy && (
+                          {showWhy&&(
                             <button onClick={()=>setWhyOpen(p=>!p)}
                               style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:5,
                                 border:`1px solid ${col}40`,background:`${col}10`,color:col,
                                 cursor:"pointer",flexShrink:0}}>
-                              {whyOpen ? "▲" : "ⓘ Why?"}
+                              {whyOpen?"▲":"ⓘ Why?"}
                             </button>
                           )}
                         </div>
-                        {whyOpen && (
+                        {whyOpen&&(
                           <div style={{marginTop:6,fontSize:11,color:T.muted,lineHeight:1.6,
                             background:`${col}08`,border:`1px solid ${col}25`,borderRadius:7,
                             padding:"8px 10px",maxWidth:260}}>
                             {isNoInput
                               ? item.detail
                               : item.status==="FAIL"
-                                ? `This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design.`
-                                : `Result is within acceptable limits but warrants review.`}
+                                ? "This check ran and the result does not meet the PEC requirement. Review the calculator inputs and correct the design."
+                                : "Result is within acceptable limits but warrants review."}
                           </div>
                         )}
                       </td>
@@ -11035,10 +11040,11 @@ function runElecComputations(electricalData, calcStates) {
       detail:vdF.length===0?`All OK. Worst: ${worst.vdPct.toFixed(2)}% (${worst.desc||"?"})`:vdF.slice(0,2).map(r=>`"${r.desc||""}" ${r.vdPct.toFixed(2)}%`).join(", "),
       status:vdF.length===0?"PASS":"FAIL",numeric:vdF.length,vdRows:vdR});
   }
-  const passCount = items.filter(i=>i.status==="PASS").length;
-  const failCount = items.filter(i=>i.status==="FAIL").length;
-  const warnCount = items.filter(i=>i.status==="WARNING").length;
-  return { items, summary: { passCount, failCount, warnCount, totalRun: items.length } };
+  const passCount    = items.filter(i=>i.status==="PASS").length;
+  const failCount    = items.filter(i=>i.status==="FAIL").length;
+  const warnCount    = items.filter(i=>i.status==="WARNING").length;
+  const noInputCount = items.filter(i=>i.status==="NO INPUT").length;
+  return { items, summary: { passCount, failCount, warnCount, noInputCount, totalRun: items.length } };
 }
 
 // ─── ELEC INTELLIGENCE PANEL ─────────────────────────────────────────────────
@@ -11323,6 +11329,7 @@ function ElecCode({ apiKey, sessionTick=0 }) {
     if (item.status === "PASS" || item.status === "COMPUTED") return "pass";
     if (item.status === "FAIL") return "fail";
     if (item.status === "WARNING") return "warn";
+    if (item.status === "NO INPUT") return "noinput";
     return null;
   };
 
@@ -11331,9 +11338,10 @@ function ElecCode({ apiKey, sessionTick=0 }) {
     const hasDat = hasData(toolKey);
     if (st) {
       const cfg = {
-        pass:["rgba(34,197,94,0.12)","#22c55e","rgba(34,197,94,0.25)","\u2713 PASS"],
-        fail:["rgba(239,68,68,0.12)","#ef4444","rgba(239,68,68,0.25)","\u2717 FAIL"],
-        warn:["rgba(245,158,11,0.12)","#f59e0b","rgba(245,158,11,0.25)","\u26a0 WARN"],
+        pass:    ["rgba(34,197,94,0.12)","#22c55e","rgba(34,197,94,0.25)","\u2713 PASS"],
+        fail:    ["rgba(239,68,68,0.12)","#ef4444","rgba(239,68,68,0.25)","\u2717 FAIL"],
+        warn:    ["rgba(245,158,11,0.12)","#f59e0b","rgba(245,158,11,0.25)","\u26a0 WARN"],
+        noinput: ["rgba(245,158,11,0.12)","#f59e0b","rgba(245,158,11,0.25)","\u26a0 INPUT"],
       }[st];
       return <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:7,background:cfg[0],color:cfg[1],border:`1px solid ${cfg[2]}`}}>{cfg[3]}</span>;
     }
@@ -11373,12 +11381,25 @@ function ElecCode({ apiKey, sessionTick=0 }) {
           { key:"checker", icon:"checker",    label:"AI Plan Checker" },
           { key:"tools",   icon:"electrical", label:"Calculators" },
           { key:"review",  icon:"panel",      label:"Review Sheet",
-            badge: elecResults ? (elecResults.summary.failCount>0 ? "FAIL" : "PASS") : null },
+            badge: elecResults ? (elecResults.summary.failCount>0 ? "FAIL" : elecResults.summary.noInputCount>0 ? "NEEDS REVIEW" : "PASS") : null },
         ].map(t => {
           const active = mainTab === t.key;
           const bc = t.badge==="FAIL"?"#ef4444":"#22c55e";
           return (
-            <button key={t.key} onClick={()=>setMainTab(t.key)}
+            <button key={t.key} onClick={()=>{
+                setMainTab(t.key);
+                // Auto-compute when entering Review Sheet if data is ready but results not yet run
+                if (t.key === "review" && electricalData && !elecResults) {
+                  const results = runElecComputations(electricalData, calcStates);
+                  setElecResults(results);
+                  try {
+                    const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+                    localStorage.setItem("buildify_session_electrical", JSON.stringify({
+                      ...cur, elecResults: results, runState: { running: false }
+                    }));
+                  } catch {}
+                }
+              }}
               style={{display:"flex",alignItems:"center",gap:7,padding:"9px 18px",borderRadius:10,
                 border:`1.5px solid ${active?ACCENT:T.border}`,
                 background:active?ACCENT_DIM:"transparent",
@@ -11410,7 +11431,13 @@ function ElecCode({ apiKey, sessionTick=0 }) {
             <PlanChecker
               apiKey={apiKey}
               externalResult={checkerResult}
-              onResultChange={setCheckerResult}
+              onResultChange={(result) => {
+                setCheckerResult(result);
+                try {
+                  const cur = JSON.parse(localStorage.getItem("buildify_session_electrical") || "{}");
+                  localStorage.setItem("buildify_session_electrical", JSON.stringify({ ...cur, checkerResult: result }));
+                } catch {}
+              }}
               onDataExtracted={handleDataExtracted}
               onVerifyFinding={(finding,toolKey)=>{
                 const desc=(finding.description||"")+" "+(finding.recommendation||"");
