@@ -3745,7 +3745,12 @@ function LoadCombinations({ structuralData, structuralResults }) {
   );
 }
 
-// ─── BOM REVIEW DATA ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// BOM REVIEW MODULE
+// Components: BOMReview
+// Prompts:    BOM_GENERATE_PROMPT, BOM_SYSTEM_PROMPT
+// Session:    buildify_session_structural (to be migrated to engtools in Phase D)
+// ═══════════════════════════════════════════════════════════════════════════════
 const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines generating a CONTRACTOR-READY Bill of Materials (BOQ) from engineering plans.
 
 PHILIPPINE CONSTRUCTION RATES (2025 NCR — materials only unless stated):
@@ -4109,6 +4114,14 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
 
 
 function BOMReview({ apiKey, sessionTick=0 }) {
+  // ── Props ───────────────────────────────────────────────────────────────────
+  // apiKey     {string}  Anthropic API key
+  // sessionTick {number} Increments when user navigates back via history — triggers session restore
+
+  // ── Modes ───────────────────────────────────────────────────────────────────
+  // "single"   Review an existing BOM against plans (default)
+  // "generate" Generate a new BOM from plans using AI
+
   const [planFiles,     setPlanFiles]     = useState([]);
   const [bomFiles,      setBomFiles]      = useState([]);
   const [result,        setResult]        = useState(null);
@@ -4486,7 +4499,7 @@ CRITICAL OUTPUT RULES:
         {/* Mode + Rate toggles */}
         <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            {[{v:"single",l:"Review BOM"},{v:"generate",l:"✨ Generate BOM",premium:true}].map(o=>(
+            {[{v:"single",l:"Review BOM"},{v:"generate",l:"Generate BOM ✨",premium:true}].map(o=>(
               <button key={o.v} onClick={()=>setMode(o.v)} style={{padding:"6px 13px",borderRadius:8,border:`1.5px solid ${mode===o.v?(o.premium?"#a78bfa":STR):T.border}`,background:mode===o.v?(o.premium?"rgba(167,139,250,0.13)":"rgba(59,130,246,0.12)"):"transparent",color:mode===o.v?(o.premium?"#a78bfa":STR):T.muted,cursor:"pointer",fontSize:12,fontWeight:700,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
                 {o.l}
                 {o.premium && <span style={{fontSize:9,fontWeight:800,padding:"1px 6px",borderRadius:20,background:"linear-gradient(135deg,#7c3aed,#a78bfa)",color:"#fff",letterSpacing:"0.5px",boxShadow:"0 1px 6px rgba(124,58,237,0.4)"}}>PREMIUM</span>}
@@ -5235,6 +5248,13 @@ CRITICAL OUTPUT RULES:
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// COST ESTIMATOR MODULE
+// Components: CostEstimator
+// Prompts:    COST_ESTIMATOR_PROMPT
+// Session:    buildify_session_structural (to be migrated to engtools in Phase D)
+// Standalone: No plan extraction dependency — all inputs are manual
+// ═══════════════════════════════════════════════════════════════════════════════
 const COST_ESTIMATOR_PROMPT = `You are a licensed Philippine Quantity Surveyor (PQS) and Cost Estimator with 20+ years of experience on Philippine government and private construction projects. You produce parametric cost estimates that practicing engineers and project owners trust for budget planning and bid preparation.
 
 ═══════════════════════════════════════════
@@ -5608,6 +5628,10 @@ Return this exact JSON structure:
 }`;
 
 function CostEstimator({ apiKey, onResultChange=null }) {
+  // ── Props ───────────────────────────────────────────────────────────────────
+  // apiKey         {string}    Anthropic API key
+  // onResultChange {function}  Optional callback when a result is produced (used by StrucCode — will be removed in Phase E)
+
   const [files,       setFiles]       = useState([]);
   const [drag,        setDrag]        = useState(false);
   const [result,      setResult]      = useState(null);
@@ -6945,7 +6969,11 @@ const exportDocument = () => {
   );
 }
 
-// ─── STRUCTICODE: MAIN WRAPPER ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRUCTURAL MODULE — StrucCode wrapper + all structural calculators
+// The BOMReview and CostEstimator components above are intentionally kept
+// outside this section — they will be moved to EngineeringTools in Phase D.
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── STRUCTURAL INTELLIGENCE: PURE COMPUTATION ENGINE ────────────────────────
 // Runs all design calcs from structuralData without React state.
