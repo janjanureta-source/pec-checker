@@ -8411,7 +8411,7 @@ function RebarSchedule({ structuralData, structuralResults }) {
 function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
   // ── Top-level 3 tools ──
   const [tab, setTab] = useState("checker");
-  useEffect(()=>{ if(initialTool==="bom") setTab("bom"); else if(initialTool==="estimate") setTab("estimate"); },[initialTool]);
+  useEffect(()=>{ if(initialTool && initialTool !== "bom" && initialTool !== "estimate") setTab(initialTool); },[initialTool]);
 
   // ── Structural data (lives here, never lost on tool switch) ──
   const [structuralData, setStructuralData]       = useState(null);
@@ -8420,8 +8420,6 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
   const [checkerExtracted,  setCheckerExtracted]  = useState(null);
   const [structuralResults, setStructuralResults] = useState(null);
   const [runState,          setRunState]          = useState(null);
-  const [bomResult,         setBomResult]         = useState(null);
-  const [estimateResult,    setEstimateResult]    = useState(null);
 
   // ── Sub-tool inside Plan Checker ──
   const [subTool, setSubTool] = useState(null);
@@ -8436,8 +8434,6 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
       if (s.checkerExtracted?.building) { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
       if (s.structuralResults?.items)   setStructuralResults(s.structuralResults);
       if (s.runState)                   setRunState(s.runState);
-      if (s.bomResult?.summary)         setBomResult(s.bomResult);
-      if (s.estimateResult?.summary)    setEstimateResult(s.estimateResult);
     } catch {}
   }, [sessionTick]); // eslint-disable-line
 
@@ -8450,8 +8446,6 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
       if (s.checkerExtracted?.building) { setCheckerExtracted(s.checkerExtracted); setStructuralData(s.checkerExtracted); }
       if (s.structuralResults?.items)   setStructuralResults(s.structuralResults);
       if (s.runState)                   setRunState(s.runState);
-      if (s.bomResult?.summary)         setBomResult(s.bomResult);
-      if (s.estimateResult?.summary)    setEstimateResult(s.estimateResult);
     } catch {}
   }, []); // eslint-disable-line
 
@@ -8524,9 +8518,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
   };
 
   const MAIN_TABS = [
-    { key:"bom",      icon:"bom",      label:"BOM Review",      badge:"⭐" },
-    { key:"checker",  icon:"checker",  label:"AI Plan Checker"             },
-    { key:"estimate", icon:"estimate", label:"Cost Estimator",   badge:"NEW" },
+    { key:"checker",  icon:"checker",  label:"AI Plan Checker" },
   ];
 
   const SubToolStatus = ({ toolKey }) => {
@@ -8571,8 +8563,6 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
     setRunState(null);
     setSubTool(null);
     setTab("checker");
-    setBomResult(null);
-    setEstimateResult(null);
     // Note: session stays in localStorage so history cards can still reopen it
   };
 
@@ -8594,7 +8584,7 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
             </button>
           ))}
         </div>
-        {(checkerResult || bomResult || estimateResult) && (
+        {checkerResult && (
           <button onClick={handleNewReview}
             title="Clear session and start a new review"
             style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:10,
@@ -8606,12 +8596,6 @@ function StructiCode({ apiKey, initialTool, sessionTick=0 }) {
           </button>
         )}
       </div>
-
-      {/* ── BOM Review ── */}
-      {tab==="bom" && <BOMReview apiKey={apiKey} sessionTick={sessionTick}/>}
-
-      {/* ── Cost Estimator ── */}
-      {tab==="estimate" && <CostEstimator apiKey={apiKey} onResultChange={setEstimateResult}/>}
 
       {/* ── AI Plan Checker (main tab with embedded sub-tools) ── */}
       {tab==="checker" && (
