@@ -376,39 +376,43 @@ STEP 12 — GENERAL REQUIREMENTS:
 - Mobilization/demobilization: always include
 - Temporary facilities: always include
 
-STEP 13 — FIRE PROTECTION (mandatory for ALL buildings 3 storeys and above per RA 9514):
-Compute from total floor area and number of floors. Include ALL of the following:
+STEP 13 — FIRE PROTECTION (RA 9514):
+⚠️ STRICT RULE: SKIP THIS ENTIRE STEP (include ZERO fire protection line items) if:
+   - Building is 1 or 2 storeys AND occupancy is residential (house, duplex, townhouse, apartment ≤2F)
+   - A 2-storey duplex residence = SKIP. Do not include sprinklers, fire pump, or FDAS.
+   
+ONLY include if building is 3 storeys or more, OR occupancy is commercial/institutional/industrial:
 a) Wet pipe sprinkler system: total_floor_area x ₱1,200–₱2,000/sqm
-   - Includes: BI seamless pipe ASTM A53, sprinkler heads (1 head per 9 sqm), alarm valve, OS&Y valve
-   - qtyBasis: e.g. "4,500 sqm total floor area"
-b) Fire pump set: 1 lot per building — includes fire pump (size per floor count: ≤5F=40HP, >5F=60HP) + jockey pump + controller
-   - Unit rate: ₱850,000–₱1,500,000/set for complete pump room
-c) Fire hose cabinet with hose reel: 1 per floor per stairwell — count = number_of_floors x number_of_stairwells
-   - Unit rate: ₱35,000–₱65,000/unit
-d) Fire extinguisher dry chemical 10lbs: 1 per 200 sqm of floor area
-   - Unit rate: ₱3,500–₱6,000/unit
-e) Fire detection and alarm system: total_floor_area x ₱450–₱850/sqm
-   - Includes: heat/smoke detectors, pull stations, alarm bells, FDAS panel, conduit wiring
-OMIT this step only if plans explicitly show no fire protection and building is 2 storeys or below.
+b) Fire pump set: ₱850,000–₱1,500,000/set
+c) Fire hose cabinet with reel: ₱35,000–₱65,000/set per floor per stairwell
+d) Fire extinguisher 10lbs dry chemical: 1 per 200 sqm — ₱3,500–₱6,000/pc
+e) Fire detection & alarm system: total_floor_area x ₱450–₱850/sqm
+Note: Fire extinguishers (item d only) are recommended for all buildings but not legally required for 1-2 storey residential. Include only if client requests.
 
-STEP 14 — GENERATOR SET + ATS (mandatory for all buildings with essential occupancy or 4+ storeys):
-a) Generator set: 1 unit — size based on total connected load
-   - For commercial/office/hotel buildings: KVA = (total floor area x 50VA/sqm) / 0.8 PF, minimum 100KVA
-   - Rate: 100KVA ₱850,000–₱1,200,000 | 200KVA ₱1,400,000–₱1,900,000 | 400KVA ₱2,200,000–₱3,200,000 | 500KVA ₱2,800,000–₱3,800,000
-   - Include: acoustic enclosure, exhaust system, fuel tank (day tank), concrete pad
-   - qtyBasis: "computed load: [area] sqm x 50VA = [VA] / 0.8PF = [KVA]"
+STEP 14 — GENERATOR SET + ATS:
+⚠️ STRICT RULE: SKIP THIS ENTIRE STEP (include ZERO generator line items) if:
+   - Building is residential (house, duplex, townhouse, apartment) of ANY storey count, UNLESS plans explicitly show a generator room or generator in the electrical layout
+   - A 2-storey duplex residence = SKIP. Do not include generator or ATS.
+
+ONLY include if:
+   - Plans explicitly show a generator room or generator symbol in electrical plans, OR
+   - Occupancy is commercial, office, hotel, hospital, school, or other institutional, OR
+   - Building is 4+ storeys non-residential
+
+When included:
+a) Generator set: KVA = (total floor area x 50VA/sqm) / 0.8 PF, minimum 25KVA
+   - Rate: 25KVA ₱320,000–₱480,000 | 50KVA ₱520,000–₱750,000 | 100KVA ₱850,000–₱1,200,000 | 200KVA ₱1,400,000–₱1,900,000
+   - Include: acoustic enclosure, exhaust system, fuel tank, concrete pad
 b) Automatic Transfer Switch (ATS): 1 unit matched to generator KVA
-   - Rate: 100KVA ATS ₱120,000–₱180,000 | 400KVA ₱280,000–₱420,000
-   - Include as separate line item from generator
-OMIT this step only if building is single-storey residential or plans show no generator room.
+   - Rate: 100A ATS ₱45,000–₱65,000 | 200A ₱85,000–₱120,000 | 400A ₱150,000–₱220,000
 
 STEP 15 — EXHAUST FANS / VENTILATION FANS:
 Count from plans or estimate by use:
 a) Toilet exhaust fans: 1 per toilet group (ceiling cassette centrifugal type)
    - Estimate: total WC count / 3 fans per group (round up)
    - Rate: ₱4,500–₱8,500/unit installed
-b) Genset room ventilation fans: 2 units per generator room (supply + exhaust)
-   - Rate: ₱18,000–₱35,000/unit (heavy-duty propeller type)
+b) Genset room ventilation fans: ONLY if generator was included in Step 14 above
+   2 units per generator room (supply + exhaust) — ₱18,000–₱35,000/unit
 c) Kitchen exhaust fan: 1 per kitchen area if shown
    - Rate: ₱8,000–₱15,000/unit
 Include this step for all buildings with toilet facilities.
@@ -447,7 +451,8 @@ OUTPUT RULES:
 - Return ONLY valid JSON. No markdown, no backticks, no text before or after.
 - String values max 90 chars. Be concise everywhere.
 - qtyBasis required for ALL concrete, rebar, CHB, tile, and paint items.
-- NEVER stop early. ALL 18 steps are mandatory. Steps 13–18 (Fire Protection, Generator+ATS, Exhaust Fans, Pumps, Elevator Panel, Indirect Costs) MUST appear in every output for buildings 3 storeys and above.
+- NEVER stop early. ALL 18 steps must be evaluated. However, Steps 13 (Fire Protection) and 14 (Generator) have STRICT SKIP rules above — a 2-storey residential building must have ZERO fire protection and ZERO generator line items unless explicitly shown in plans.
+- Steps 17 (Indirect Costs) and 18 (General Requirements) are always included regardless of building type.
 - To stay within token limits, keep descriptions SHORT (≤60 chars) and omit qtyBasis for non-structural items. Do NOT omit entire categories.
 - SELF-CHECK before closing JSON: confirm lineItems includes at least one entry each for Fire Protection, Generator Set, and Indirect Costs. If any are missing, add them before closing.
 - The summary.notes field must state which of Steps 13–18 were included and why any were omitted.
