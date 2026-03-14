@@ -9,23 +9,258 @@ import { NoKeyBanner } from "../electrical/PlanChecker.jsx";
 
 const BOM_GENERATE_PROMPT = `You are a licensed Civil Engineer and Quantity Surveyor in the Philippines generating a CONTRACTOR-READY Bill of Materials (BOQ) from engineering plans.
 
-PHILIPPINE CONSTRUCTION RATES (2025 NCR — materials only unless stated):
-CONCRETE: f'c=20.7MPa ready-mix ₱5,500-6,500/m3 | f'c=24MPa ₱6,000-7,000/m3
-REBAR: 10mm ₱52-58/kg | 12mm ₱54-60/kg | 16mm ₱56-62/kg | 20mm ₱58-65/kg
-CHB: 4" ₱13-16/pc | 5" ₱16-19/pc | 6" ₱18-22/pc
-CEMENT: ₱270-310/bag | SAND ₱1,200-1,800/m3 | GRAVEL ₱1,500-2,200/m3
-PLASTERING: ₱380-500/m2 (materials+labor) | SKIM COAT ₱80-120/m2
-GYPSUM BOARD 9mm: ₱480-550/sht | METAL FURRING ₱120-160/pc | WALL ANGLE ₱55-70/pc | CARRYING CHANNEL ₱130-160/pc | PVC SPANDREL ₱140-165/pc
-TILES 20x20: ₱280-360/m2 | 30x30 ₱300-400/m2 | 30x60 ₱420-560/m2 | 60x60 ₱500-700/m2
-TILE ADHESIVE: ₱280-320/bag (covers 4m2/bag) | WATERPROOFING ₱800-1,200/m2
-PAINT interior: ₱85-130/m2 | exterior ₱120-180/m2 | ceiling ₱100-140/m2
-ROOFING GA26 long-span: ₱320-420/lm | STEEL TRUSS 2x6: ₱1,100-1,400/pc | C-PURLIN 2x4: ₱420-520/pc | SAG ROD 12mm ₱180-220/pc | BOX GUTTER 16" ₱750-950/pc | FLASHING ₱850-1,100/pc | INSULATION 6mm ₱1,800-2,200/roll
-THHN 2.0mm2: ₱22-28/m | 3.5mm2 ₱38-48/m | 5.5mm2 ₱60-75/m | 14mm2 ₱130-160/m | 38mm2 ₱350-430/m | 60mm2 ₱520-650/m | 125mm2 ₱1,100-1,300/m
-PVC CONDUIT 1/2": ₱55-70/pc(10ft) | JUNCTION BOX 4x4 ₱38-50/pc | UTILITY BOX 2x4 ₱28-38/pc | MCB 30A ₱750-900/pc | MCB 60A ₱1,200-1,500/pc | MCB 200A ₱12,000-14,000/pc
-PPR PIPE 18mm: ₱280-350/6m | 12mm ₱180-220/6m | GATE VALVE ₱750-900/set | CHECK VALVE ₱750-900/set | PPR ACCESSORIES ₱220-280/pc
-PVC PIPE 4": ₱420-520/6m | 3" ₱280-360/6m | 2" ₱180-230/6m | PVC ACCESSORIES 4" ₱110-140/pc | 3" ₱90-120/pc | 2" ₱90-110/pc
-LAVATORY: ₱7,000-10,000/set | WATER CLOSET ₱12,000-18,000/set | KITCHEN SINK ₱6,000-9,000/set | SHOWER ₱6,000-9,000/set | FLOOR DRAIN ₱450-600/pc | ANGLE VALVE ₱320-420/pc | FLEXIBLE PIPE ₱320-400/pc | GREASE TRAP ₱900-1,200/pc
-SCAFFOLDING: ₱280-380/m2 of facade area | GI TIE WIRE ₱1,300-1,600/bundle | COMMON NAIL ₱90-110/kg
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHILIPPINE CONSTRUCTION RATE REFERENCE TABLE
+Rate Source: NCR Private Market (Q1 2026) | DPWH Blue Book 2024 | PSA CMWPI
+Next review: July 2026
+Note: NCR Private = materials + labor all-in unless marked (M) for materials only
+      DPWH = DPWH Blue Book all-in unit cost (labor + materials + equipment)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[A] EARTHWORKS (NCR Private / DPWH)
+Excavation common soil: ₱280-380/m3 / DPWH ₱320/m3
+Excavation hard soil/rock: ₱580-750/m3 / DPWH ₱680/m3
+Backfill & compaction: ₱180-250/m3 / DPWH ₱210/m3
+Gravel bedding 100mm: ₱420-550/m3 / DPWH ₱480/m3
+Soil poisoning (termite): ₱85-120/m2 / DPWH ₱95/m2
+
+[B] CONCRETE — Materials only (M)
+Ready-mix f'c=17.2MPa (2500psi): ₱4,800-5,500/m3 (M) / DPWH ₱5,200/m3 all-in
+Ready-mix f'c=20.7MPa (3000psi): ₱5,500-6,500/m3 (M) / DPWH ₱6,100/m3 all-in
+Ready-mix f'c=24.1MPa (3500psi): ₱6,000-7,000/m3 (M) / DPWH ₱6,700/m3 all-in
+Ready-mix f'c=27.6MPa (4000psi): ₱6,800-7,800/m3 (M) / DPWH ₱7,400/m3 all-in
+Site-mixed concrete (Class A): ₱7,500-9,000/m3 all-in / DPWH ₱8,200/m3 all-in
+Concrete topping 50mm: ₱850-1,100/m2 all-in / DPWH ₱950/m2 all-in
+Cement: ₱270-310/bag (M) | Sand: ₱1,200-1,800/m3 (M) | Gravel: ₱1,500-2,200/m3 (M)
+
+[C] FORMWORKS
+Column forms (plywood+lumber): ₱480-620/m2 / DPWH ₱540/m2
+Beam forms (bottom+sides): ₱420-560/m2 / DPWH ₱490/m2
+Slab forms (shoring+ply): ₱380-500/m2 / DPWH ₱440/m2
+Wall forms (both faces): ₱360-480/m2 / DPWH ₱420/m2
+Steel formwork rental: ₱180-280/m2/month
+
+[D] REBAR — Materials only (M), use 0.00617×dia²×L for weight
+10mmØ deformed bar (Grade 33): ₱52-58/kg (M) / DPWH ₱58/kg all-in
+12mmØ deformed bar (Grade 40): ₱54-60/kg (M) / DPWH ₱62/kg all-in
+16mmØ deformed bar (Grade 40): ₱56-62/kg (M) / DPWH ₱65/kg all-in
+20mmØ deformed bar (Grade 40): ₱58-65/kg (M) / DPWH ₱68/kg all-in
+25mmØ deformed bar (Grade 60): ₱60-68/kg (M) / DPWH ₱72/kg all-in
+32mmØ deformed bar (Grade 60): ₱62-70/kg (M) / DPWH ₱75/kg all-in
+Rebar tying wire (GI #16): ₱1,300-1,600/bundle (M)
+Rebar labor only: ₱12-18/kg
+
+[E] MASONRY & PLASTERING
+CHB 4" (10cm): ₱13-16/pc (M) | laid: ₱380-480/m2 all-in / DPWH ₱420/m2 all-in
+CHB 5" (15cm): ₱16-19/pc (M) | laid: ₱420-520/m2 all-in / DPWH ₱460/m2 all-in
+CHB 6" (20cm): ₱18-22/pc (M) | laid: ₱450-560/m2 all-in / DPWH ₱500/m2 all-in
+Solid concrete blocks: ₱28-35/pc (M)
+Plastering (1 face): ₱220-280/m2 all-in / DPWH ₱250/m2 all-in
+Plastering (both faces): ₱380-500/m2 all-in / DPWH ₱450/m2 all-in
+Skim coat: ₱80-120/m2 all-in / DPWH ₱95/m2 all-in
+Grouting tile joints: ₱45-65/m2 all-in
+
+[F] STRUCTURAL STEEL — Materials only (M)
+Wide flange W150x13: ₱850-980/m (M) | W200x27: ₱1,400-1,650/m (M)
+Angle bar 50x50x5mm: ₱380-460/m (M) | 75x75x6mm: ₱580-680/m (M)
+Tubular 2"x2"x2mm: ₱320-400/m (M) | 3"x3"x3mm: ₱680-800/m (M)
+Flat bar 50x6mm: ₱180-220/m (M) | 100x6mm: ₱350-420/m (M)
+C-channel 150x65mm: ₱680-820/m (M)
+Steel fabrication labor: ₱85-120/kg
+Steel erection labor: ₱45-65/kg
+Structural steel paint (red oxide): ₱180-240/m2 all-in
+
+[G] ROOFING & METAL WORKS
+Long-span GA26 pre-painted: ₱320-420/lm (M) | installed: ₱480-600/lm
+Long-span GA24 pre-painted: ₱420-520/lm (M) | installed: ₱580-700/lm
+Corrugated GI sheet GA26: ₱260-340/lm (M) | installed: ₱380-480/lm
+Steel roof truss (fabricated): ₱2,200-3,200/m2 of roof plan all-in / DPWH ₱2,800/m2
+C-purlin 2"x4"x2mm: ₱420-520/pc 6m (M) | 2"x6"x2mm: ₱580-680/pc 6m (M)
+Sag rod 12mmØ: ₱180-220/pc (M)
+Box gutter GA26 16": ₱750-950/lm all-in
+Ridge roll: ₱380-480/lm all-in
+Flashing: ₱850-1,100/lm all-in
+Insulation (polyiso 50mm): ₱1,800-2,200/roll covers 10m2 (M)
+Fascia board (fiber cement): ₱320-420/lm all-in
+
+[H] CEILING SYSTEM
+Gypsum board 9mm 4'x8': ₱480-550/sheet (M) | installed: ₱620-720/sheet
+Metal furring 19mm: ₱120-160/pc 4m (M)
+Wall angle 25mm: ₱55-70/pc 4m (M)
+Carrying channel: ₱130-160/pc 4m (M)
+PVC spandrel (eaves): ₱140-165/pc 3m (M) | installed: ₱380-480/m2
+Fiber cement board 6mm: ₱420-480/sheet (M)
+Acoustic tile 600x600mm: ₱380-520/m2 installed
+Ceiling labor only: ₱180-260/m2
+
+[I] DOORS & WINDOWS
+Flush door 0.9x2.1m (solid): ₱4,500-6,500/set complete / DPWH ₱5,800/set
+Panel door 0.9x2.1m (mahogany): ₱8,500-12,000/set complete / DPWH ₱10,000/set
+Steel door 0.9x2.1m: ₱9,500-14,000/set complete / DPWH ₱12,000/set
+Hollow metal door 1.2x2.1m: ₱12,000-18,000/set complete
+Aluminum sliding window (anodized): ₱2,800-4,200/m2 complete
+Aluminum casement window: ₱3,200-4,800/m2 complete
+UPVC window: ₱4,500-6,500/m2 complete
+Fixed glass window (tempered 10mm): ₱4,800-7,000/m2 complete
+Aluminum framed glass door: ₱12,000-18,000/set complete
+Fire-rated door (1-hr): ₱22,000-35,000/set complete
+Roller shutter (manual): ₱6,500-9,500/m2 complete
+Door jamb (hardwood): ₱1,800-2,800/set (M)
+Lockset (cylindrical): ₱1,200-2,200/set (M) | mortise: ₱2,800-4,500/set (M)
+Hinges (pair): ₱280-480/pair (M)
+Door closer (hydraulic): ₱1,800-3,200/pc (M)
+
+[J] CARPENTRY & MILLWORK
+Cabinet (modular, low): ₱4,800-7,500/lm all-in / high: ₱5,500-8,500/lm all-in
+Kitchen counter (granite): ₱4,500-7,000/lm all-in (M only)
+Kitchen counter (tiles): ₱2,800-4,200/lm all-in
+Built-in wardrobe: ₱6,500-10,000/lm all-in
+Wall paneling (PVC): ₱580-780/m2 all-in | wood: ₱1,800-3,200/m2 all-in
+Shelving (particle board): ₱2,200-3,500/lm all-in
+Stair (RC finished): ₱28,000-45,000/flight all-in
+Stair railing (tubular): ₱3,200-4,800/lm all-in | SS: ₱8,500-14,000/lm all-in
+
+[K] FLOORING & WATERPROOFING
+Tiles 20x20cm: ₱280-360/m2 (M) | installed: ₱580-720/m2
+Tiles 30x30cm: ₱300-400/m2 (M) | installed: ₱620-780/m2
+Tiles 30x60cm: ₱420-560/m2 (M) | installed: ₱720-900/m2
+Tiles 60x60cm: ₱500-700/m2 (M) | installed: ₱820-1,050/m2
+Tile adhesive (25kg bag): ₱280-320/bag covers 4m2 (M)
+Grout (2kg bag): ₱85-110/bag covers 8m2 (M)
+Hardwood flooring (narra): ₱2,800-4,200/m2 all-in
+Vinyl plank flooring: ₱850-1,400/m2 all-in
+Epoxy floor coating: ₱480-720/m2 all-in
+Waterproofing (cementitious): ₱380-520/m2 all-in / DPWH ₱450/m2 all-in
+Waterproofing (membrane torch-applied): ₱800-1,200/m2 all-in / DPWH ₱950/m2 all-in
+Waterproofing (crystalline): ₱650-900/m2 all-in
+
+[L] PAINTING & COATINGS
+Interior paint (2 coats): ₱85-130/m2 all-in / DPWH ₱110/m2 all-in
+Exterior paint (2 coats weathershield): ₱120-180/m2 all-in / DPWH ₱155/m2 all-in
+Ceiling paint (2 coats): ₱100-140/m2 all-in / DPWH ₱120/m2 all-in
+Enamel paint (trim/doors): ₱180-240/m2 all-in
+Epoxy paint (floor/wet areas): ₱320-480/m2 all-in
+Paint labor only: ₱45-65/m2
+
+[M] ELECTRICAL — Materials only (M) unless stated
+THHN wire 2.0mm²: ₱22-28/m (M) | 3.5mm²: ₱38-48/m | 5.5mm²: ₱60-75/m
+THHN wire 8mm²: ₱95-115/m | 14mm²: ₱130-160/m | 22mm²: ₱200-250/m
+THHN wire 38mm²: ₱350-430/m | 60mm²: ₱520-650/m | 100mm²: ₱850-1,050/m | 125mm²: ₱1,100-1,300/m
+PVC conduit 1/2" (RSC): ₱55-70/pc 10ft | 3/4": ₱75-95/pc | 1": ₱100-130/pc
+PVC conduit fittings (elbow/coupling): ₱28-45/pc
+Junction box 4"x4": ₱38-50/pc | Utility box 2"x4": ₱28-38/pc
+MCB 1P 15-30A: ₱750-900/pc | 2P 30A: ₱1,200-1,500/pc
+MCB 2P 60A: ₱2,200-2,800/pc | MCB 3P 100A: ₱4,500-5,500/pc
+MCCB 100A: ₱5,500-7,000/pc | 200A: ₱12,000-14,000/pc | 400A: ₱22,000-28,000/pc
+Panelboard (18-branch): ₱8,500-11,000/pc | 24-branch: ₱11,000-14,000/pc
+Convenience outlet (duplex): ₱280-380/pc (M) | installed: ₱680-850/pc
+Switch 1-gang: ₱180-250/pc (M) | 2-gang: ₱280-380/pc | 3-way: ₱380-480/pc
+Downlight 6W LED: ₱380-520/pc (M) | installed: ₱680-850/pc
+Fluorescent 2x36W: ₱850-1,200/set installed
+ACU outlet (dedicated): ₱850-1,200/set installed
+Exhaust fan (ceiling): ₱1,800-2,800/pc installed
+Service entrance labor: ₱180,000-220,000/unit lot
+
+[N] PLUMBING — Materials only (M) unless stated
+PPR pipe 1/2" (12mm): ₱180-220/6m (M) | 3/4" (18mm): ₱280-350/6m
+PPR pipe 1" (25mm): ₱420-520/6m (M) | 1.5" (40mm): ₱680-820/6m
+PPR fittings (elbow/tee/coupling): ₱90-160/pc (M)
+Gate valve 1/2": ₱750-900/set | 3/4": ₱950-1,200/set | 1": ₱1,200-1,500/set
+Check valve: ₱750-900/set | Float valve: ₱380-520/pc
+PVC pipe 4" (sewer): ₱420-520/6m (M) | 3": ₱280-360/6m | 2": ₱180-230/6m
+PVC pipe fittings 4": ₱110-140/pc | 3": ₱90-120/pc | 2": ₱90-110/pc
+G.I. pipe 1/2": ₱380-460/6m (M) | 3/4": ₱520-640/6m
+Water closet (standard): ₱12,000-18,000/set complete / DPWH ₱15,000/set
+Lavatory (wall hung): ₱7,000-10,000/set complete / DPWH ₱8,500/set
+Kitchen sink (SS single): ₱6,000-9,000/set complete
+Shower (standard): ₱6,000-9,000/set complete
+Bathtub (acrylic): ₱18,000-28,000/set complete
+Floor drain (chrome): ₱450-600/pc | Roof drain: ₱850-1,200/pc
+Angle valve: ₱320-420/pc | Flexible hose: ₱320-400/pc
+Faucet (lavatory): ₱1,200-2,800/pc | Shower mixer: ₱2,500-6,500/pc
+Water heater (instant electric): ₱4,500-7,500/pc installed
+Grease trap (300x600mm): ₱900-1,200/pc | Septic vault: ₱45,000-80,000/unit all-in
+Catch basin: ₱3,500-5,500/pc all-in
+
+[O] HVAC & AIR CONDITIONING
+Split-type ACU 1HP: ₱28,000-38,000/set installed | 1.5HP: ₱35,000-48,000/set
+Split-type ACU 2HP: ₱45,000-62,000/set installed | 2.5HP: ₱55,000-75,000/set
+Cassette-type ACU 2HP: ₱65,000-90,000/set installed | 3HP: ₱85,000-120,000/set
+Window-type ACU 1HP: ₱18,000-25,000/set installed
+Inverter split-type 1HP premium: ₱42,000-58,000/set installed
+ACU lineset (per meter): ₱850-1,200/m installed
+ACU drain line: ₱280-420/m installed
+Exhaust fan wall 12": ₱3,800-5,500/pc installed | 18": ₱6,500-9,500/pc
+
+[P] FIRE PROTECTION (RA 9514 — 3 storeys and above)
+Wet pipe sprinkler system: ₱1,200-2,000/m2 all-in (pipes + heads + valves)
+Sprinkler head (pendant): ₱1,200-1,800/pc installed
+BI seamless pipe 25mm: ₱480-620/m (M) | 50mm: ₱850-1,100/m
+Alarm valve assembly: ₱85,000-120,000/set
+Fire pump set (40HP): ₱550,000-850,000/set | 60HP: ₱750,000-1,100,000/set
+Jockey pump: ₱85,000-130,000/unit
+Fire hose cabinet with reel: ₱35,000-65,000/unit installed
+Fire extinguisher 10lbs dry chem: ₱3,500-6,000/pc
+Fire detection & alarm system: ₱450-850/m2 all-in (detectors + panel + wiring)
+Heat/smoke detector: ₱2,800-4,500/pc installed
+Fire alarm pull station: ₱3,500-5,500/pc installed
+FDAS control panel: ₱85,000-150,000/set
+
+[Q] GENERATOR & EMERGENCY POWER
+Genset 25KVA: ₱320,000-480,000/set | 50KVA: ₱520,000-750,000/set
+Genset 100KVA: ₱850,000-1,200,000/set | 200KVA: ₱1,400,000-1,900,000/set
+Genset 400KVA: ₱2,200,000-3,200,000/set | 500KVA: ₱2,800,000-3,800,000/set
+ATS 100A: ₱45,000-65,000/set | 200A: ₱85,000-120,000/set | 400A: ₱150,000-220,000/set
+Transfer switch wiring: ₱35,000-65,000/lot
+Genset concrete pad: ₱18,000-28,000/lot
+Day tank (200L): ₱28,000-42,000/set installed
+
+[R] ELEVATORS & VERTICAL TRANSPORT
+Passenger elevator 630kg 4-stop: ₱3,500,000-5,500,000/unit installed
+Passenger elevator 800kg 6-stop: ₱4,500,000-7,000,000/unit installed
+Service/freight elevator 1000kg: ₱5,000,000-8,000,000/unit installed
+Escalator (3.5m rise): ₱4,500,000-7,500,000/unit installed
+Elevator machine room works: ₱250,000-450,000/lot
+Elevator pit works: ₱180,000-320,000/lot
+
+[S] LABOR RATES (NCR — per day, 8 hours)
+Project foreman: ₱1,100-1,400/day | General foreman: ₱1,400-1,800/day
+Mason (licensed): ₱700-900/day / DPWH ₱800/day
+Carpenter: ₱700-900/day / DPWH ₱800/day
+Steel man (rebar): ₱700-850/day / DPWH ₱780/day
+Electrician (licensed): ₱900-1,100/day / DPWH ₱1,000/day
+Plumber (licensed): ₱850-1,050/day / DPWH ₱950/day
+Painter: ₱620-800/day / DPWH ₱700/day
+Laborer (unskilled): ₱500-620/day / DPWH ₱570/day
+Equipment operator: ₱950-1,200/day / DPWH ₱1,050/day
+
+[T] EQUIPMENT & MISC
+Scaffolding (facade): ₱280-380/m2 of facade area all-in
+Backhoe rental: ₱3,500-5,000/hour | Dump truck: ₱2,800-4,000/trip
+Concrete vibrator rental: ₱850-1,200/day | Plate compactor: ₱750-1,000/day
+Concrete mixer (1 bagger): ₱650-850/day | Transit mixer delivery: ₱1,200-1,800/m3
+Tower crane: ₱180,000-280,000/month | Mobile crane 50T: ₱28,000-42,000/day
+GI tie wire: ₱1,300-1,600/bundle | Common wire nail: ₱90-110/kg
+Concrete nails: ₱180-220/kg | Plywood 1/4" 4x8: ₱480-560/sheet
+Plywood 1/2" 4x8: ₱680-780/sheet | Coco lumber 2x3: ₱75-95/pc 10ft
+Goodluck lumber 2x4: ₱95-120/pc 10ft | Hardwood 2x6: ₱280-360/pc 10ft
+
+[U] DPWH BLUE BOOK 2024 — ALL-IN UNIT COSTS (labor + materials + equipment)
+Source: DPWH Standard Specifications for Public Works & Highways Vol. II, 2024 edition
+Use these for government projects and DPWH-funded works:
+Concrete Class A (f'c=20.7MPa): ₱6,100/m3 | Class B (f'c=17.2MPa): ₱5,200/m3
+Reinforced concrete (installed): ₱8,500-12,000/m3 (concrete + rebar + forms)
+Rebar supply & install Grade 40: ₱65/kg | Grade 60: ₱72/kg
+Masonry CHB 4" laid: ₱420/m2 | CHB 6" laid: ₱500/m2
+Plastering (1 face): ₱250/m2 | Both faces: ₱450/m2
+Waterproofing (cementitious): ₱450/m2 | Membrane: ₱950/m2
+Painting (2 coats): ₱110/m2 interior | ₱155/m2 exterior
+Structural steel (fabricated+installed): ₱180/kg
+Formworks (ply+lumber): ₱490/m2 slab | ₱540/m2 column | ₱490/m2 beam
+Steel roof truss: ₱2,800/m2 of roof plan
+Electrical rough-in (conduit+wire): ₱850-1,200/m2 of floor area
+Plumbing rough-in: ₱650-950/m2 of floor area
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 MANDATORY TAKEOFF STEPS — follow every one:
 
@@ -267,10 +502,33 @@ const BOM_SYSTEM_PROMPT = `You are a licensed Civil Engineer and Quantity Survey
 - DPWH Blue Book 2024 (Standard Specifications for Public Works and Highways)
 - DPWH Cost Estimates Guidelines (latest edition)
 - PhilGEPS and DPWH Unit Cost Reference (2024-2025)
-- Philippine Construction Cost Guide (Construction Industry Authority of the Philippines — CIAP)
-- PSA (Philippine Statistics Authority) construction cost indices
-- Current NCR labor rates: mason ₱700-900/day, carpenter ₱700-900/day, electrician ₱900-1100/day
-- Current NCR material benchmarks (2025): Ready-mix concrete ₱5,500-7,000/m³, steel rebar ₱55-65/kg, CHB ₱18-22/pc, cement ₱270-310/bag, sand ₱1,200-1,800/m³, gravel ₱1,500-2,200/m³
+- Philippine Construction Cost Guide (CIAP)
+- PSA (Philippine Statistics Authority) CMWPI construction cost indices
+- Rate reference: Q1 2026 NCR market | DPWH Blue Book 2024 all-in unit costs
+
+NCR PRIVATE MARKET BENCHMARKS (Q1 2026 — materials only unless stated):
+Concrete f'c=20.7MPa ready-mix: ₱5,500-6,500/m3 | f'c=24MPa: ₱6,000-7,000/m3
+Rebar 10mm: ₱52-58/kg | 12mm: ₱54-60/kg | 16mm: ₱56-62/kg | 20mm: ₱58-65/kg
+CHB 4": ₱13-16/pc | CHB 6": ₱18-22/pc | Cement: ₱270-310/bag
+Sand: ₱1,200-1,800/m3 | Gravel: ₱1,500-2,200/m3
+Formworks: ₱380-540/m2 | Plastering (both faces): ₱380-500/m2
+Tiles 60x60: ₱500-700/m2 materials | installed: ₱820-1,050/m2
+Paint interior: ₱85-130/m2 | exterior: ₱120-180/m2
+Doors (flush): ₱4,500-6,500/set | Windows (aluminum): ₱2,800-4,200/m2
+Split ACU 1HP: ₱28,000-38,000/set installed | 2HP: ₱45,000-62,000/set
+Labor — mason: ₱700-900/day | carpenter: ₱700-900/day | electrician: ₱900-1,100/day | laborer: ₱500-620/day
+
+DPWH BLUE BOOK 2024 ALL-IN BENCHMARKS (for government/DPWH-funded projects):
+Concrete Class A all-in: ₱6,100/m3 | Class B: ₱5,200/m3
+Rebar Grade 40 supply+install: ₱65/kg | Grade 60: ₱72/kg
+Masonry CHB 4" all-in: ₱420/m2 | CHB 6": ₱500/m2
+Plastering 1 face: ₱250/m2 | both faces: ₱450/m2
+Formworks slab: ₱440/m2 | column: ₱540/m2 | beam: ₱490/m2
+Structural steel fabricated+installed: ₱180/kg
+Painting 2 coats interior: ₱110/m2 | exterior: ₱155/m2
+Waterproofing cementitious: ₱450/m2 | membrane: ₱950/m2
+Electrical rough-in: ₱850-1,200/m2 of floor area
+Plumbing rough-in: ₱650-950/m2 of floor area
 
 REVIEW PROCESS — follow ALL steps before writing output:
 1. Read the plans completely. Note structure type, floor area, number of storeys, all dimensions.
@@ -319,7 +577,7 @@ Respond ONLY as valid JSON (no markdown, no backticks, no preamble):
     {
       "id": 1,
       "description": "exact item description from BOM",
-      "trade": "Concrete|Rebar|Formworks|Masonry|Finishes|Doors & Windows|Electrical|Plumbing|Roofing|Earthworks|Others",
+      "trade": "Concrete|Rebar|Formworks|Masonry|Structural Steel|Roofing|Ceiling|Doors & Windows|Carpentry & Millwork|Flooring|Painting|Electrical|Plumbing|HVAC|Fire Protection|Generator|Elevator|Earthworks|Indirect Costs|Others",
       "unit": "string",
       "qtyBom": 0,
       "qtyPlans": 0,
