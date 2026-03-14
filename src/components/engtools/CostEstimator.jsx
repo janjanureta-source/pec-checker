@@ -440,7 +440,7 @@ function CostEstimator({ apiKey }) {
     { v:"new",        l:"🏗️ New Construction" },
     { v:"renovation", l:"🔧 Renovation / Remodel" },
     { v:"addition",   l:"➕ Addition / Extension" },
-    { v:"fitout",     l:"🪑 Fit-out / Interior" },
+    { v:"fitout",     l:"🪑 Fit-out / Interior Only" },
     { v:"adhoc",      l:"📝 Ad-hoc / Custom Scope" },
   ];
   const PROJECT_TYPES = [
@@ -560,13 +560,114 @@ ${gfaOverride
   ? `- USER-PROVIDED GFA: ${gfaOverride} sqm — USE THIS EXACT VALUE. Do not estimate differently from plans.`
   : `- GFA NOT PROVIDED — measure from plan dimensions or estimate from grid layout. Report your measurement method in estimationBasis.`}
 
-${(scopeMode==="renovation"||scopeMode==="fitout") ? `RENOVATION SCOPE LEVEL: ${renov}
-- Light: estimate paint, flooring, fixtures ONLY — no structural, no MEP replacement
-- Moderate: include partitions, MEP rough-in, panel upgrade, kitchen/bath remodel
-- Heavy/Gut: include full demolition (₱850–₱1,800/sqm), structural mods, complete MEP` : ""}
+${scopeMode==="renovation" ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCOPE: RENOVATION / REMODEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Renovation Level: ${renov}
 
-${scopeMode==="adhoc" && adhocItems ? `AD-HOC CUSTOM SCOPE ITEMS (estimate ONLY these items):
-${adhocItems}` : ""}
+WHAT TO INCLUDE vs EXCLUDE:
+- EXCLUDE: site work, new foundations, structural frame (unless Heavy scope)
+- INCLUDE: works being modified or replaced in the existing structure
+
+LIGHT RENOVATION — finishes only:
+  • Paint all surfaces (₱85–180/m2)
+  • Replace floor tiles or vinyl flooring
+  • Replace fixtures (plumbing fixtures, light fixtures)
+  • No structural work, no MEP rough-in replacement
+  • Typical cost: ₱2,500–₱5,000/sqm
+
+MODERATE RENOVATION — partial systems:
+  • All Light items PLUS:
+  • New or relocated partitions (CHB or metal stud)
+  • Partial MEP: panel upgrade, additional outlets, fixture relocations
+  • Kitchen/bath remodel (cabinets, counters, tiles, new fixtures)
+  • Ceiling replacement (gypsum board or painted)
+  • Typical cost: ₱5,000–₱12,000/sqm
+
+HEAVY / GUT RENOVATION — full strip and rebuild:
+  • Full demolition of finishes and non-structural elements: ₱850–₱1,800/sqm
+  • Complete MEP replacement (wiring, pipes, drains)
+  • Structural repairs or modifications if needed
+  • All new finishes, doors, windows, fixtures
+  • Typical cost: ₱12,000–₱22,000/sqm
+
+DEMOLITION RATES (include for Moderate and Heavy):
+  - Strip tiles/flooring: ₱180–₱280/m2
+  - Remove partitions CHB: ₱320–₱480/m2
+  - Remove ceiling: ₱120–₱200/m2
+  - Full interior gut: ₱850–₱1,800/sqm of renovated area
+  - Hauling & disposal: ₱3,500–₱5,500/trip (10m3 truck)` : ""}
+
+${scopeMode==="fitout" ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCOPE: FIT-OUT / INTERIOR ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fit-out Level: ${renov}
+
+STRICT RULE — EXCLUDE ALL OF THESE (already built by developer/landlord):
+  ✗ No site work, no earthworks
+  ✗ No foundation, no structural frame, no roof
+  ✗ No main electrical panel or service entrance (assume existing)
+  ✗ No main plumbing risers (assume existing)
+  ✗ No exterior works (facade, windows already installed)
+
+INCLUDE ONLY INTERIOR FIT-OUT WORKS:
+  ✓ Interior partitions (metal stud + gypsum board or CHB)
+  ✓ Ceiling system (gypsum board, mineral fiber, exposed)
+  ✓ Floor finishes (tiles, vinyl, carpet, epoxy)
+  ✓ Interior doors (flush doors, glass partitions)
+  ✓ Interior painting and skim coat
+  ✓ Branch circuit wiring + outlets + switches (from existing panel)
+  ✓ Plumbing rough-in for T&B and pantry only (tap to existing riser)
+  ✓ HVAC/ACU installation (split-type units + linesets)
+  ✓ Lighting fixtures
+  ✓ Built-in cabinets, counters, millwork
+  ✓ Signage and branding (if commercial)
+  ✓ IT/data cabling (if office)
+
+LIGHT FIT-OUT: paint + flooring + basic fixtures only → ₱4,500–₱8,000/sqm
+STANDARD FIT-OUT: partitions + ceiling + full MEP branch + fixtures → ₱8,000–₱16,000/sqm
+PREMIUM FIT-OUT: imported materials + custom millwork + full HVAC → ₱16,000–₱35,000/sqm` : ""}
+
+${scopeMode==="addition" ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCOPE: ADDITION / EXTENSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT THIS SCOPE MEANS:
+  New construction added to an EXISTING building — new floor, new wing, new room, or vertical extension.
+
+INCLUDE (new works only):
+  ✓ New foundation for addition (if horizontal extension)
+  ✓ New structural frame, roof for added area
+  ✓ All finishes for new area
+  ✓ MEP extension: new circuits tapped from existing panel, new pipes tapped from existing risers
+  ✓ TIE-IN / INTERFACE COSTS (critical — always include):
+      - Opening existing wall/slab for structural connection: ₱8,500–₱15,000/opening
+      - Patching and repairing disturbed existing finishes: ₱1,200–₱2,500/m2
+      - MEP tie-in to existing panel/risers: ₱15,000–₱35,000/lot
+      - Waterproofing new-to-old joint: ₱1,800–₱3,200/lm
+
+EXCLUDE (existing building — already built):
+  ✗ Foundation of existing building
+  ✗ Structure of existing building
+  ✗ Existing MEP systems (unless upgrade required)
+  ✗ Existing finishes (unless damaged by tie-in work)
+
+RATE GUIDANCE:
+  - Estimate new area at full new-construction rates per sqm
+  - Add tie-in costs as a separate line item under "Addition Interface Works"
+  - Add contingency of 10–15% for unknown existing conditions (flag in marketWarnings)` : ""}
+
+${scopeMode==="adhoc" && adhocItems ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCOPE: AD-HOC / CUSTOM SCOPE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ESTIMATE ONLY THESE SPECIFIC ITEMS (do not add other trades):
+${adhocItems}
+
+For each item: use unit rates from the reference table. Show qty, unit, rate range, total range.
+If item is not in the reference table, use best available market data and flag confidence as LOW.` : ""}
 
 ${specialNotes ? `SPECIAL NOTES FROM ENGINEER:
 ${specialNotes}` : ""}
@@ -1141,7 +1242,7 @@ const exportDocument = () => {
         {/* Renovation level (conditional) */}
         {(scopeMode==="renovation"||scopeMode==="fitout") && (
           <div style={{marginBottom:14,background:"rgba(245,158,11,0.05)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10,padding:14}}>
-            <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:8,textTransform:"uppercase"}}>Renovation Extent</div>
+            <div style={{fontSize:10,fontWeight:700,color:GOLD,marginBottom:8,textTransform:"uppercase"}}>{scopeMode==="fitout" ? "Fit-out Level" : "Renovation Extent"}</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {RENOV_LEVELS.map(o=>(
                 <button key={o.v} onClick={()=>setRenovScope(o.v)} style={{flex:1,minWidth:140,padding:"10px 12px",borderRadius:9,border:`1.5px solid ${renovScope===o.v?GOLD:T.border}`,background:renovScope===o.v?"rgba(245,158,11,0.12)":"transparent",color:renovScope===o.v?GOLD:T.muted,cursor:"pointer",transition:"all 0.15s",textAlign:"left"}}>
@@ -1154,6 +1255,17 @@ const exportDocument = () => {
         )}
 
         {/* Ad-hoc custom scope */}
+        {scopeMode==="addition" && (
+          <div style={{marginBottom:14,background:"rgba(6,150,215,0.05)",border:"1px solid rgba(6,150,215,0.2)",borderRadius:10,padding:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#0696d7",marginBottom:6,textTransform:"uppercase"}}>Addition Scope Notes</div>
+            <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
+              Estimate covers <strong style={{color:T.text}}>new construction only</strong> — existing building structure is excluded. 
+              Tie-in and interface costs will be added automatically. 
+              Upload plans showing both existing building and the proposed addition for best accuracy.
+            </div>
+          </div>
+        )}
+
         {scopeMode==="adhoc" && (
           <div style={{marginBottom:14,background:"rgba(99,102,241,0.05)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:14}}>
             <div style={{fontSize:10,fontWeight:700,color:"#6366f1",marginBottom:6,textTransform:"uppercase"}}>Custom Scope Description</div>
