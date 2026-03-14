@@ -106,10 +106,41 @@ SITE WORKS:
 - Earthfill and compaction (per cu.m):                    ₱550–₱950/cu.m
 - Perimeter fence, CHB 1.8m (per lm):                     ₱4,500–₱7,500/lm
 - Perimeter fence, precast concrete (per lm):             ₱8,500–₱14,000/lm
+- Fence — steel tubular decorative (per lm):              ₱3,500–₱5,500/lm
+- Driveway gate — sliding steel (per unit):               ₱28,000–₱55,000/unit
+- Pedestrian gate — steel (per unit):                     ₱8,500–₱15,000/unit
 - Concrete paving, 150mm (per sqm):                       ₱1,100–₱1,800/sqm
+- Decorative concrete pavers (per sqm):                   ₱1,200–₱2,200/sqm
 - Asphalt paving, 50mm (per sqm):                         ₱850–₱1,400/sqm
-- Landscaping, basic (per sqm):                           ₱350–₱750/sqm
+- Gravel / pea gravel ground cover (per sqm):             ₱280–₱480/sqm
+- Retaining wall CHB (per sqm):                           ₱2,800–₱4,500/sqm
+- Retaining wall concrete (per sqm):                      ₱4,500–₱7,500/sqm
+- Carport — steel frame + GA26 roofing (per sqm):         ₱3,800–₱5,500/sqm
 - Drainage canal (per lm):                                ₱2,500–₱4,500/lm
+
+LANDSCAPING & OUTDOOR FEATURES:
+- Topsoil supply and spread 150mm (per sqm):              ₱380–₱580/sqm
+- Grass sodding (per sqm):                                ₱180–₱320/sqm
+- Seeding / hydro-seeding (per sqm):                      ₱85–₱180/sqm
+- Ornamental plants small — groundcover/shrubs (per pc):  ₱280–₱580/pc
+- Ornamental plants medium — accent plants (per pc):      ₱580–₱1,800/pc
+- Ornamental trees mature installed (per pc):             ₱3,500–₱8,500/pc
+- Planting soil mix / garden soil (per 40L bag):          ₱180–₱280/bag
+- Garden edging concrete/steel border (per lm):           ₱320–₱580/lm
+- Drip irrigation system (per sqm):                       ₱380–₱580/sqm
+- Sprinkler irrigation system (per sqm):                  ₱580–₱950/sqm
+- Garden outdoor landscape lamp installed (per pc):       ₱3,500–₱6,500/pc
+- Garden pathway bollard lighting installed (per pc):     ₱4,500–₱8,500/pc
+- Pergola / gazebo timber (per sqm floor area):           ₱8,500–₱15,000/sqm
+- Pergola steel frame (per sqm floor area):               ₱6,500–₱11,000/sqm
+- Garden water feature / fountain small (per unit):       ₱35,000–₱85,000/unit
+- Outdoor BBQ / grill area concrete + tiles (per unit):   ₱28,000–₱65,000/unit
+- Concrete garden bench precast (per pc):                 ₱3,500–₱6,500/pc
+- Mailbox concrete/metal installed (per pc):              ₱3,500–₱6,500/pc
+- Swimming pool concrete lap pool (per sqm of pool):      ₱85,000–₱150,000/sqm
+- Swimming pool fiberglass complete (per unit):           ₱350,000–₱650,000/unit
+- Pool equipment room pump + filter + chlorinator (lot):  ₱85,000–₱150,000/lot
+- Koi pond / water garden small (per unit):               ₱45,000–₱120,000/unit
 
 GOVERNMENT / DPWH-SPECIFIC ITEMS:
 - Anti-corrosion paint on rebar (per sqm of structure):   ₱120–₱220/sqm
@@ -293,8 +324,9 @@ Return this exact JSON structure:
     "hasGenerator": false,
     "hasFireProtection": false,
     "specialFeatures": ["list any visible special features from plans"],
-    "scopeIncluded": ["detailed list of all scope items included"],
-    "scopeExcluded": ["list of items explicitly excluded — be specific"],
+    "scopeIncluded": ["detailed list of all scope items included — list each major trade"],
+    "scopeExcluded": ["IMPORTANT: list ALL items excluded, especially those excluded via Special Notes — e.g. 'MEP works excluded per engineer note', 'Owner-supply tiles not costed', 'Fire protection excluded — 2-storey residential'"],
+    "specialNotesApplied": "Describe exactly how the special notes were applied — what was added, excluded, or modified. If no special notes, write 'None'.",
     "estimationBasis": "string — describe exactly how quantities were derived from plans",
     "planQuality": "Complete|Design-Development|Schematic",
     "planQualityNote": "string — what was and wasn't visible in the plans"
@@ -694,6 +726,8 @@ ${supplierPrices}
 For affected trades: use these prices for rateLow/rateHigh. Note in trade notes: "Rate from canvassed supplier price."`:""}
 
 CRITICAL INSTRUCTIONS:
+0. SPECIAL NOTES OVERRIDE: If special notes exclude a trade (e.g. "exclude MEP", "owner supply tiles"), set that trade's totalLow, totalHigh, qty to zero. If special notes add a scope item not in the plans, add it as a trade line item. Special notes always win over standard trade assumptions.
+   CONFIRMATION REQUIRED: Always populate project.specialNotesApplied with a plain-English summary of exactly what was included or excluded based on special notes. This is how the engineer verifies their instructions were followed.
 1. Read ALL uploaded plan pages. Extract every structural member, fixture, special feature.
 2. Apply ×${locData.mod} location modifier to every trade rate.
 3. Apply soil condition impact to foundation costs per above.
@@ -1268,11 +1302,19 @@ const exportDocument = () => {
 
         {scopeMode==="adhoc" && (
           <div style={{marginBottom:14,background:"rgba(99,102,241,0.05)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:14}}>
-            <div style={{fontSize:10,fontWeight:700,color:"#6366f1",marginBottom:6,textTransform:"uppercase"}}>Custom Scope Description</div>
+            <div style={{fontSize:10,fontWeight:700,color:"#6366f1",marginBottom:6,textTransform:"uppercase"}}>📝 List Items to Estimate</div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:10,lineHeight:1.6}}>
+              Use this mode for <strong style={{color:T.text}}>items not shown on the plans</strong> — client requests, added features, or standalone works.
+              List each item on a new line with as much detail as you know (area, quantity, material spec).
+              AI estimates only what you list — nothing extra added.
+            </div>
             <textarea value={adhocItems} onChange={e=>setAdhocItems(e.target.value)}
-              placeholder={"Describe the specific works to be estimated. Examples:\n- Replace all windows (12 units, analok frame)\n- Install new 150A electrical panel + rewire 2nd floor\n- Construct perimeter fence 45 linear meters\n- Install ceramic tiles living/dining area ~80 sqm"}
-              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:100,lineHeight:1.6,fontFamily:"inherit"}}
+              placeholder={"List each item on a new line. Be as specific as possible:\n\nExample — Garden & Landscaping:\n- Garden area 150 sqm, open lot beside house\n- Concrete garden paths 45 sqm, 100mm thick\n- Planted areas with topsoil 80 sqm\n- Ornamental plants and shrubs (estimate 25 pcs)\n- Drip irrigation system 80 sqm\n- Garden perimeter fence CHB 1.8m, 35 linear meters\n- Outdoor garden lights 6 pcs\n\nExample — Additional Works:\n- Swimming pool 5m x 3m concrete\n- Perimeter fence extension 20 linear meters\n- Additional bedroom 25 sqm ground floor\n- Carport steel frame + roofing 24 sqm"}
+              style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",color:T.text,fontSize:12,outline:"none",resize:"vertical",minHeight:160,lineHeight:1.6,fontFamily:"inherit"}}
               onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor=T.border}/>
+            <div style={{fontSize:10,color:"#6366f1",marginTop:8,lineHeight:1.5}}>
+              💡 <strong>Tip:</strong> No plans needed for Ad-hoc mode — just describe the work. For best accuracy include dimensions and material specs.
+            </div>
           </div>
         )}
 
@@ -1322,7 +1364,12 @@ const exportDocument = () => {
         <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,marginBottom:14,alignItems:"start"}}>
           <div>
             <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:5,textTransform:"uppercase"}}>Special Notes / Scope Clarifications</div>
-            <input value={specialNotes} onChange={e=>setSpecialNotes(e.target.value)} placeholder="e.g. Exclude MEP works · Ground floor only · Existing slab to remain"
+            <div style={{fontSize:10,color:T.muted,marginBottom:5,lineHeight:1.5}}>For items <em>not on the plans</em> (garden, pool, extra room) — use <strong style={{color:GOLD}}>Ad-hoc mode</strong> instead. Special notes are for clarifying what is already in the plans.</div>
+            <div style={{fontSize:10,color:T.muted,marginBottom:5,lineHeight:1.5}}>
+              For items <em>not on the plans</em> (garden, pool, extra room), use <strong style={{color:GOLD}}>Ad-hoc mode</strong> instead.
+              Special notes are for clarifying what's already in the plans.
+            </div>
+            <input value={specialNotes} onChange={e=>setSpecialNotes(e.target.value)} placeholder="Real-world examples:\nExclude MEP — client handling separately\nOwner supply all tiles — do not cost finishes\nGround floor only, 2nd floor excluded\nExisting slab to remain, no demolition\nExclude fire protection, 2-storey residential\nAll labor owner-managed, materials only\nInclude 10% contingency for unknown site conditions"
               style={{width:"100%",background:"#0f1117",border:`1.5px solid ${T.border}`,borderRadius:9,padding:"8px 12px",color:T.text,fontSize:12,outline:"none"}}
               onFocus={e=>e.target.style.borderColor=GOLD} onBlur={e=>e.target.style.borderColor=T.border}/>
           </div>
@@ -1458,6 +1505,12 @@ const exportDocument = () => {
                 <div style={{fontSize:11,color:T.muted,marginTop:2}}>{project.type} · {project.subtype} · {project.finishLevel} Finish</div>
                 <div style={{fontSize:11,color:T.muted,marginTop:1}}>{project.location} · {fmtN(project.estimatedGFA)} sqm · {project.floors} floor{project.floors>1?"s":""}</div>
                 <div style={{fontSize:11,color:T.muted,marginTop:8,lineHeight:1.6,background:T.dim,borderRadius:8,padding:"8px 12px"}}>{project.scopeSummary}</div>
+                {project.specialNotesApplied && project.specialNotesApplied !== "None" && (
+                  <div style={{marginTop:8,padding:"8px 12px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:8}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>📋 Special Notes Applied</div>
+                    <div style={{fontSize:11,color:T.text,lineHeight:1.6}}>{project.specialNotesApplied}</div>
+                  </div>
+                )}
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:240}}>
                 <div style={{background:`rgba(245,158,11,0.12)`,border:"1.5px solid rgba(245,158,11,0.35)",borderRadius:12,padding:"16px",textAlign:"center"}}>
